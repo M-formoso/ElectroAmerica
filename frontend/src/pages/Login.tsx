@@ -57,10 +57,13 @@ export function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 w-16 h-16 bg-electroamerica-red rounded-2xl flex items-center justify-center">
-            <span className="text-white font-bold text-2xl">EA</span>
+          <div className="mx-auto mb-4">
+            <img
+              src="/logo.jpg"
+              alt="Electro América"
+              className="h-20 w-auto mx-auto"
+            />
           </div>
-          <CardTitle className="text-2xl">Electro América</CardTitle>
           <CardDescription>
             Sistema de Gestión de Obras
           </CardDescription>
