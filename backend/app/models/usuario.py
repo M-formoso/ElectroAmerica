@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Enum, DateTime
+from sqlalchemy import Column, String, Enum
 from sqlalchemy.orm import relationship
 from app.db.base_class import Base, BaseModel
 import enum
@@ -17,12 +17,11 @@ class Usuario(Base, BaseModel):
     __tablename__ = "usuarios"
 
     email = Column(String(255), unique=True, nullable=False, index=True)
-    password_hash = Column(String(255), nullable=False)
+    hashed_password = Column(String(255), nullable=False)
     nombre = Column(String(100), nullable=False)
     apellido = Column(String(100), nullable=True)
     telefono = Column(String(20), nullable=True)
     rol = Column(Enum(RolUsuario), nullable=False, default=RolUsuario.operario)
-    ultimo_acceso = Column(DateTime(timezone=True), nullable=True)
 
     # Relaciones
     proyectos_creados = relationship(

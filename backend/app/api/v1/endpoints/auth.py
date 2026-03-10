@@ -89,13 +89,13 @@ def change_password(
     """Cambia la contraseña del usuario autenticado."""
     from app.core.security import verificar_password, hashear_password
 
-    if not verificar_password(current_password, usuario.password_hash):
+    if not verificar_password(current_password, usuario.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Contraseña actual incorrecta"
         )
 
-    usuario.password_hash = hashear_password(new_password)
+    usuario.hashed_password = hashear_password(new_password)
     db.commit()
 
     return {"message": "Contraseña actualizada correctamente"}

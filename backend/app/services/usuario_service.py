@@ -1,7 +1,6 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime
 from app.models.usuario import Usuario, RolUsuario
 from app.schemas.usuario import UsuarioCreate, UsuarioUpdate
 from app.core.security import hashear_password, verificar_password
@@ -42,7 +41,7 @@ def crear_usuario(db: Session, usuario: UsuarioCreate) -> Usuario:
     """Crea un nuevo usuario."""
     db_usuario = Usuario(
         email=usuario.email,
-        password_hash=hashear_password(usuario.password),
+        hashed_password=hashear_password(usuario.password),
         nombre=usuario.nombre,
         apellido=usuario.apellido,
         telefono=usuario.telefono,
@@ -68,7 +67,7 @@ def actualizar_usuario(
 
     # Si se actualiza el password, hashearlo
     if "password" in update_data:
-        update_data["password_hash"] = hashear_password(update_data.pop("password"))
+        update_data["hashed_password"] = hashear_password(update_data.pop("password"))
 
     for field, value in update_data.items():
         setattr(db_usuario, field, value)
@@ -99,16 +98,10 @@ def autenticar_usuario(db: Session, email: str, password: str) -> Optional[Usuar
     if not usuario:
         return None
 
-    if not verificar_password(password, usuario.password_hash):
+    if not verificar_password(password, usuario.hashed_password):
         return None
 
     return usuario
-
-
-def actualizar_ultimo_acceso(db: Session, usuario: Usuario) -> None:
-    """Actualiza el último acceso del usuario."""
-    usuario.ultimo_acceso = datetime.utcnow()
-    db.commit()
 
 
 def obtener_clientes(db: Session, skip: int = 0, limit: int = 100) -> List[Usuario]:
