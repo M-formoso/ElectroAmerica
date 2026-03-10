@@ -1,0 +1,127 @@
+import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Toaster } from '@/components/ui/toaster'
+import { MainLayout } from '@/layouts/MainLayout'
+import { ClientLayout } from '@/layouts/ClientLayout'
+import { LoginPage } from '@/pages/Login'
+import { DashboardPage } from '@/pages/Dashboard'
+import { ProyectosPage } from '@/pages/Proyectos'
+import { MaterialesPage } from '@/pages/Materiales'
+import { EquiposPage } from '@/pages/Equipos'
+import { GastosPage } from '@/pages/Gastos'
+import { MisProyectosPage } from '@/pages/portal/MisProyectos'
+import { DetalleProyectoPage } from '@/pages/portal/DetalleProyecto'
+import { useAuthStore, useIsAuthenticated, useIsCliente } from '@/store/auth'
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+})
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = useIsAuthenticated()
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  return <>{children}</>
+}
+
+function StaffRoute({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = useIsAuthenticated()
+  const isCliente = useIsCliente()
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (isCliente) {
+    return <Navigate to="/portal" replace />
+  }
+
+  return <>{children}</>
+}
+
+function ClientRoute({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = useIsAuthenticated()
+  const isCliente = useIsCliente()
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (!isCliente) {
+    return <Navigate to="/" replace />
+  }
+
+  return <>{children}</>
+}
+
+function AppRoutes() {
+  const fetchUser = useAuthStore((state) => state.fetchUser)
+  const isAuthenticated = useIsAuthenticated()
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchUser()
+    }
+  }, [isAuthenticated, fetchUser])
+
+  return (
+    <Routes>
+      {/* Public routes */}
+      <Route path="/login" element={<LoginPage />} />
+
+      {/* Staff routes */}
+      <Route
+        path="/"
+        element={
+          <StaffRoute>
+            <MainLayout />
+          </StaffRoute>
+        }
+      >
+        <Route index element={<DashboardPage />} />
+        <Route path="proyectos" element={<ProyectosPage />} />
+        <Route path="materiales" element={<MaterialesPage />} />
+        <Route path="equipos" element={<EquiposPage />} />
+        <Route path="gastos" element={<GastosPage />} />
+      </Route>
+
+      {/* Client portal routes */}
+      <Route
+        path="/portal"
+        element={
+          <ClientRoute>
+            <ClientLayout />
+          </ClientRoute>
+        }
+      >
+        <Route index element={<MisProyectosPage />} />
+        <Route path="proyecto/:proyectoId" element={<DetalleProyectoPage />} />
+      </Route>
+
+      {/* Catch all */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AppRoutes />
+        <Toaster />
+      </BrowserRouter>
+    </QueryClientProvider>
+  )
+}
+
+export default App

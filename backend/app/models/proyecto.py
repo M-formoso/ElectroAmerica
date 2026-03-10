@@ -1,0 +1,73 @@
+from sqlalchemy import Column, String, Text, Date, Enum, Numeric, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+from app.db.base_class import Base, BaseModel
+import enum
+
+
+class EstadoProyecto(str, enum.Enum):
+    """Estados posibles de un proyecto."""
+    planificacion = "planificacion"
+    en_ejecucion = "en_ejecucion"
+    pausado = "pausado"
+    finalizado = "finalizado"
+
+
+class Proyecto(Base, BaseModel):
+    """Modelo de proyecto/obra."""
+    __tablename__ = "proyectos"
+
+    nombre = Column(String(255), nullable=False)
+    descripcion = Column(Text, nullable=True)
+    cliente_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    ubicacion = Column(String(255), nullable=True)
+    fecha_inicio = Column(Date, nullable=True)
+    fecha_fin_estimada = Column(Date, nullable=True)
+    fecha_fin_real = Column(Date, nullable=True)
+    estado = Column(Enum(EstadoProyecto), default=EstadoProyecto.planificacion, nullable=False)
+    porcentaje_avance = Column(Numeric(5, 2), default=0, nullable=False)
+    monto_contratado = Column(Numeric(14, 2), nullable=True)  # Solo visible admin/supervisor
+    created_by = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
+
+    # Relaciones
+    cliente = relationship(
+        "Usuario",
+        foreign_keys=[cliente_id],
+        back_populates="proyectos_asignados"
+    )
+    creador = relationship(
+        "Usuario",
+        foreign_keys=[created_by],
+        back_populates="proyectos_creados"
+    )
+    etapas = relationship(
+        "Etapa",
+        back_populates="proyecto",
+        cascade="all, delete-orphan",
+        order_by="Etapa.orden"
+    )
+    fotos = relationship(
+        "Foto",
+        back_populates="proyecto",
+        cascade="all, delete-orphan"
+    )
+    gastos = relationship(
+        "Gasto",
+        back_populates="proyecto"
+    )
+    asignaciones_material = relationship(
+        "AsignacionMaterial",
+        back_populates="proyecto"
+    )
+    asignaciones_equipo = relationship(
+        "AsignacionEquipo",
+        back_populates="proyecto"
+    )
+    reportes = relationship(
+        "Reporte",
+        back_populates="proyecto",
+        cascade="all, delete-orphan"
+    )
+
+    def __repr__(self):
+        return f"<Proyecto {self.nombre}>"
