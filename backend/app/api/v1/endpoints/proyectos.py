@@ -76,7 +76,7 @@ def obtener_proyecto(
         porcentaje_avance=proyecto.porcentaje_avance,
         activo=proyecto.activo,
         created_at=proyecto.created_at,
-        created_by=proyecto.created_by,
+        supervisor_id=proyecto.supervisor_id,
         total_etapas=stats.get("total_etapas", 0),
         etapas_completadas=stats.get("etapas_completadas", 0),
         cliente_nombre=proyecto.cliente.nombre if proyecto.cliente else None

@@ -12,6 +12,7 @@ import {
   MapPin,
   Calendar,
   User,
+  Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,11 +42,21 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { proyectosService } from '@/services/proyectos'
 import { formatDate } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useIsAdmin } from '@/store/auth'
 import type { Proyecto, EstadoProyecto } from '@/types'
+
+interface ProyectoForm {
+  nombre: string
+  descripcion: string
+  ubicacion: string
+  fecha_inicio: string
+  fecha_fin_estimada: string
+  monto_contratado: string
+}
 
 const estadoColors: Record<EstadoProyecto, string> = {
   planificacion: 'secondary',
@@ -67,6 +78,14 @@ export function ProyectosPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [selectedProyecto, setSelectedProyecto] = useState<Proyecto | null>(null)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [formData, setFormData] = useState<ProyectoForm>({
+    nombre: '',
+    descripcion: '',
+    ubicacion: '',
+    fecha_inicio: '',
+    fecha_fin_estimada: '',
+    monto_contratado: '',
+  })
 
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -77,6 +96,26 @@ export function ProyectosPage() {
     queryFn: () => proyectosService.getProyectos(
       estadoFilter !== 'todos' ? { estado: estadoFilter } : undefined
     ),
+  })
+
+  const createMutation = useMutation({
+    mutationFn: proyectosService.createProyecto,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['proyectos'] })
+      toast({ title: 'Proyecto creado exitosamente' })
+      setIsCreateOpen(false)
+      setFormData({
+        nombre: '',
+        descripcion: '',
+        ubicacion: '',
+        fecha_inicio: '',
+        fecha_fin_estimada: '',
+        monto_contratado: '',
+      })
+    },
+    onError: () => {
+      toast({ variant: 'destructive', title: 'Error al crear proyecto' })
+    },
   })
 
   const deleteMutation = useMutation({
@@ -91,6 +130,18 @@ export function ProyectosPage() {
       toast({ variant: 'destructive', title: 'Error al eliminar' })
     },
   })
+
+  const handleCreateSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    createMutation.mutate({
+      nombre: formData.nombre,
+      descripcion: formData.descripcion || undefined,
+      ubicacion: formData.ubicacion || undefined,
+      fecha_inicio: formData.fecha_inicio || undefined,
+      fecha_fin_estimada: formData.fecha_fin_estimada || undefined,
+      monto_contratado: formData.monto_contratado ? parseFloat(formData.monto_contratado) : undefined,
+    })
+  }
 
   const filteredProyectos = proyectos?.filter((p) =>
     p.nombre.toLowerCase().includes(search.toLowerCase()) ||
@@ -254,6 +305,92 @@ export function ProyectosPage() {
           <p className="text-muted-foreground">No se encontraron proyectos</p>
         </div>
       )}
+
+      {/* Create project dialog */}
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Nuevo Proyecto</DialogTitle>
+            <DialogDescription>
+              Ingresa los datos del nuevo proyecto
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="nombre">Nombre *</Label>
+                <Input
+                  id="nombre"
+                  value={formData.nombre}
+                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                  placeholder="Nombre del proyecto"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="descripcion">Descripción</Label>
+                <Textarea
+                  id="descripcion"
+                  value={formData.descripcion}
+                  onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                  placeholder="Descripción del proyecto"
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ubicacion">Ubicación</Label>
+                <Input
+                  id="ubicacion"
+                  value={formData.ubicacion}
+                  onChange={(e) => setFormData({ ...formData, ubicacion: e.target.value })}
+                  placeholder="Dirección o ubicación"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="fecha_inicio">Fecha Inicio</Label>
+                  <Input
+                    id="fecha_inicio"
+                    type="date"
+                    value={formData.fecha_inicio}
+                    onChange={(e) => setFormData({ ...formData, fecha_inicio: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="fecha_fin_estimada">Fecha Fin Estimada</Label>
+                  <Input
+                    id="fecha_fin_estimada"
+                    type="date"
+                    value={formData.fecha_fin_estimada}
+                    onChange={(e) => setFormData({ ...formData, fecha_fin_estimada: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="monto_contratado">Monto Contratado ($)</Label>
+                <Input
+                  id="monto_contratado"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.monto_contratado}
+                  onChange={(e) => setFormData({ ...formData, monto_contratado: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending || !formData.nombre}>
+                {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Crear Proyecto
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation dialog */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>

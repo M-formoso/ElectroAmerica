@@ -43,7 +43,7 @@ class ProyectoResponse(ProyectoBase):
     porcentaje_avance: Decimal
     activo: bool
     created_at: datetime
-    created_by: UUID
+    supervisor_id: Optional[UUID] = None
 
     class Config:
         from_attributes = True
