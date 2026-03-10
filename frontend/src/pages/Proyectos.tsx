@@ -268,10 +268,10 @@ export function ProyectosPage() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Avance</span>
                     <span className="font-medium">
-                      {proyecto.porcentaje_avance.toFixed(0)}%
+                      {Number(proyecto.porcentaje_avance).toFixed(0)}%
                     </span>
                   </div>
-                  <Progress value={proyecto.porcentaje_avance} className="h-2" />
+                  <Progress value={Number(proyecto.porcentaje_avance)} className="h-2" />
                 </div>
 
                 <div className="flex items-center justify-between">
