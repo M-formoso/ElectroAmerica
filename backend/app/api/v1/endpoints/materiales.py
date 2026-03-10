@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 from app.core.deps import get_db, get_usuario_actual, require_staff, require_admin_or_supervisor
 from app.models.usuario import Usuario
@@ -17,14 +17,13 @@ router = APIRouter()
 
 @router.get("/", response_model=List[MaterialResponse])
 def listar_materiales(
-    categoria: Optional[str] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, le=100),
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(require_staff)
 ):
-    """Lista materiales con filtro opcional por categoría."""
-    return material_service.obtener_materiales(db, skip, limit, categoria)
+    """Lista materiales."""
+    return material_service.obtener_materiales(db, skip, limit)
 
 
 @router.get("/stock-bajo", response_model=List[MaterialResponse])
@@ -36,13 +35,13 @@ def listar_materiales_stock_bajo(
     return material_service.obtener_materiales(db, solo_stock_bajo=True)
 
 
-@router.get("/categorias")
-def listar_categorias(
+@router.get("/ubicaciones")
+def listar_ubicaciones(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(require_staff)
 ):
-    """Lista las categorías únicas de materiales."""
-    return {"categorias": material_service.obtener_categorias(db)}
+    """Lista las ubicaciones únicas de materiales."""
+    return {"ubicaciones": material_service.obtener_ubicaciones(db)}
 
 
 @router.get("/valor-total", response_model=ValorInventarioResponse)

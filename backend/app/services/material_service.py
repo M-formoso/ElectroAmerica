@@ -18,14 +18,11 @@ def obtener_materiales(
     db: Session,
     skip: int = 0,
     limit: int = 100,
-    categoria: Optional[str] = None,
     solo_stock_bajo: bool = False
 ) -> List[Material]:
     """Obtiene lista de materiales."""
     query = db.query(Material).filter(Material.activo == True)
 
-    if categoria:
-        query = query.filter(Material.categoria == categoria)
     if solo_stock_bajo:
         query = query.filter(Material.stock_actual <= Material.stock_minimo)
 
@@ -43,14 +40,14 @@ def obtener_material(db: Session, material_id: UUID) -> Optional[Material]:
 def crear_material(db: Session, material: MaterialCreate) -> Material:
     """Crea un nuevo material."""
     db_material = Material(
-        nombre=material.nombre,
         codigo=material.codigo,
-        categoria=material.categoria,
+        nombre=material.nombre,
+        descripcion=material.descripcion,
         unidad=material.unidad,
         stock_actual=material.stock_actual,
         stock_minimo=material.stock_minimo,
-        precio_costo=material.precio_costo,
-        proveedor=material.proveedor
+        precio_unitario=material.precio_unitario,
+        ubicacion_almacen=material.ubicacion_almacen
     )
     db.add(db_material)
     db.commit()
@@ -110,7 +107,7 @@ def asignar_material_a_proyecto(
         proyecto_id=asignacion.proyecto_id,
         etapa_id=asignacion.etapa_id,
         cantidad=asignacion.cantidad,
-        precio_unitario=material.precio_costo,
+        precio_unitario=material.precio_unitario,
         fecha=date.today(),
         observaciones=asignacion.observaciones,
         created_by=usuario_id
@@ -152,12 +149,9 @@ def registrar_ingreso_stock(
     # Actualizar stock
     material.stock_actual += ingreso.cantidad
 
-    # Si viene precio, actualizar precio costo
+    # Si viene precio, actualizar precio unitario
     if ingreso.precio_unitario:
-        material.precio_costo = ingreso.precio_unitario
-
-    if ingreso.proveedor:
-        material.proveedor = ingreso.proveedor
+        material.precio_unitario = ingreso.precio_unitario
 
     # Registrar movimiento
     movimiento = MovimientoStock(
@@ -165,7 +159,7 @@ def registrar_ingreso_stock(
         tipo=TipoMovimiento.ingreso,
         cantidad=ingreso.cantidad,
         referencia_tipo="compra",
-        observaciones=ingreso.observaciones,
+        observaciones=ingreso.motivo,
         usuario_id=usuario_id
     )
     db.add(movimiento)
@@ -178,7 +172,7 @@ def registrar_ingreso_stock(
 def obtener_valor_total_inventario(db: Session) -> dict:
     """Calcula el valor total del inventario."""
     resultado = db.query(
-        func.sum(Material.stock_actual * Material.precio_costo),
+        func.sum(Material.stock_actual * Material.precio_unitario),
         func.count(Material.id)
     ).filter(Material.activo == True).first()
 
@@ -205,10 +199,10 @@ def obtener_movimientos_material(
     ).order_by(MovimientoStock.created_at.desc()).limit(limit).all()
 
 
-def obtener_categorias(db: Session) -> List[str]:
-    """Obtiene las categorías únicas de materiales."""
-    result = db.query(Material.categoria).filter(
+def obtener_ubicaciones(db: Session) -> List[str]:
+    """Obtiene las ubicaciones únicas de materiales."""
+    result = db.query(Material.ubicacion_almacen).filter(
         Material.activo == True,
-        Material.categoria.isnot(None)
+        Material.ubicacion_almacen.isnot(None)
     ).distinct().all()
     return [r[0] for r in result if r[0]]

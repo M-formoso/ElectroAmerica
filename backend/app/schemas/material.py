@@ -8,13 +8,13 @@ from app.models.movimiento_stock import TipoMovimiento
 
 class MaterialBase(BaseModel):
     """Schema base de material."""
-    nombre: str = Field(..., min_length=2, max_length=255)
-    codigo: Optional[str] = Field(None, max_length=50)
-    categoria: Optional[str] = Field(None, max_length=100)
-    unidad: str = Field(..., max_length=30)
+    codigo: str = Field(..., max_length=50)
+    nombre: str = Field(..., min_length=2, max_length=200)
+    descripcion: Optional[str] = None
+    unidad: str = Field(..., max_length=50)
     stock_minimo: Decimal = Field(default=0, ge=0)
-    precio_costo: Optional[Decimal] = Field(None, ge=0)
-    proveedor: Optional[str] = Field(None, max_length=255)
+    precio_unitario: Optional[Decimal] = Field(None, ge=0)
+    ubicacion_almacen: Optional[str] = Field(None, max_length=100)
 
 
 class MaterialCreate(MaterialBase):
@@ -24,13 +24,13 @@ class MaterialCreate(MaterialBase):
 
 class MaterialUpdate(BaseModel):
     """Schema para actualizar material."""
-    nombre: Optional[str] = Field(None, min_length=2, max_length=255)
     codigo: Optional[str] = Field(None, max_length=50)
-    categoria: Optional[str] = Field(None, max_length=100)
-    unidad: Optional[str] = Field(None, max_length=30)
+    nombre: Optional[str] = Field(None, min_length=2, max_length=200)
+    descripcion: Optional[str] = None
+    unidad: Optional[str] = Field(None, max_length=50)
     stock_minimo: Optional[Decimal] = Field(None, ge=0)
-    precio_costo: Optional[Decimal] = Field(None, ge=0)
-    proveedor: Optional[str] = Field(None, max_length=255)
+    precio_unitario: Optional[Decimal] = Field(None, ge=0)
+    ubicacion_almacen: Optional[str] = Field(None, max_length=100)
 
 
 class MaterialResponse(MaterialBase):
@@ -75,8 +75,7 @@ class IngresoStockCreate(BaseModel):
     material_id: UUID
     cantidad: Decimal = Field(..., gt=0)
     precio_unitario: Optional[Decimal] = Field(None, ge=0)
-    proveedor: Optional[str] = Field(None, max_length=255)
-    observaciones: Optional[str] = None
+    motivo: Optional[str] = Field(None, max_length=300)
 
 
 class MovimientoStockResponse(BaseModel):
