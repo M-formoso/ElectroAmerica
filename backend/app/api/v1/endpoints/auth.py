@@ -30,9 +30,6 @@ def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Actualizar último acceso
-    usuario_service.actualizar_ultimo_acceso(db, usuario)
-
     # Crear tokens
     token_data = {"sub": str(usuario.id), "rol": usuario.rol.value}
 
