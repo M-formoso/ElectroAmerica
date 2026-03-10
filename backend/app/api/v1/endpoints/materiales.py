@@ -127,9 +127,9 @@ def asignar_material(
         proyecto_id=db_asignacion.proyecto_id,
         etapa_id=db_asignacion.etapa_id,
         cantidad=db_asignacion.cantidad,
-        precio_unitario=db_asignacion.precio_unitario,
-        fecha=db_asignacion.fecha,
-        observaciones=db_asignacion.observaciones,
+        precio_unitario=db_asignacion.material.precio_unitario if db_asignacion.material else None,
+        fecha=db_asignacion.fecha_asignacion,
+        observaciones=db_asignacion.notas,
         material_nombre=db_asignacion.material.nombre if db_asignacion.material else None,
         created_at=db_asignacion.created_at
     )

@@ -114,17 +114,19 @@ def asignar_material_a_proyecto(
     db.add(db_asignacion)
     db.flush()  # Para obtener el ID
 
-    # Descontar stock
+    # Registrar stock anterior y descontar
+    stock_anterior = material.stock_actual
     material.stock_actual -= asignacion.cantidad
 
     # Registrar movimiento
     movimiento = MovimientoStock(
         material_id=asignacion.material_id,
-        tipo=TipoMovimiento.egreso,
+        tipo=TipoMovimiento.salida,
         cantidad=asignacion.cantidad,
-        referencia_tipo="asignacion",
-        referencia_id=db_asignacion.id,
-        observaciones=f"Asignado a proyecto",
+        stock_anterior=stock_anterior,
+        stock_nuevo=material.stock_actual,
+        motivo=f"Asignado a proyecto",
+        proyecto_id=asignacion.proyecto_id,
         usuario_id=usuario_id
     )
     db.add(movimiento)
@@ -145,7 +147,8 @@ def registrar_ingreso_stock(
     if not material:
         raise HTTPException(status_code=404, detail="Material no encontrado")
 
-    # Actualizar stock
+    # Registrar stock anterior y actualizar stock
+    stock_anterior = material.stock_actual
     material.stock_actual += ingreso.cantidad
 
     # Si viene precio, actualizar precio unitario
@@ -155,10 +158,11 @@ def registrar_ingreso_stock(
     # Registrar movimiento
     movimiento = MovimientoStock(
         material_id=ingreso.material_id,
-        tipo=TipoMovimiento.ingreso,
+        tipo=TipoMovimiento.entrada,
         cantidad=ingreso.cantidad,
-        referencia_tipo="compra",
-        observaciones=ingreso.motivo,
+        stock_anterior=stock_anterior,
+        stock_nuevo=material.stock_actual,
+        motivo=ingreso.motivo,
         usuario_id=usuario_id
     )
     db.add(movimiento)

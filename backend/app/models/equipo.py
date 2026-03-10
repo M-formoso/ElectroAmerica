@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Enum
+from sqlalchemy import Column, String, Text, Date, Numeric, Enum
 from sqlalchemy.orm import relationship
 from app.db.base_class import Base, BaseModel
 import enum
@@ -6,13 +6,9 @@ import enum
 
 class TipoEquipo(str, enum.Enum):
     """Tipos de equipo."""
-    camion = "camion"
-    excavadora = "excavadora"
-    compactadora = "compactadora"
-    hormigonera = "hormigonera"
-    grua = "grua"
-    generador = "generador"
     herramienta = "herramienta"
+    vehiculo = "vehiculo"
+    maquinaria = "maquinaria"
     otro = "otro"
 
 
@@ -28,15 +24,15 @@ class Equipo(Base, BaseModel):
     """Modelo de equipo/maquinaria/vehículo."""
     __tablename__ = "equipos"
 
-    nombre = Column(String(255), nullable=False)
+    codigo = Column(String(50), unique=True, nullable=False)
+    nombre = Column(String(200), nullable=False)
+    descripcion = Column(Text, nullable=True)
     tipo = Column(Enum(TipoEquipo), nullable=False)
-    patente = Column(String(20), nullable=True)
-    codigo_interno = Column(String(50), nullable=True, unique=True)
     marca = Column(String(100), nullable=True)
     modelo = Column(String(100), nullable=True)
-    anio = Column(String(4), nullable=True)
     estado = Column(Enum(EstadoEquipo), default=EstadoEquipo.disponible, nullable=False)
-    observaciones = Column(Text, nullable=True)
+    fecha_adquisicion = Column(Date, nullable=True)
+    costo_adquisicion = Column(Numeric(12, 2), nullable=True)
 
     # Relaciones
     asignaciones = relationship(

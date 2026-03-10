@@ -38,15 +38,15 @@ def obtener_equipo(db: Session, equipo_id: UUID) -> Optional[Equipo]:
 def crear_equipo(db: Session, equipo: EquipoCreate) -> Equipo:
     """Crea un nuevo equipo."""
     db_equipo = Equipo(
+        codigo=equipo.codigo,
         nombre=equipo.nombre,
+        descripcion=equipo.descripcion,
         tipo=equipo.tipo,
-        patente=equipo.patente,
-        codigo_interno=equipo.codigo_interno,
         marca=equipo.marca,
         modelo=equipo.modelo,
-        anio=equipo.anio,
         estado=equipo.estado,
-        observaciones=equipo.observaciones
+        fecha_adquisicion=equipo.fecha_adquisicion,
+        costo_adquisicion=equipo.costo_adquisicion
     )
     db.add(db_equipo)
     db.commit()
@@ -91,10 +91,10 @@ def obtener_equipos_disponibles(db: Session, fecha: date = None) -> List[Equipo]
 
     # IDs de equipos con asignación activa en la fecha
     equipos_ocupados = db.query(AsignacionEquipo.equipo_id).filter(
-        AsignacionEquipo.fecha_desde <= fecha,
+        AsignacionEquipo.fecha_asignacion <= fecha,
         or_(
-            AsignacionEquipo.fecha_hasta.is_(None),
-            AsignacionEquipo.fecha_hasta >= fecha
+            AsignacionEquipo.fecha_devolucion_real.is_(None),
+            AsignacionEquipo.fecha_devolucion_real >= fecha
         )
     ).subquery()
 
@@ -122,13 +122,13 @@ def asignar_equipo_a_proyecto(
         )
 
     # Verificar conflictos de fecha
-    fecha_hasta = asignacion.fecha_hasta or date(2100, 1, 1)
+    fecha_devolucion = asignacion.fecha_devolucion_est or date(2100, 1, 1)
     conflicto = db.query(AsignacionEquipo).filter(
         AsignacionEquipo.equipo_id == asignacion.equipo_id,
-        AsignacionEquipo.fecha_desde <= fecha_hasta,
+        AsignacionEquipo.fecha_asignacion <= fecha_devolucion,
         or_(
-            AsignacionEquipo.fecha_hasta.is_(None),
-            AsignacionEquipo.fecha_hasta >= asignacion.fecha_desde
+            AsignacionEquipo.fecha_devolucion_real.is_(None),
+            AsignacionEquipo.fecha_devolucion_real >= asignacion.fecha_asignacion
         )
     ).first()
 
@@ -142,11 +142,10 @@ def asignar_equipo_a_proyecto(
     db_asignacion = AsignacionEquipo(
         equipo_id=asignacion.equipo_id,
         proyecto_id=asignacion.proyecto_id,
-        etapa_id=asignacion.etapa_id,
-        fecha_desde=asignacion.fecha_desde,
-        fecha_hasta=asignacion.fecha_hasta,
-        observaciones=asignacion.observaciones,
-        created_by=usuario_id
+        fecha_asignacion=asignacion.fecha_asignacion,
+        fecha_devolucion_est=asignacion.fecha_devolucion_est,
+        notas=asignacion.notas,
+        asignado_por_id=usuario_id
     )
     db.add(db_asignacion)
 
@@ -167,15 +166,15 @@ def finalizar_asignacion(db: Session, asignacion_id: UUID) -> AsignacionEquipo:
     if not asignacion:
         raise HTTPException(status_code=404, detail="Asignación no encontrada")
 
-    asignacion.fecha_hasta = date.today()
+    asignacion.fecha_devolucion_real = date.today()
 
     # Verificar si tiene otras asignaciones activas
     otras = db.query(AsignacionEquipo).filter(
         AsignacionEquipo.equipo_id == asignacion.equipo_id,
         AsignacionEquipo.id != asignacion_id,
         or_(
-            AsignacionEquipo.fecha_hasta.is_(None),
-            AsignacionEquipo.fecha_hasta >= date.today()
+            AsignacionEquipo.fecha_devolucion_real.is_(None),
+            AsignacionEquipo.fecha_devolucion_real >= date.today()
         )
     ).first()
 
@@ -197,4 +196,4 @@ def obtener_historial_equipo(
     """Retorna el historial de asignaciones de un equipo."""
     return db.query(AsignacionEquipo).filter(
         AsignacionEquipo.equipo_id == equipo_id
-    ).order_by(AsignacionEquipo.fecha_desde.desc()).limit(limit).all()
+    ).order_by(AsignacionEquipo.fecha_asignacion.desc()).limit(limit).all()

@@ -84,9 +84,10 @@ class MovimientoStockResponse(BaseModel):
     material_id: UUID
     tipo: TipoMovimiento
     cantidad: Decimal
-    referencia_tipo: Optional[str] = None
-    referencia_id: Optional[UUID] = None
-    observaciones: Optional[str] = None
+    stock_anterior: Decimal
+    stock_nuevo: Decimal
+    motivo: Optional[str] = None
+    proyecto_id: Optional[UUID] = None
     created_at: datetime
 
     class Config:

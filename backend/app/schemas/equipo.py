@@ -7,38 +7,40 @@ from app.models.equipo import TipoEquipo, EstadoEquipo
 
 class EquipoBase(BaseModel):
     """Schema base de equipo."""
-    nombre: str = Field(..., min_length=2, max_length=255)
+    codigo: str = Field(..., max_length=50)
+    nombre: str = Field(..., min_length=2, max_length=200)
+    descripcion: Optional[str] = None
     tipo: TipoEquipo
-    patente: Optional[str] = Field(None, max_length=20)
-    codigo_interno: Optional[str] = Field(None, max_length=50)
     marca: Optional[str] = Field(None, max_length=100)
     modelo: Optional[str] = Field(None, max_length=100)
-    anio: Optional[str] = Field(None, max_length=4)
-    observaciones: Optional[str] = None
 
 
 class EquipoCreate(EquipoBase):
     """Schema para crear equipo."""
     estado: EstadoEquipo = EstadoEquipo.disponible
+    fecha_adquisicion: Optional[date] = None
+    costo_adquisicion: Optional[float] = None
 
 
 class EquipoUpdate(BaseModel):
     """Schema para actualizar equipo."""
-    nombre: Optional[str] = Field(None, min_length=2, max_length=255)
+    codigo: Optional[str] = Field(None, max_length=50)
+    nombre: Optional[str] = Field(None, min_length=2, max_length=200)
+    descripcion: Optional[str] = None
     tipo: Optional[TipoEquipo] = None
-    patente: Optional[str] = Field(None, max_length=20)
-    codigo_interno: Optional[str] = Field(None, max_length=50)
     marca: Optional[str] = Field(None, max_length=100)
     modelo: Optional[str] = Field(None, max_length=100)
-    anio: Optional[str] = Field(None, max_length=4)
     estado: Optional[EstadoEquipo] = None
-    observaciones: Optional[str] = None
+    fecha_adquisicion: Optional[date] = None
+    costo_adquisicion: Optional[float] = None
 
 
 class EquipoResponse(EquipoBase):
     """Schema de respuesta de equipo."""
     id: UUID
     estado: EstadoEquipo
+    fecha_adquisicion: Optional[date] = None
+    costo_adquisicion: Optional[float] = None
     activo: bool
     created_at: datetime
 
@@ -50,10 +52,9 @@ class AsignacionEquipoCreate(BaseModel):
     """Schema para asignar equipo a proyecto."""
     equipo_id: Optional[UUID] = None  # Se puede pasar por path
     proyecto_id: UUID
-    etapa_id: Optional[UUID] = None
-    fecha_desde: date
-    fecha_hasta: Optional[date] = None
-    observaciones: Optional[str] = None
+    fecha_asignacion: date
+    fecha_devolucion_est: Optional[date] = None
+    notas: Optional[str] = None
 
 
 class AsignacionEquipoResponse(BaseModel):
@@ -61,10 +62,10 @@ class AsignacionEquipoResponse(BaseModel):
     id: UUID
     equipo_id: UUID
     proyecto_id: UUID
-    etapa_id: Optional[UUID] = None
-    fecha_desde: date
-    fecha_hasta: Optional[date] = None
-    observaciones: Optional[str] = None
+    fecha_asignacion: date
+    fecha_devolucion_est: Optional[date] = None
+    fecha_devolucion_real: Optional[date] = None
+    notas: Optional[str] = None
     equipo_nombre: Optional[str] = None
     proyecto_nombre: Optional[str] = None
     created_at: datetime
