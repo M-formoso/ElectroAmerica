@@ -122,6 +122,13 @@ export function LoginPage() {
               Iniciar sesión
             </Button>
           </form>
+
+          {/* Credenciales de desarrollo - QUITAR EN PRODUCCIÓN */}
+          <div className="mt-4 p-3 bg-muted rounded-lg text-sm">
+            <p className="font-medium text-muted-foreground mb-1">Credenciales de prueba:</p>
+            <p><span className="font-medium">Email:</span> admin@electroamerica.com</p>
+            <p><span className="font-medium">Password:</span> admin123</p>
+          </div>
         </CardContent>
       </Card>
     </div>
