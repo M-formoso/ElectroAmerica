@@ -30,29 +30,30 @@ export const materialesService = {
   },
 
   async registrarEntrada(
-    id: string,
+    materialId: string,
     cantidad: number,
-    motivo?: string,
-    proyectoId?: string
-  ): Promise<Material> {
-    const response = await api.post<Material>(`/materiales/${id}/entrada`, {
+    motivo?: string
+  ): Promise<any> {
+    const response = await api.post('/materiales/ingreso', {
+      material_id: materialId,
       cantidad,
       motivo,
-      proyecto_id: proyectoId,
     })
     return response.data
   },
 
   async registrarSalida(
-    id: string,
+    materialId: string,
     cantidad: number,
     motivo?: string,
     proyectoId?: string
-  ): Promise<Material> {
-    const response = await api.post<Material>(`/materiales/${id}/salida`, {
-      cantidad,
-      motivo,
+  ): Promise<any> {
+    // Usamos asignar para registrar salida (requiere proyecto)
+    const response = await api.post('/materiales/asignar', {
+      material_id: materialId,
       proyecto_id: proyectoId,
+      cantidad,
+      observaciones: motivo,
     })
     return response.data
   },

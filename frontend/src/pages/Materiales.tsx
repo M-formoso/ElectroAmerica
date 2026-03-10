@@ -10,6 +10,7 @@ import {
   MoreVertical,
   Edit,
   Trash2,
+  Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -45,6 +46,28 @@ import { useToast } from '@/hooks/use-toast'
 import { useIsAdmin } from '@/store/auth'
 import type { Material } from '@/types'
 
+interface MaterialForm {
+  codigo: string
+  nombre: string
+  descripcion: string
+  unidad: string
+  stock_actual: string
+  stock_minimo: string
+  precio_unitario: string
+  ubicacion_almacen: string
+}
+
+const initialFormState: MaterialForm = {
+  codigo: '',
+  nombre: '',
+  descripcion: '',
+  unidad: 'unidad',
+  stock_actual: '0',
+  stock_minimo: '0',
+  precio_unitario: '',
+  ubicacion_almacen: '',
+}
+
 export function MaterialesPage() {
   const [search, setSearch] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -53,6 +76,7 @@ export function MaterialesPage() {
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null)
   const [movimientoCantidad, setMovimientoCantidad] = useState('')
   const [movimientoMotivo, setMovimientoMotivo] = useState('')
+  const [formData, setFormData] = useState<MaterialForm>(initialFormState)
 
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -102,10 +126,37 @@ export function MaterialesPage() {
     },
   })
 
+  const createMutation = useMutation({
+    mutationFn: materialesService.createMaterial,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['materiales'] })
+      toast({ title: 'Material creado exitosamente' })
+      setIsCreateOpen(false)
+      setFormData(initialFormState)
+    },
+    onError: () => {
+      toast({ variant: 'destructive', title: 'Error al crear material' })
+    },
+  })
+
   const resetMovimientoForm = () => {
     setMovimientoCantidad('')
     setMovimientoMotivo('')
     setSelectedMaterial(null)
+  }
+
+  const handleCreateSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    createMutation.mutate({
+      codigo: formData.codigo,
+      nombre: formData.nombre,
+      descripcion: formData.descripcion || undefined,
+      unidad: formData.unidad,
+      stock_actual: parseFloat(formData.stock_actual) || 0,
+      stock_minimo: parseFloat(formData.stock_minimo) || 0,
+      precio_unitario: formData.precio_unitario ? parseFloat(formData.precio_unitario) : undefined,
+      ubicacion_almacen: formData.ubicacion_almacen || undefined,
+    })
   }
 
   const handleMovimiento = () => {
@@ -318,6 +369,117 @@ export function MaterialesPage() {
           </TableBody>
         </Table>
       </Card>
+
+      {/* Create material dialog */}
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Nuevo Material</DialogTitle>
+            <DialogDescription>
+              Ingresa los datos del nuevo material
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="codigo">Código *</Label>
+                  <Input
+                    id="codigo"
+                    value={formData.codigo}
+                    onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
+                    placeholder="MAT-001"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="unidad">Unidad *</Label>
+                  <Input
+                    id="unidad"
+                    value={formData.unidad}
+                    onChange={(e) => setFormData({ ...formData, unidad: e.target.value })}
+                    placeholder="kg, m, unidad..."
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="nombre">Nombre *</Label>
+                <Input
+                  id="nombre"
+                  value={formData.nombre}
+                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                  placeholder="Nombre del material"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="descripcion">Descripción</Label>
+                <Input
+                  id="descripcion"
+                  value={formData.descripcion}
+                  onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                  placeholder="Descripción opcional"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="stock_actual">Stock Inicial</Label>
+                  <Input
+                    id="stock_actual"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.stock_actual}
+                    onChange={(e) => setFormData({ ...formData, stock_actual: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="stock_minimo">Stock Mínimo</Label>
+                  <Input
+                    id="stock_minimo"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.stock_minimo}
+                    onChange={(e) => setFormData({ ...formData, stock_minimo: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="precio_unitario">Precio Unit.</Label>
+                  <Input
+                    id="precio_unitario"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.precio_unitario}
+                    onChange={(e) => setFormData({ ...formData, precio_unitario: e.target.value })}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ubicacion_almacen">Ubicación en Almacén</Label>
+                <Input
+                  id="ubicacion_almacen"
+                  value={formData.ubicacion_almacen}
+                  onChange={(e) => setFormData({ ...formData, ubicacion_almacen: e.target.value })}
+                  placeholder="Ej: Estante A, Rack 3..."
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending || !formData.codigo || !formData.nombre}>
+                {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Crear Material
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Movimiento dialog */}
       <Dialog open={isMovimientoOpen} onOpenChange={setIsMovimientoOpen}>

@@ -12,6 +12,7 @@ import {
   Trash2,
   ArrowRight,
   ArrowLeft,
+  Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -55,6 +56,24 @@ import { useToast } from '@/hooks/use-toast'
 import { useIsAdmin } from '@/store/auth'
 import type { Equipo, EstadoEquipo, TipoEquipo } from '@/types'
 
+interface EquipoForm {
+  codigo: string
+  nombre: string
+  descripcion: string
+  tipo: TipoEquipo
+  marca: string
+  modelo: string
+}
+
+const initialFormState: EquipoForm = {
+  codigo: '',
+  nombre: '',
+  descripcion: '',
+  tipo: 'herramienta',
+  marca: '',
+  modelo: '',
+}
+
 const tipoIcons: Record<TipoEquipo, any> = {
   herramienta: Hammer,
   vehiculo: Truck,
@@ -80,9 +99,11 @@ export function EquiposPage() {
   const [search, setSearch] = useState('')
   const [estadoFilter, setEstadoFilter] = useState<string>('todos')
   const [tipoFilter, setTipoFilter] = useState<string>('todos')
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isAsignarOpen, setIsAsignarOpen] = useState(false)
   const [selectedEquipo, setSelectedEquipo] = useState<Equipo | null>(null)
   const [selectedProyecto, setSelectedProyecto] = useState<string>('')
+  const [formData, setFormData] = useState<EquipoForm>(initialFormState)
 
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -140,6 +161,31 @@ export function EquiposPage() {
     },
   })
 
+  const createMutation = useMutation({
+    mutationFn: equiposService.createEquipo,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['equipos'] })
+      toast({ title: 'Equipo creado exitosamente' })
+      setIsCreateOpen(false)
+      setFormData(initialFormState)
+    },
+    onError: () => {
+      toast({ variant: 'destructive', title: 'Error al crear equipo' })
+    },
+  })
+
+  const handleCreateSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    createMutation.mutate({
+      codigo: formData.codigo,
+      nombre: formData.nombre,
+      descripcion: formData.descripcion || undefined,
+      tipo: formData.tipo,
+      marca: formData.marca || undefined,
+      modelo: formData.modelo || undefined,
+    })
+  }
+
   const filteredEquipos = equipos?.filter((e) =>
     e.nombre.toLowerCase().includes(search.toLowerCase()) ||
     e.codigo.toLowerCase().includes(search.toLowerCase())
@@ -163,7 +209,7 @@ export function EquiposPage() {
           </p>
         </div>
         {isAdmin && (
-          <Button>
+          <Button onClick={() => setIsCreateOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Nuevo Equipo
           </Button>
@@ -372,6 +418,94 @@ export function EquiposPage() {
           </TableBody>
         </Table>
       </Card>
+
+      {/* Create equipo dialog */}
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Nuevo Equipo</DialogTitle>
+            <DialogDescription>
+              Ingresa los datos del nuevo equipo
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Código *</Label>
+                  <Input
+                    value={formData.codigo}
+                    onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
+                    placeholder="EQ-001"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Tipo *</Label>
+                  <Select
+                    value={formData.tipo}
+                    onValueChange={(v) => setFormData({ ...formData, tipo: v as TipoEquipo })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="herramienta">Herramienta</SelectItem>
+                      <SelectItem value="vehiculo">Vehículo</SelectItem>
+                      <SelectItem value="maquinaria">Maquinaria</SelectItem>
+                      <SelectItem value="otro">Otro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Nombre *</Label>
+                <Input
+                  value={formData.nombre}
+                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                  placeholder="Nombre del equipo"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Descripción</Label>
+                <Input
+                  value={formData.descripcion}
+                  onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                  placeholder="Descripción opcional"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Marca</Label>
+                  <Input
+                    value={formData.marca}
+                    onChange={(e) => setFormData({ ...formData, marca: e.target.value })}
+                    placeholder="Marca"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Modelo</Label>
+                  <Input
+                    value={formData.modelo}
+                    onChange={(e) => setFormData({ ...formData, modelo: e.target.value })}
+                    placeholder="Modelo"
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending || !formData.codigo || !formData.nombre}>
+                {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Crear Equipo
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Asignar dialog */}
       <Dialog open={isAsignarOpen} onOpenChange={setIsAsignarOpen}>

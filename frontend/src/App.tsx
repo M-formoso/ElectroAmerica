@@ -10,6 +10,7 @@ import { ProyectosPage } from '@/pages/Proyectos'
 import { MaterialesPage } from '@/pages/Materiales'
 import { EquiposPage } from '@/pages/Equipos'
 import { GastosPage } from '@/pages/Gastos'
+import { UsuariosPage } from '@/pages/Usuarios'
 import { MisProyectosPage } from '@/pages/portal/MisProyectos'
 import { DetalleProyectoPage } from '@/pages/portal/DetalleProyecto'
 import { useAuthStore, useIsAuthenticated, useIsCliente } from '@/store/auth'
@@ -92,6 +93,7 @@ function AppRoutes() {
         <Route path="materiales" element={<MaterialesPage />} />
         <Route path="equipos" element={<EquiposPage />} />
         <Route path="gastos" element={<GastosPage />} />
+        <Route path="usuarios" element={<UsuariosPage />} />
       </Route>
 
       {/* Client portal routes */}

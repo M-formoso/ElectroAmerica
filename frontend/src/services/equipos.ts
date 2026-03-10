@@ -35,9 +35,10 @@ export const equiposService = {
     id: string,
     proyectoId: string,
     fechaDevolucionEst?: string
-  ): Promise<Equipo> {
-    const response = await api.post<Equipo>(`/equipos/${id}/asignar`, {
+  ): Promise<any> {
+    const response = await api.post(`/equipos/${id}/asignar`, {
       proyecto_id: proyectoId,
+      fecha_asignacion: new Date().toISOString().split('T')[0],
       fecha_devolucion_est: fechaDevolucionEst,
     })
     return response.data
