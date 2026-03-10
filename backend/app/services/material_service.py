@@ -107,10 +107,9 @@ def asignar_material_a_proyecto(
         proyecto_id=asignacion.proyecto_id,
         etapa_id=asignacion.etapa_id,
         cantidad=asignacion.cantidad,
-        precio_unitario=material.precio_unitario,
-        fecha=date.today(),
-        observaciones=asignacion.observaciones,
-        created_by=usuario_id
+        fecha_asignacion=date.today(),
+        notas=asignacion.observaciones,
+        asignado_por_id=usuario_id
     )
     db.add(db_asignacion)
     db.flush()  # Para obtener el ID

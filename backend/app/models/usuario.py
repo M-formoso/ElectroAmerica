@@ -24,25 +24,10 @@ class Usuario(Base, BaseModel):
     rol = Column(Enum(RolUsuario), nullable=False, default=RolUsuario.operario)
 
     # Relaciones
-    proyectos_creados = relationship(
-        "Proyecto",
-        back_populates="creador",
-        foreign_keys="Proyecto.created_by"
-    )
     proyectos_asignados = relationship(
         "Proyecto",
         back_populates="cliente",
         foreign_keys="Proyecto.cliente_id"
-    )
-    gastos_creados = relationship(
-        "Gasto",
-        back_populates="creador",
-        foreign_keys="Gasto.created_by"
-    )
-    fotos_subidas = relationship(
-        "Foto",
-        back_populates="creador",
-        foreign_keys="Foto.created_by"
     )
 
     def __repr__(self):

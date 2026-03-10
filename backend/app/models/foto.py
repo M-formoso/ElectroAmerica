@@ -15,12 +15,12 @@ class Foto(Base, BaseModel):
     descripcion = Column(Text, nullable=True)
     fecha = Column(Date, nullable=False)
     visible_cliente = Column(Boolean, default=False, nullable=False)
-    created_by = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
+    subido_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
 
     # Relaciones
     proyecto = relationship("Proyecto", back_populates="fotos")
     etapa = relationship("Etapa", back_populates="fotos")
-    creador = relationship("Usuario", back_populates="fotos_subidas")
+    subido_por = relationship("Usuario", foreign_keys=[subido_por_id])
 
     def __repr__(self):
         return f"<Foto {self.id}>"

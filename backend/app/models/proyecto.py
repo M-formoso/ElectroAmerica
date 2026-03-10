@@ -26,8 +26,8 @@ class Proyecto(Base, BaseModel):
     fecha_fin_real = Column(Date, nullable=True)
     estado = Column(Enum(EstadoProyecto), default=EstadoProyecto.planificacion, nullable=False)
     porcentaje_avance = Column(Numeric(5, 2), default=0, nullable=False)
-    monto_contratado = Column(Numeric(14, 2), nullable=True)  # Solo visible admin/supervisor
-    created_by = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
+    monto_contratado = Column(Numeric(15, 2), nullable=True)
+    supervisor_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
 
     # Relaciones
     cliente = relationship(
@@ -35,10 +35,9 @@ class Proyecto(Base, BaseModel):
         foreign_keys=[cliente_id],
         back_populates="proyectos_asignados"
     )
-    creador = relationship(
+    supervisor = relationship(
         "Usuario",
-        foreign_keys=[created_by],
-        back_populates="proyectos_creados"
+        foreign_keys=[supervisor_id]
     )
     etapas = relationship(
         "Etapa",
