@@ -8,7 +8,7 @@ import enum
 class EstadoEtapa(str, enum.Enum):
     """Estados posibles de una etapa."""
     pendiente = "pendiente"
-    en_curso = "en_curso"
+    en_progreso = "en_progreso"
     completada = "completada"
     pausada = "pausada"
 
@@ -41,10 +41,6 @@ class Etapa(Base, BaseModel):
     )
     asignaciones_material = relationship(
         "AsignacionMaterial",
-        back_populates="etapa"
-    )
-    asignaciones_equipo = relationship(
-        "AsignacionEquipo",
         back_populates="etapa"
     )
 
