@@ -148,7 +148,7 @@ export function DashboardPage() {
                     <Progress value={proyecto.porcentaje_avance} className="h-2" />
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>{proyecto.porcentaje_avance.toFixed(0)}% completado</span>
-                      {proyecto.dias_restantes !== null && (
+                      {proyecto.dias_restantes != null && (
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           {proyecto.dias_restantes > 0
