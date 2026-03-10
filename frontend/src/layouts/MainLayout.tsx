@@ -25,8 +25,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { useAuthStore, useUser, useIsAdmin, useIsStaff } from '@/store/auth'
+import { useAuthStore, useUser } from '@/store/auth'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ['administrador', 'supervisor', 'operario'] },
@@ -70,16 +69,17 @@ export function MainLayout() {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 bg-card border-r transform transition-transform duration-200 ease-in-out lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 w-64 bg-card border-r transform transition-transform duration-200 ease-in-out lg:translate-x-0 flex flex-col',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         <div className="flex h-16 items-center justify-between px-4 border-b">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-electroamerica-red rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">EA</span>
-            </div>
-            <span className="font-semibold text-lg">Electro América</span>
+          <Link to="/" className="flex items-center">
+            <img
+              src="/logo.jpg"
+              alt="Electro América"
+              className="h-10 w-auto"
+            />
           </Link>
           <Button
             variant="ghost"
@@ -91,33 +91,31 @@ export function MainLayout() {
           </Button>
         </div>
 
-        <ScrollArea className="flex-1 py-4">
-          <nav className="space-y-1 px-2">
-            {filteredNavigation.map((item) => {
-              const isActive = location.pathname === item.href ||
-                (item.href !== '/' && location.pathname.startsWith(item.href))
+        <nav className="flex-1 space-y-1 px-2 py-4">
+          {filteredNavigation.map((item) => {
+            const isActive = location.pathname === item.href ||
+              (item.href !== '/' && location.pathname.startsWith(item.href))
 
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  onClick={() => setSidebarOpen(false)}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                  )}
-                >
-                  <item.icon className="h-5 w-5" />
-                  {item.name}
-                </Link>
-              )
-            })}
-          </nav>
-        </ScrollArea>
+            return (
+              <Link
+                key={item.name}
+                to={item.href}
+                onClick={() => setSidebarOpen(false)}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                )}
+              >
+                <item.icon className="h-5 w-5" />
+                {item.name}
+              </Link>
+            )
+          })}
+        </nav>
 
-        <div className="border-t p-4">
+        <div className="border-t p-4 mt-auto">
           <div className="flex items-center gap-3">
             <Avatar className="h-9 w-9">
               <AvatarFallback className="bg-primary text-primary-foreground text-sm">
