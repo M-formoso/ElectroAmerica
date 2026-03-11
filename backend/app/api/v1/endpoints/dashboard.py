@@ -269,3 +269,119 @@ def actividad_reciente(
     actividades.sort(key=lambda x: x['fecha'], reverse=True)
 
     return actividades[:limit]
+
+
+@router.get("/gastos-mensuales")
+def gastos_mensuales(
+    meses: int = Query(6, ge=1, le=12),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_staff)
+):
+    """Gastos agrupados por mes para gráficos."""
+    from sqlalchemy import extract
+
+    hoy = date.today()
+    fecha_inicio = hoy.replace(day=1) - timedelta(days=30 * (meses - 1))
+    fecha_inicio = fecha_inicio.replace(day=1)
+
+    # Obtener gastos agrupados por mes
+    resultados = db.query(
+        extract('year', Gasto.fecha).label('anio'),
+        extract('month', Gasto.fecha).label('mes'),
+        func.sum(Gasto.monto).label('total')
+    ).filter(
+        Gasto.activo == True,
+        Gasto.fecha >= fecha_inicio
+    ).group_by(
+        extract('year', Gasto.fecha),
+        extract('month', Gasto.fecha)
+    ).order_by(
+        extract('year', Gasto.fecha),
+        extract('month', Gasto.fecha)
+    ).all()
+
+    meses_nombres = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+                     'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+
+    return [
+        {
+            "mes": meses_nombres[int(r.mes) - 1],
+            "anio": int(r.anio),
+            "total": float(r.total)
+        }
+        for r in resultados
+    ]
+
+
+@router.get("/proyectos-por-estado")
+def proyectos_por_estado(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_staff)
+):
+    """Distribución de proyectos por estado para gráficos."""
+    resultados = db.query(
+        Proyecto.estado,
+        func.count(Proyecto.id).label('cantidad')
+    ).filter(
+        Proyecto.activo == True
+    ).group_by(Proyecto.estado).all()
+
+    estado_labels = {
+        EstadoProyecto.planificacion: 'Planificación',
+        EstadoProyecto.en_ejecucion: 'En Ejecución',
+        EstadoProyecto.pausado: 'Pausado',
+        EstadoProyecto.finalizado: 'Finalizado'
+    }
+
+    estado_colors = {
+        EstadoProyecto.planificacion: '#94a3b8',
+        EstadoProyecto.en_ejecucion: '#3b82f6',
+        EstadoProyecto.pausado: '#f59e0b',
+        EstadoProyecto.finalizado: '#22c55e'
+    }
+
+    return [
+        {
+            "estado": estado_labels.get(r.estado, r.estado.value),
+            "cantidad": r.cantidad,
+            "color": estado_colors.get(r.estado, '#6b7280')
+        }
+        for r in resultados
+    ]
+
+
+@router.get("/equipos-por-estado")
+def equipos_por_estado(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_staff)
+):
+    """Distribución de equipos por estado para gráficos."""
+    resultados = db.query(
+        Equipo.estado,
+        func.count(Equipo.id).label('cantidad')
+    ).filter(
+        Equipo.activo == True
+    ).group_by(Equipo.estado).all()
+
+    estado_labels = {
+        EstadoEquipo.disponible: 'Disponible',
+        EstadoEquipo.asignado: 'Asignado',
+        EstadoEquipo.mantenimiento: 'Mantenimiento',
+        EstadoEquipo.fuera_servicio: 'Fuera de Servicio'
+    }
+
+    estado_colors = {
+        EstadoEquipo.disponible: '#22c55e',
+        EstadoEquipo.asignado: '#3b82f6',
+        EstadoEquipo.mantenimiento: '#f59e0b',
+        EstadoEquipo.fuera_servicio: '#ef4444'
+    }
+
+    return [
+        {
+            "estado": estado_labels.get(r.estado, r.estado.value),
+            "cantidad": r.cantidad,
+            "color": estado_colors.get(r.estado, '#6b7280')
+        }
+        for r in resultados
+    ]

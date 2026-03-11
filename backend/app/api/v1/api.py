@@ -12,7 +12,8 @@ from app.api.v1.endpoints import (
     finanzas,
     reportes,
     portal,
-    dashboard
+    dashboard,
+    upload
 )
 
 api_router = APIRouter()
@@ -106,4 +107,11 @@ api_router.include_router(
     dashboard.router,
     prefix="/dashboard",
     tags=["Dashboard"]
+)
+
+# Upload de archivos
+api_router.include_router(
+    upload.router,
+    prefix="/upload",
+    tags=["Upload"]
 )

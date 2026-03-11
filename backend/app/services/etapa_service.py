@@ -109,7 +109,7 @@ def actualizar_avance_etapa(
     if etapa.porcentaje_avance >= Decimal(100):
         etapa.estado = EstadoEtapa.completada
     elif etapa.porcentaje_avance > Decimal(0) and etapa.estado == EstadoEtapa.pendiente:
-        etapa.estado = EstadoEtapa.en_curso
+        etapa.estado = EstadoEtapa.en_progreso
 
     db.commit()
     db.refresh(etapa)

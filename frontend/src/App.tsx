@@ -7,6 +7,7 @@ import { ClientLayout } from '@/layouts/ClientLayout'
 import { LoginPage } from '@/pages/Login'
 import { DashboardPage } from '@/pages/Dashboard'
 import { ProyectosPage } from '@/pages/Proyectos'
+import { ProyectoDetallePage } from '@/pages/ProyectoDetalle'
 import { MaterialesPage } from '@/pages/Materiales'
 import { EquiposPage } from '@/pages/Equipos'
 import { GastosPage } from '@/pages/Gastos'
@@ -90,6 +91,7 @@ function AppRoutes() {
       >
         <Route index element={<DashboardPage />} />
         <Route path="proyectos" element={<ProyectosPage />} />
+        <Route path="proyectos/:proyectoId" element={<ProyectoDetallePage />} />
         <Route path="materiales" element={<MaterialesPage />} />
         <Route path="equipos" element={<EquiposPage />} />
         <Route path="gastos" element={<GastosPage />} />

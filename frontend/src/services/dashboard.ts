@@ -61,4 +61,33 @@ export const dashboardService = {
     })
     return response.data
   },
+
+  async getGastosMensuales(meses: number = 6): Promise<Array<{
+    mes: string
+    anio: number
+    total: number
+  }>> {
+    const response = await api.get('/dashboard/gastos-mensuales', {
+      params: { meses },
+    })
+    return response.data
+  },
+
+  async getProyectosPorEstado(): Promise<Array<{
+    estado: string
+    cantidad: number
+    color: string
+  }>> {
+    const response = await api.get('/dashboard/proyectos-por-estado')
+    return response.data
+  },
+
+  async getEquiposPorEstado(): Promise<Array<{
+    estado: string
+    cantidad: number
+    color: string
+  }>> {
+    const response = await api.get('/dashboard/equipos-por-estado')
+    return response.data
+  },
 }
