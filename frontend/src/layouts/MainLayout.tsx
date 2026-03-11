@@ -12,6 +12,7 @@ import {
   X,
   Bell,
   ChevronDown,
+  FileText,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -33,6 +34,7 @@ const navigation = [
   { name: 'Materiales', href: '/materiales', icon: Package, roles: ['administrador', 'supervisor', 'operario'] },
   { name: 'Equipos', href: '/equipos', icon: Wrench, roles: ['administrador', 'supervisor', 'operario'] },
   { name: 'Gastos', href: '/gastos', icon: Receipt, roles: ['administrador', 'supervisor'] },
+  { name: 'Reportes', href: '/reportes', icon: FileText, roles: ['administrador', 'supervisor'] },
   { name: 'Usuarios', href: '/usuarios', icon: Users, roles: ['administrador'] },
 ]
 

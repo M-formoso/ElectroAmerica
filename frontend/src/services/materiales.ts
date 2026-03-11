@@ -62,4 +62,23 @@ export const materialesService = {
     const response = await api.get<Material[]>('/materiales/stock-bajo')
     return response.data
   },
+
+  async asignarMaterial(data: {
+    material_id: string
+    proyecto_id: string
+    etapa_id?: string
+    cantidad: number
+    notas?: string
+  }): Promise<any> {
+    const response = await api.post('/materiales/asignar', {
+      ...data,
+      fecha_asignacion: new Date().toISOString().split('T')[0],
+    })
+    return response.data
+  },
+
+  async getAsignacionesProyecto(proyectoId: string): Promise<any[]> {
+    const response = await api.get(`/proyectos/${proyectoId}/materiales`)
+    return response.data
+  },
 }

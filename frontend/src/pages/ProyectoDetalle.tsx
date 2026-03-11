@@ -22,6 +22,11 @@ import {
   Eye,
   EyeOff,
   X,
+  Package,
+  Wrench,
+  Receipt,
+  AlertTriangle,
+  Undo2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -52,16 +57,27 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { proyectosService } from '@/services/proyectos'
 import { etapasService, type EtapaCreate, type EtapaUpdate } from '@/services/etapas'
 import { fotosService } from '@/services/fotos'
+import { materialesService } from '@/services/materiales'
+import { equiposService } from '@/services/equipos'
+import { gastosService } from '@/services/gastos'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
-import { useIsAdmin } from '@/store/auth'
-import type { Etapa, EstadoEtapa, Foto, EstadoProyecto } from '@/types'
+import { useIsAdmin, useIsSupervisor } from '@/store/auth'
+import type { Etapa, EstadoEtapa, Foto, EstadoProyecto, Material, Equipo, Gasto } from '@/types'
 
 const estadoProyectoColors: Record<EstadoProyecto, string> = {
   planificacion: 'secondary',
@@ -71,8 +87,8 @@ const estadoProyectoColors: Record<EstadoProyecto, string> = {
 }
 
 const estadoProyectoLabels: Record<EstadoProyecto, string> = {
-  planificacion: 'Planificación',
-  en_ejecucion: 'En Ejecución',
+  planificacion: 'Planificacion',
+  en_ejecucion: 'En Ejecucion',
   pausado: 'Pausado',
   finalizado: 'Finalizado',
 }
@@ -98,6 +114,13 @@ const estadoEtapaIcons: Record<EstadoEtapa, React.ReactNode> = {
   pausada: <Pause className="h-4 w-4" />,
 }
 
+const estadoEquipoColors: Record<string, string> = {
+  disponible: 'success',
+  en_uso: 'default',
+  mantenimiento: 'warning',
+  fuera_servicio: 'destructive',
+}
+
 interface EtapaForm {
   nombre: string
   descripcion: string
@@ -120,9 +143,11 @@ export function ProyectoDetallePage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const isAdmin = useIsAdmin()
+  const isSupervisor = useIsSupervisor()
+  const canEdit = isAdmin || isSupervisor
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Estados para diálogos
+  // Estados para dialogos
   const [isEtapaDialogOpen, setIsEtapaDialogOpen] = useState(false)
   const [isDeleteEtapaOpen, setIsDeleteEtapaOpen] = useState(false)
   const [selectedEtapa, setSelectedEtapa] = useState<Etapa | null>(null)
@@ -137,8 +162,29 @@ export function ProyectoDetallePage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [isUploading, setIsUploading] = useState(false)
 
-  // Estado para galería
+  // Estado para galeria
   const [selectedFoto, setSelectedFoto] = useState<Foto | null>(null)
+
+  // Estados para asignar materiales
+  const [isAsignarMaterialOpen, setIsAsignarMaterialOpen] = useState(false)
+  const [selectedMaterialId, setSelectedMaterialId] = useState('')
+  const [cantidadMaterial, setCantidadMaterial] = useState('')
+  const [notasMaterial, setNotasMaterial] = useState('')
+  const [etapaMaterialId, setEtapaMaterialId] = useState('')
+
+  // Estados para asignar equipos
+  const [isAsignarEquipoOpen, setIsAsignarEquipoOpen] = useState(false)
+  const [selectedEquipoId, setSelectedEquipoId] = useState('')
+  const [fechaDevolucionEst, setFechaDevolucionEst] = useState('')
+
+  // Estados para agregar gasto
+  const [isAgregarGastoOpen, setIsAgregarGastoOpen] = useState(false)
+  const [gastoForm, setGastoForm] = useState({
+    descripcion: '',
+    monto: '',
+    categoria_id: '',
+    fecha: new Date().toISOString().split('T')[0],
+  })
 
   // Queries
   const { data: proyecto, isLoading: isLoadingProyecto } = useQuery({
@@ -157,6 +203,41 @@ export function ProyectoDetallePage() {
     queryKey: ['fotos', proyectoId],
     queryFn: () => fotosService.getFotos(proyectoId!),
     enabled: !!proyectoId,
+  })
+
+  // Queries para materiales, equipos y gastos
+  const { data: materialesAsignados } = useQuery({
+    queryKey: ['proyecto-materiales', proyectoId],
+    queryFn: () => materialesService.getAsignacionesProyecto(proyectoId!),
+    enabled: !!proyectoId,
+  })
+
+  const { data: equiposAsignados } = useQuery({
+    queryKey: ['proyecto-equipos', proyectoId],
+    queryFn: () => equiposService.getAsignacionesProyecto(proyectoId!),
+    enabled: !!proyectoId,
+  })
+
+  const { data: gastosProyecto } = useQuery({
+    queryKey: ['proyecto-gastos', proyectoId],
+    queryFn: () => gastosService.getGastosPorProyecto(proyectoId!),
+    enabled: !!proyectoId,
+  })
+
+  // Queries para listas de seleccion
+  const { data: materialesDisponibles } = useQuery({
+    queryKey: ['materiales'],
+    queryFn: () => materialesService.getMateriales(),
+  })
+
+  const { data: equiposDisponibles } = useQuery({
+    queryKey: ['equipos-disponibles'],
+    queryFn: () => equiposService.getDisponibles(),
+  })
+
+  const { data: categorias } = useQuery({
+    queryKey: ['gastos-categorias'],
+    queryFn: () => gastosService.getCategorias(),
   })
 
   // Mutations para etapas
@@ -229,6 +310,74 @@ export function ProyectoDetallePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fotos', proyectoId] })
       toast({ title: 'Visibilidad actualizada' })
+    },
+  })
+
+  // Mutation para asignar material
+  const asignarMaterialMutation = useMutation({
+    mutationFn: (data: { material_id: string; proyecto_id: string; etapa_id?: string; cantidad: number; notas?: string }) =>
+      materialesService.asignarMaterial(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['proyecto-materiales', proyectoId] })
+      queryClient.invalidateQueries({ queryKey: ['materiales'] })
+      toast({ title: 'Material asignado exitosamente' })
+      setIsAsignarMaterialOpen(false)
+      setSelectedMaterialId('')
+      setCantidadMaterial('')
+      setNotasMaterial('')
+      setEtapaMaterialId('')
+    },
+    onError: (error: any) => {
+      toast({ variant: 'destructive', title: error.response?.data?.detail || 'Error al asignar material' })
+    },
+  })
+
+  // Mutation para asignar equipo
+  const asignarEquipoMutation = useMutation({
+    mutationFn: ({ equipoId, proyectoId, fechaDevolucionEst }: { equipoId: string; proyectoId: string; fechaDevolucionEst?: string }) =>
+      equiposService.asignarEquipo(equipoId, proyectoId, fechaDevolucionEst),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['proyecto-equipos', proyectoId] })
+      queryClient.invalidateQueries({ queryKey: ['equipos-disponibles'] })
+      toast({ title: 'Equipo asignado exitosamente' })
+      setIsAsignarEquipoOpen(false)
+      setSelectedEquipoId('')
+      setFechaDevolucionEst('')
+    },
+    onError: (error: any) => {
+      toast({ variant: 'destructive', title: error.response?.data?.detail || 'Error al asignar equipo' })
+    },
+  })
+
+  // Mutation para devolver equipo
+  const devolverEquipoMutation = useMutation({
+    mutationFn: (equipoId: string) => equiposService.devolverEquipo(equipoId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['proyecto-equipos', proyectoId] })
+      queryClient.invalidateQueries({ queryKey: ['equipos-disponibles'] })
+      toast({ title: 'Equipo devuelto exitosamente' })
+    },
+    onError: () => {
+      toast({ variant: 'destructive', title: 'Error al devolver equipo' })
+    },
+  })
+
+  // Mutation para crear gasto
+  const crearGastoMutation = useMutation({
+    mutationFn: (data: Partial<Gasto>) => gastosService.createGasto(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['proyecto-gastos', proyectoId] })
+      toast({ title: 'Gasto registrado exitosamente' })
+      setIsAgregarGastoOpen(false)
+      setGastoForm({
+        descripcion: '',
+        monto: '',
+        categoria_id: '',
+        fecha: new Date().toISOString().split('T')[0],
+      })
+    },
+    onError: () => {
+      toast({ variant: 'destructive', title: 'Error al registrar gasto' })
     },
   })
 
@@ -326,6 +475,40 @@ export function ProyectoDetallePage() {
     }
   }
 
+  const handleAsignarMaterial = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedMaterialId || !cantidadMaterial) return
+    asignarMaterialMutation.mutate({
+      material_id: selectedMaterialId,
+      proyecto_id: proyectoId!,
+      etapa_id: etapaMaterialId || undefined,
+      cantidad: parseFloat(cantidadMaterial),
+      notas: notasMaterial || undefined,
+    })
+  }
+
+  const handleAsignarEquipo = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedEquipoId) return
+    asignarEquipoMutation.mutate({
+      equipoId: selectedEquipoId,
+      proyectoId: proyectoId!,
+      fechaDevolucionEst: fechaDevolucionEst || undefined,
+    })
+  }
+
+  const handleCrearGasto = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!gastoForm.descripcion || !gastoForm.monto) return
+    crearGastoMutation.mutate({
+      proyecto_id: proyectoId!,
+      descripcion: gastoForm.descripcion,
+      monto: parseFloat(gastoForm.monto),
+      categoria_id: gastoForm.categoria_id || undefined,
+      fecha: gastoForm.fecha,
+    })
+  }
+
   if (isLoadingProyecto) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -346,6 +529,8 @@ export function ProyectoDetallePage() {
   }
 
   const fotosGenerales = fotos?.filter((f) => !f.etapa_id) || []
+  const totalGastos = gastosProyecto?.reduce((sum, g) => sum + Number(g.monto), 0) || 0
+  const totalMateriales = materialesAsignados?.reduce((sum, m) => sum + (m.cantidad * (m.material?.precio_unitario || 0)), 0) || 0
 
   return (
     <div className="space-y-6">
@@ -379,7 +564,7 @@ export function ProyectoDetallePage() {
       </div>
 
       {/* Info Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -424,6 +609,23 @@ export function ProyectoDetallePage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+              <Receipt className="h-4 w-4" />
+              Total Gastos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">
+              {formatCurrency(totalGastos + totalMateriales)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Mat: {formatCurrency(totalMateriales)} | Otros: {formatCurrency(totalGastos)}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
               <User className="h-4 w-4" />
               Cliente
             </CardTitle>
@@ -440,12 +642,31 @@ export function ProyectoDetallePage() {
 
       {/* Tabs */}
       <Tabs defaultValue="etapas">
-        <TabsList>
-          <TabsTrigger value="etapas">
-            Etapas ({etapas?.length || 0})
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="etapas" className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Etapas</span>
+            <Badge variant="secondary" className="ml-1">{etapas?.length || 0}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="fotos">
-            Fotos ({fotos?.length || 0})
+          <TabsTrigger value="materiales" className="flex items-center gap-2">
+            <Package className="h-4 w-4" />
+            <span className="hidden sm:inline">Materiales</span>
+            <Badge variant="secondary" className="ml-1">{materialesAsignados?.length || 0}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="equipos" className="flex items-center gap-2">
+            <Wrench className="h-4 w-4" />
+            <span className="hidden sm:inline">Equipos</span>
+            <Badge variant="secondary" className="ml-1">{equiposAsignados?.length || 0}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="gastos" className="flex items-center gap-2">
+            <Receipt className="h-4 w-4" />
+            <span className="hidden sm:inline">Gastos</span>
+            <Badge variant="secondary" className="ml-1">{gastosProyecto?.length || 0}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="fotos" className="flex items-center gap-2">
+            <ImageIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Fotos</span>
+            <Badge variant="secondary" className="ml-1">{fotos?.length || 0}</Badge>
           </TabsTrigger>
         </TabsList>
 
@@ -455,7 +676,7 @@ export function ProyectoDetallePage() {
             <p className="text-muted-foreground">
               Gestiona las etapas del proyecto y actualiza su avance
             </p>
-            {isAdmin && (
+            {canEdit && (
               <Button onClick={openCreateEtapa}>
                 <Plus className="h-4 w-4 mr-2" />
                 Nueva Etapa
@@ -480,7 +701,7 @@ export function ProyectoDetallePage() {
                 <p className="text-muted-foreground mb-4">
                   No hay etapas definidas para este proyecto
                 </p>
-                {isAdmin && (
+                {canEdit && (
                   <Button onClick={openCreateEtapa}>
                     <Plus className="h-4 w-4 mr-2" />
                     Crear primera etapa
@@ -524,7 +745,7 @@ export function ProyectoDetallePage() {
                               <Upload className="h-4 w-4 mr-2" />
                               Subir fotos
                             </DropdownMenuItem>
-                            {isAdmin && (
+                            {canEdit && (
                               <>
                                 <DropdownMenuItem onClick={() => openEditEtapa(etapa)}>
                                   <Edit className="h-4 w-4 mr-2" />
@@ -571,7 +792,7 @@ export function ProyectoDetallePage() {
                           max={100}
                           step={5}
                           onValueCommit={(value) => handleAvanceChange(etapa.id, value)}
-                          disabled={!isAdmin && etapa.estado === 'completada'}
+                          disabled={!canEdit && etapa.estado === 'completada'}
                         />
                       </div>
 
@@ -617,11 +838,235 @@ export function ProyectoDetallePage() {
           )}
         </TabsContent>
 
+        {/* Materiales Tab */}
+        <TabsContent value="materiales" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-muted-foreground">
+                Materiales asignados a este proyecto
+              </p>
+              <p className="text-sm font-medium mt-1">
+                Total en materiales: {formatCurrency(totalMateriales)}
+              </p>
+            </div>
+            {canEdit && (
+              <Button onClick={() => setIsAsignarMaterialOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Asignar Material
+              </Button>
+            )}
+          </div>
+
+          {materialesAsignados?.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground mb-4">
+                  No hay materiales asignados a este proyecto
+                </p>
+                {canEdit && (
+                  <Button onClick={() => setIsAsignarMaterialOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Asignar primer material
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Material</TableHead>
+                    <TableHead>Cantidad</TableHead>
+                    <TableHead>Precio Unit.</TableHead>
+                    <TableHead>Subtotal</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Etapa</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {materialesAsignados?.map((asignacion: any) => (
+                    <TableRow key={asignacion.id}>
+                      <TableCell className="font-medium">
+                        {asignacion.material?.nombre || 'Material eliminado'}
+                      </TableCell>
+                      <TableCell>
+                        {asignacion.cantidad} {asignacion.material?.unidad || ''}
+                      </TableCell>
+                      <TableCell>
+                        {asignacion.material?.precio_unitario
+                          ? formatCurrency(asignacion.material.precio_unitario)
+                          : '-'}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {asignacion.material?.precio_unitario
+                          ? formatCurrency(asignacion.cantidad * asignacion.material.precio_unitario)
+                          : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {asignacion.fecha_asignacion ? formatDate(asignacion.fecha_asignacion) : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {asignacion.etapa?.nombre || '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Equipos Tab */}
+        <TabsContent value="equipos" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <p className="text-muted-foreground">
+              Equipos y herramientas asignados a este proyecto
+            </p>
+            {canEdit && (
+              <Button onClick={() => setIsAsignarEquipoOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Asignar Equipo
+              </Button>
+            )}
+          </div>
+
+          {equiposAsignados?.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <Wrench className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground mb-4">
+                  No hay equipos asignados a este proyecto
+                </p>
+                {canEdit && (
+                  <Button onClick={() => setIsAsignarEquipoOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Asignar primer equipo
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {equiposAsignados?.map((asignacion: any) => (
+                <Card key={asignacion.id}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <CardTitle className="text-base">
+                          {asignacion.equipo?.nombre || 'Equipo eliminado'}
+                        </CardTitle>
+                        <CardDescription>
+                          {asignacion.equipo?.tipo || ''}
+                        </CardDescription>
+                      </div>
+                      <Badge variant={estadoEquipoColors[asignacion.equipo?.estado] as any}>
+                        {asignacion.equipo?.estado?.replace('_', ' ') || '-'}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Asignado:</span>
+                      <span>{asignacion.fecha_asignacion ? formatDate(asignacion.fecha_asignacion) : '-'}</span>
+                    </div>
+                    {asignacion.fecha_devolucion_est && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Devolucion Est.:</span>
+                        <span>{formatDate(asignacion.fecha_devolucion_est)}</span>
+                      </div>
+                    )}
+                    {asignacion.equipo?.estado === 'en_uso' && canEdit && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-2"
+                        onClick={() => devolverEquipoMutation.mutate(asignacion.equipo.id)}
+                        disabled={devolverEquipoMutation.isPending}
+                      >
+                        <Undo2 className="h-4 w-4 mr-2" />
+                        Devolver
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Gastos Tab */}
+        <TabsContent value="gastos" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-muted-foreground">
+                Gastos registrados en este proyecto
+              </p>
+              <p className="text-sm font-medium mt-1">
+                Total gastos: {formatCurrency(totalGastos)}
+              </p>
+            </div>
+            {canEdit && (
+              <Button onClick={() => setIsAgregarGastoOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Registrar Gasto
+              </Button>
+            )}
+          </div>
+
+          {gastosProyecto?.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <Receipt className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground mb-4">
+                  No hay gastos registrados en este proyecto
+                </p>
+                {canEdit && (
+                  <Button onClick={() => setIsAgregarGastoOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Registrar primer gasto
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Descripcion</TableHead>
+                    <TableHead>Categoria</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead className="text-right">Monto</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {gastosProyecto?.map((gasto) => (
+                    <TableRow key={gasto.id}>
+                      <TableCell className="font-medium">{gasto.descripcion}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {gasto.categoria?.nombre || 'Sin categoria'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{formatDate(gasto.fecha)}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(gasto.monto)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
+        </TabsContent>
+
         {/* Fotos Tab */}
         <TabsContent value="fotos" className="space-y-4">
           <div className="flex justify-between items-center">
             <p className="text-muted-foreground">
-              Galería de fotos del proyecto
+              Galeria de fotos del proyecto
             </p>
             <Button onClick={() => openUploadDialog()}>
               <Upload className="h-4 w-4 mr-2" />
@@ -739,17 +1184,17 @@ export function ProyectoDetallePage() {
                   id="nombre"
                   value={etapaForm.nombre}
                   onChange={(e) => setEtapaForm({ ...etapaForm, nombre: e.target.value })}
-                  placeholder="Ej: Demolición, Cimentación, Estructura..."
+                  placeholder="Ej: Demolicion, Cimentacion, Estructura..."
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="descripcion">Descripción</Label>
+                <Label htmlFor="descripcion">Descripcion</Label>
                 <Textarea
                   id="descripcion"
                   value={etapaForm.descripcion}
                   onChange={(e) => setEtapaForm({ ...etapaForm, descripcion: e.target.value })}
-                  placeholder="Descripción de las tareas de esta etapa"
+                  placeholder="Descripcion de las tareas de esta etapa"
                   rows={3}
                 />
               </div>
@@ -823,7 +1268,7 @@ export function ProyectoDetallePage() {
           <DialogHeader>
             <DialogTitle>Eliminar etapa</DialogTitle>
             <DialogDescription>
-              ¿Estás seguro de eliminar "{selectedEtapa?.nombre}"? Esta acción no se puede
+              Estas seguro de eliminar "{selectedEtapa?.nombre}"? Esta accion no se puede
               deshacer.
             </DialogDescription>
           </DialogHeader>
@@ -879,10 +1324,10 @@ export function ProyectoDetallePage() {
                   onValueChange={(v) => setUploadEtapaId(v === 'none' ? undefined : v)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Sin etapa específica" />
+                    <SelectValue placeholder="Sin etapa especifica" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Sin etapa específica</SelectItem>
+                    <SelectItem value="none">Sin etapa especifica</SelectItem>
                     {etapas?.map((etapa) => (
                       <SelectItem key={etapa.id} value={etapa.id}>
                         {etapa.nombre}
@@ -894,12 +1339,12 @@ export function ProyectoDetallePage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="descripcion">Descripción</Label>
+              <Label htmlFor="descripcion">Descripcion</Label>
               <Textarea
                 id="descripcion"
                 value={uploadDescripcion}
                 onChange={(e) => setUploadDescripcion(e.target.value)}
-                placeholder="Descripción de las fotos"
+                placeholder="Descripcion de las fotos"
                 rows={2}
               />
             </div>
@@ -997,6 +1442,251 @@ export function ProyectoDetallePage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Asignar Material Dialog */}
+      <Dialog open={isAsignarMaterialOpen} onOpenChange={setIsAsignarMaterialOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Asignar Material</DialogTitle>
+            <DialogDescription>
+              Selecciona un material del inventario para asignar a este proyecto
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAsignarMaterial}>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Material *</Label>
+                <Select value={selectedMaterialId} onValueChange={setSelectedMaterialId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar material" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {materialesDisponibles?.map((material) => (
+                      <SelectItem key={material.id} value={material.id}>
+                        <div className="flex items-center justify-between w-full">
+                          <span>{material.nombre}</span>
+                          <span className="text-muted-foreground ml-2">
+                            (Stock: {material.stock_actual} {material.unidad})
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Cantidad *</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={cantidadMaterial}
+                  onChange={(e) => setCantidadMaterial(e.target.value)}
+                  placeholder="Cantidad a asignar"
+                  required
+                />
+                {selectedMaterialId && materialesDisponibles && (
+                  <p className="text-xs text-muted-foreground">
+                    Stock disponible: {materialesDisponibles.find(m => m.id === selectedMaterialId)?.stock_actual || 0}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Etapa (opcional)</Label>
+                <Select value={etapaMaterialId} onValueChange={setEtapaMaterialId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sin etapa especifica" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Sin etapa especifica</SelectItem>
+                    {etapas?.map((etapa) => (
+                      <SelectItem key={etapa.id} value={etapa.id}>
+                        {etapa.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notas</Label>
+                <Textarea
+                  value={notasMaterial}
+                  onChange={(e) => setNotasMaterial(e.target.value)}
+                  placeholder="Observaciones adicionales"
+                  rows={2}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsAsignarMaterialOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={asignarMaterialMutation.isPending || !selectedMaterialId || !cantidadMaterial}
+              >
+                {asignarMaterialMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Asignar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Asignar Equipo Dialog */}
+      <Dialog open={isAsignarEquipoOpen} onOpenChange={setIsAsignarEquipoOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Asignar Equipo</DialogTitle>
+            <DialogDescription>
+              Selecciona un equipo disponible para asignar a este proyecto
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAsignarEquipo}>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Equipo *</Label>
+                <Select value={selectedEquipoId} onValueChange={setSelectedEquipoId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar equipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {equiposDisponibles?.length === 0 ? (
+                      <SelectItem value="" disabled>
+                        No hay equipos disponibles
+                      </SelectItem>
+                    ) : (
+                      equiposDisponibles?.map((equipo) => (
+                        <SelectItem key={equipo.id} value={equipo.id}>
+                          {equipo.nombre} - {equipo.tipo}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Fecha devolucion estimada (opcional)</Label>
+                <Input
+                  type="date"
+                  value={fechaDevolucionEst}
+                  onChange={(e) => setFechaDevolucionEst(e.target.value)}
+                />
+              </div>
+
+              {equiposDisponibles?.length === 0 && (
+                <div className="flex items-center gap-2 text-amber-600 bg-amber-50 p-3 rounded-md">
+                  <AlertTriangle className="h-4 w-4" />
+                  <p className="text-sm">No hay equipos disponibles en este momento</p>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsAsignarEquipoOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={asignarEquipoMutation.isPending || !selectedEquipoId}
+              >
+                {asignarEquipoMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Asignar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Agregar Gasto Dialog */}
+      <Dialog open={isAgregarGastoOpen} onOpenChange={setIsAgregarGastoOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Registrar Gasto</DialogTitle>
+            <DialogDescription>
+              Registra un nuevo gasto asociado a este proyecto
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCrearGasto}>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Descripcion *</Label>
+                <Input
+                  value={gastoForm.descripcion}
+                  onChange={(e) => setGastoForm({ ...gastoForm, descripcion: e.target.value })}
+                  placeholder="Ej: Combustible, Transporte, Herramientas..."
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Monto *</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={gastoForm.monto}
+                    onChange={(e) => setGastoForm({ ...gastoForm, monto: e.target.value })}
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Fecha</Label>
+                  <Input
+                    type="date"
+                    value={gastoForm.fecha}
+                    onChange={(e) => setGastoForm({ ...gastoForm, fecha: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Categoria</Label>
+                <Select
+                  value={gastoForm.categoria_id}
+                  onValueChange={(v) => setGastoForm({ ...gastoForm, categoria_id: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Sin categoria</SelectItem>
+                    {categorias?.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsAgregarGastoOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={crearGastoMutation.isPending || !gastoForm.descripcion || !gastoForm.monto}
+              >
+                {crearGastoMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Registrar
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

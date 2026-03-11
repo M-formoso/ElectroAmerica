@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from typing import Optional, List
 from uuid import UUID
 from datetime import date
@@ -37,54 +38,88 @@ def obtener_datos_reporte(
             ItemTrabajo.activo == True
         ).all()
 
-        items_completados = len([i for i in items if i.estado.value == 'completado'])
+        items_data = []
+        for item in items:
+            porcentaje_item = 0
+            if item.cantidad_estimada and float(item.cantidad_estimada) > 0:
+                porcentaje_item = (float(item.cantidad_ejecutada) / float(item.cantidad_estimada)) * 100
+
+            items_data.append({
+                "id": str(item.id),
+                "nombre": item.nombre,
+                "descripcion": item.descripcion,
+                "unidad": item.unidad,
+                "cantidad_estimada": float(item.cantidad_estimada),
+                "cantidad_ejecutada": float(item.cantidad_ejecutada),
+                "porcentaje": round(porcentaje_item, 1),
+                "precio_unitario": float(item.precio_unitario) if item.precio_unitario else None,
+            })
 
         etapas_data.append({
             "id": str(etapa.id),
             "nombre": etapa.nombre,
+            "descripcion": etapa.descripcion,
             "estado": etapa.estado.value,
             "porcentaje_avance": float(etapa.porcentaje_avance),
+            "fecha_inicio_est": etapa.fecha_inicio_est.isoformat() if etapa.fecha_inicio_est else None,
+            "fecha_fin_est": etapa.fecha_fin_est.isoformat() if etapa.fecha_fin_est else None,
+            "fecha_inicio_real": etapa.fecha_inicio_real.isoformat() if etapa.fecha_inicio_real else None,
+            "fecha_fin_real": etapa.fecha_fin_real.isoformat() if etapa.fecha_fin_real else None,
+            "items": items_data,
             "items_total": len(items),
-            "items_completados": items_completados,
         })
 
     # Materiales utilizados en el período
     materiales = db.query(AsignacionMaterial).filter(
         AsignacionMaterial.proyecto_id == proyecto_id,
-        AsignacionMaterial.fecha >= fecha_desde,
-        AsignacionMaterial.fecha <= fecha_hasta
+        AsignacionMaterial.fecha_asignacion >= fecha_desde,
+        AsignacionMaterial.fecha_asignacion <= fecha_hasta,
+        AsignacionMaterial.activo == True
     ).all()
 
-    materiales_data = [
-        {
+    materiales_data = []
+    for m in materiales:
+        costo = None
+        if m.material and m.material.precio_unitario:
+            costo = float(m.cantidad) * float(m.material.precio_unitario)
+
+        materiales_data.append({
             "nombre": m.material.nombre if m.material else "N/A",
+            "codigo": m.material.codigo if m.material else "",
             "cantidad": float(m.cantidad),
             "unidad": m.material.unidad if m.material else "",
-            "fecha": m.fecha.isoformat(),
-        }
-        for m in materiales
-    ]
+            "fecha": m.fecha_asignacion.isoformat(),
+            "etapa": m.etapa.nombre if m.etapa else "General",
+            "notas": m.notas,
+            "costo_estimado": costo,
+        })
+
+    total_costo_materiales = sum(m["costo_estimado"] or 0 for m in materiales_data)
 
     # Equipos asignados en el período
-    from sqlalchemy import or_
     equipos = db.query(AsignacionEquipo).filter(
         AsignacionEquipo.proyecto_id == proyecto_id,
-        AsignacionEquipo.fecha_desde <= fecha_hasta,
+        AsignacionEquipo.fecha_asignacion <= fecha_hasta,
         or_(
-            AsignacionEquipo.fecha_hasta >= fecha_desde,
-            AsignacionEquipo.fecha_hasta.is_(None)
-        )
+            AsignacionEquipo.fecha_devolucion_real >= fecha_desde,
+            AsignacionEquipo.fecha_devolucion_real.is_(None)
+        ),
+        AsignacionEquipo.activo == True
     ).all()
 
-    equipos_data = [
-        {
+    equipos_data = []
+    for e in equipos:
+        equipos_data.append({
             "nombre": e.equipo.nombre if e.equipo else "N/A",
+            "codigo": e.equipo.codigo if e.equipo else "",
             "tipo": e.equipo.tipo.value if e.equipo else "",
-            "fecha_desde": e.fecha_desde.isoformat(),
-            "fecha_hasta": e.fecha_hasta.isoformat() if e.fecha_hasta else "En uso",
-        }
-        for e in equipos
-    ]
+            "marca": e.equipo.marca if e.equipo else "",
+            "modelo": e.equipo.modelo if e.equipo else "",
+            "fecha_asignacion": e.fecha_asignacion.isoformat(),
+            "fecha_devolucion_est": e.fecha_devolucion_est.isoformat() if e.fecha_devolucion_est else None,
+            "fecha_devolucion_real": e.fecha_devolucion_real.isoformat() if e.fecha_devolucion_real else None,
+            "notas": e.notas,
+        })
 
     # Gastos del período
     gastos = db.query(Gasto).filter(
@@ -92,19 +127,27 @@ def obtener_datos_reporte(
         Gasto.fecha >= fecha_desde,
         Gasto.fecha <= fecha_hasta,
         Gasto.activo == True
-    ).all()
+    ).order_by(Gasto.fecha.desc()).all()
 
     total_gastos = sum(float(g.monto) for g in gastos)
 
-    gastos_data = [
-        {
+    gastos_data = []
+    gastos_por_categoria = {}
+    for g in gastos:
+        categoria_nombre = g.categoria.nombre if g.categoria else "Sin categoría"
+        gastos_data.append({
+            "id": str(g.id),
             "fecha": g.fecha.isoformat(),
-            "categoria": g.categoria,
+            "categoria": categoria_nombre,
             "descripcion": g.descripcion,
             "monto": float(g.monto),
-        }
-        for g in gastos
-    ]
+            "comprobante_url": g.comprobante_url,
+            "numero_comprobante": g.numero_comprobante,
+        })
+
+        if categoria_nombre not in gastos_por_categoria:
+            gastos_por_categoria[categoria_nombre] = 0
+        gastos_por_categoria[categoria_nombre] += float(g.monto)
 
     # Fotos del período
     fotos = db.query(Foto).filter(
@@ -112,16 +155,36 @@ def obtener_datos_reporte(
         Foto.fecha >= fecha_desde,
         Foto.fecha <= fecha_hasta,
         Foto.activo == True
-    ).order_by(Foto.fecha.desc()).limit(10).all()
+    ).order_by(Foto.fecha.desc()).all()
 
-    fotos_data = [
-        {
+    fotos_data = []
+    for f in fotos:
+        fotos_data.append({
+            "id": str(f.id),
             "url": f.url,
+            "thumbnail_url": f.thumbnail_url,
             "descripcion": f.descripcion,
             "fecha": f.fecha.isoformat(),
+            "etapa": f.etapa.nombre if f.etapa else "General",
+            "visible_cliente": f.visible_cliente,
+        })
+
+    # Cliente y supervisor
+    cliente_data = None
+    if proyecto.cliente:
+        cliente_data = {
+            "nombre": f"{proyecto.cliente.nombre} {proyecto.cliente.apellido}",
+            "email": proyecto.cliente.email,
+            "telefono": proyecto.cliente.telefono,
         }
-        for f in fotos
-    ]
+
+    supervisor_data = None
+    if proyecto.supervisor:
+        supervisor_data = {
+            "nombre": f"{proyecto.supervisor.nombre} {proyecto.supervisor.apellido}",
+            "email": proyecto.supervisor.email,
+            "telefono": proyecto.supervisor.telefono,
+        }
 
     return {
         "proyecto": {
@@ -133,16 +196,29 @@ def obtener_datos_reporte(
             "porcentaje_avance": float(proyecto.porcentaje_avance),
             "fecha_inicio": proyecto.fecha_inicio.isoformat() if proyecto.fecha_inicio else None,
             "fecha_fin_estimada": proyecto.fecha_fin_estimada.isoformat() if proyecto.fecha_fin_estimada else None,
+            "fecha_fin_real": proyecto.fecha_fin_real.isoformat() if proyecto.fecha_fin_real else None,
+            "monto_contratado": float(proyecto.monto_contratado) if proyecto.monto_contratado else None,
+            "cliente": cliente_data,
+            "supervisor": supervisor_data,
         },
         "periodo": {
             "desde": fecha_desde.isoformat(),
             "hasta": fecha_hasta.isoformat(),
         },
+        "resumen": {
+            "total_etapas": len(etapas_data),
+            "etapas_completadas": len([e for e in etapas_data if e["estado"] == "completada"]),
+            "total_materiales_asignados": len(materiales_data),
+            "costo_materiales": total_costo_materiales,
+            "total_equipos_usados": len(equipos_data),
+            "total_gastos": total_gastos,
+            "gastos_por_categoria": gastos_por_categoria,
+            "total_fotos": len(fotos_data),
+        },
         "etapas": etapas_data,
         "materiales": materiales_data,
         "equipos": equipos_data,
         "gastos": gastos_data,
-        "total_gastos": total_gastos,
         "fotos": fotos_data,
     }
 
@@ -154,7 +230,7 @@ def guardar_reporte(
     fecha_hasta: date,
     pdf_url: Optional[str],
     excel_url: Optional[str],
-    usuario_id: Optional[UUID],
+    usuario_id: UUID,
     tipo: str = "personalizado"
 ) -> Reporte:
     """Guarda un reporte en la base de datos."""
@@ -165,7 +241,7 @@ def guardar_reporte(
         tipo=tipo,
         pdf_url=pdf_url,
         excel_url=excel_url,
-        created_by=usuario_id
+        generado_por_id=usuario_id
     )
     db.add(reporte)
     db.commit()

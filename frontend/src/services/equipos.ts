@@ -64,4 +64,9 @@ export const equiposService = {
     })
     return response.data
   },
+
+  async getAsignacionesProyecto(proyectoId: string): Promise<any[]> {
+    const response = await api.get(`/proyectos/${proyectoId}/equipos`)
+    return response.data
+  },
 }

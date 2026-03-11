@@ -8,10 +8,12 @@ import { LoginPage } from '@/pages/Login'
 import { DashboardPage } from '@/pages/Dashboard'
 import { ProyectosPage } from '@/pages/Proyectos'
 import { ProyectoDetallePage } from '@/pages/ProyectoDetalle'
+import { ProyectoEditarPage } from '@/pages/ProyectoEditar'
 import { MaterialesPage } from '@/pages/Materiales'
 import { EquiposPage } from '@/pages/Equipos'
 import { GastosPage } from '@/pages/Gastos'
 import { UsuariosPage } from '@/pages/Usuarios'
+import { ReportesPage } from '@/pages/Reportes'
 import { MisProyectosPage } from '@/pages/portal/MisProyectos'
 import { DetalleProyectoPage } from '@/pages/portal/DetalleProyecto'
 import { useAuthStore, useIsAuthenticated, useIsCliente } from '@/store/auth'
@@ -92,9 +94,11 @@ function AppRoutes() {
         <Route index element={<DashboardPage />} />
         <Route path="proyectos" element={<ProyectosPage />} />
         <Route path="proyectos/:proyectoId" element={<ProyectoDetallePage />} />
+        <Route path="proyectos/:proyectoId/editar" element={<ProyectoEditarPage />} />
         <Route path="materiales" element={<MaterialesPage />} />
         <Route path="equipos" element={<EquiposPage />} />
         <Route path="gastos" element={<GastosPage />} />
+        <Route path="reportes" element={<ReportesPage />} />
         <Route path="usuarios" element={<UsuariosPage />} />
       </Route>
 
