@@ -17,7 +17,7 @@ from app.schemas.cliente import (
     PagoResponse, UsuarioClienteCreate, UsuarioClienteResponse,
     ProyectoClienteResumen, ClienteConProyectos
 )
-from app.core.security import get_password_hash
+from app.core.security import hashear_password
 
 
 def generar_codigo_cliente(db: Session) -> str:
@@ -390,7 +390,7 @@ def crear_usuario_cliente(
     # Crear usuario
     usuario = Usuario(
         email=datos.email,
-        hashed_password=get_password_hash(password),
+        hashed_password=hashear_password(password),
         nombre=datos.nombre,
         apellido=datos.apellido,
         telefono=datos.telefono,
@@ -446,7 +446,7 @@ def reset_password_usuario_cliente(db: Session, cliente_id: UUID) -> str:
         raise ValueError("Usuario no encontrado")
 
     nuevo_password = generar_password_aleatorio()
-    usuario.hashed_password = get_password_hash(nuevo_password)
+    usuario.hashed_password = hashear_password(nuevo_password)
 
     db.commit()
 

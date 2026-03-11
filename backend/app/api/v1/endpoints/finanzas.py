@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from typing import Optional
 from datetime import date
-from app.core.deps import get_db, require_admin_or_supervisor, get_current_user
+from app.core.deps import get_db, require_admin_or_supervisor, get_usuario_actual
 from app.models.usuario import Usuario
 from app.schemas.finanzas import (
     PrecioItemCreate, PrecioItemResponse,
@@ -131,7 +131,7 @@ def get_transacciones(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Lista transacciones con filtros."""
     tipo_enum = TipoTransaccion(tipo) if tipo else None
@@ -175,7 +175,7 @@ def get_transacciones(
 def get_transaccion(
     transaccion_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Obtiene una transaccion por ID."""
     t = finanzas_service.get_transaccion(db, transaccion_id)
@@ -213,7 +213,7 @@ def get_transaccion(
 def create_transaccion(
     transaccion: TransaccionCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Crea una nueva transaccion (ingreso o egreso)."""
     t = finanzas_service.create_transaccion(db, transaccion, current_user.id)
@@ -274,7 +274,7 @@ def anular_transaccion(
 def get_cuentas(
     tipo: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Lista todas las cuentas con sus saldos."""
     cuentas = finanzas_service.get_cuentas(db, tipo)
@@ -285,7 +285,7 @@ def get_cuentas(
 def get_cuenta(
     cuenta_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Obtiene una cuenta con su saldo."""
     cuenta = finanzas_service.get_cuenta(db, cuenta_id)
@@ -345,7 +345,7 @@ def get_movimientos_cuenta(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Obtiene movimientos de una cuenta especifica."""
     cuenta = finanzas_service.get_cuenta(db, cuenta_id)
@@ -380,7 +380,7 @@ def get_movimientos_cuenta(
 def get_clientes_proveedores(
     tipo: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Lista clientes y proveedores."""
     items = finanzas_service.get_clientes_proveedores(db, tipo)
@@ -403,7 +403,7 @@ def get_clientes_proveedores(
 def get_cliente_proveedor(
     cp_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Obtiene un cliente/proveedor."""
     cp = finanzas_service.get_cliente_proveedor(db, cp_id)
@@ -427,7 +427,7 @@ def get_cliente_proveedor(
 def create_cliente_proveedor(
     cp: ClienteProveedorCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Crea un cliente o proveedor."""
     item = finanzas_service.create_cliente_proveedor(db, cp)
@@ -443,7 +443,7 @@ def update_cliente_proveedor(
     cp_id: UUID,
     cp: ClienteProveedorUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Actualiza un cliente/proveedor."""
     item = finanzas_service.update_cliente_proveedor(db, cp_id, cp)
@@ -469,7 +469,7 @@ def delete_cliente_proveedor(
 def get_cuenta_corriente(
     cp_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Obtiene cuenta corriente de un cliente/proveedor."""
     result = finanzas_service.get_cuenta_corriente(db, cp_id)
@@ -521,7 +521,7 @@ def get_resumen_mensual(
 def get_presupuestos(
     proyecto_id: Optional[UUID] = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Lista presupuestos."""
     items = finanzas_service.get_presupuestos(db, proyecto_id)

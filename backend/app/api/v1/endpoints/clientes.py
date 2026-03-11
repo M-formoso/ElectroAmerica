@@ -4,7 +4,7 @@ from typing import Optional, List
 from uuid import UUID
 from datetime import date
 
-from app.api.deps import get_db, get_current_user
+from app.core.deps import get_db, get_usuario_actual
 from app.models.usuario import Usuario
 from app.models.cliente import TipoCliente
 from app.schemas.cliente import (
@@ -29,7 +29,7 @@ def listar_clientes(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Lista todos los clientes con filtros."""
     clientes = cliente_service.get_clientes(
@@ -58,7 +58,7 @@ def listar_clientes(
 @router.get("/lista", response_model=List[ClienteListItem])
 def lista_clientes_simple(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Lista simplificada de clientes para selectores."""
     return cliente_service.get_clientes_lista(db)
@@ -87,7 +87,7 @@ def obtener_condiciones_iva():
 @router.get("/estadisticas")
 def obtener_estadisticas(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Obtiene estadísticas generales de clientes."""
     return cliente_service.get_estadisticas_clientes(db)
@@ -97,7 +97,7 @@ def obtener_estadisticas(
 def obtener_cliente(
     cliente_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Obtiene el detalle de un cliente."""
     cliente = cliente_service.get_cliente(db, cliente_id)
@@ -111,7 +111,7 @@ def obtener_cliente(
 def obtener_cliente_completo(
     cliente_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Obtiene el detalle completo de un cliente con proyectos."""
     cliente = cliente_service.get_cliente_con_proyectos(db, cliente_id)
@@ -125,7 +125,7 @@ def obtener_cliente_completo(
 def crear_cliente(
     cliente: ClienteCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Crea un nuevo cliente."""
     try:
@@ -140,7 +140,7 @@ def actualizar_cliente(
     cliente_id: UUID,
     cliente: ClienteUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Actualiza un cliente existente."""
     try:
@@ -157,7 +157,7 @@ def actualizar_cliente(
 def eliminar_cliente(
     cliente_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Desactiva un cliente (soft delete)."""
     try:
@@ -176,7 +176,7 @@ def eliminar_cliente(
 def obtener_estado_cuenta(
     cliente_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Obtiene el estado de cuenta de un cliente."""
     estado = cliente_service.get_estado_cuenta(db, cliente_id)
@@ -194,7 +194,7 @@ def obtener_movimientos(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Obtiene los movimientos de cuenta corriente de un cliente."""
     return cliente_service.get_movimientos_cuenta(
@@ -210,7 +210,7 @@ def registrar_pago(
     cliente_id: UUID,
     pago: RegistroPagoCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Registra un pago de un cliente."""
     try:
@@ -225,7 +225,7 @@ def registrar_pago(
 def obtener_usuario_cliente(
     cliente_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Obtiene el usuario asociado a un cliente."""
     return cliente_service.get_usuario_cliente(db, cliente_id)
@@ -236,7 +236,7 @@ def crear_usuario_cliente(
     cliente_id: UUID,
     datos: UsuarioClienteCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Crea un usuario de acceso al portal para el cliente."""
     try:
@@ -249,7 +249,7 @@ def crear_usuario_cliente(
 def reset_password_usuario(
     cliente_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Resetea la contraseña del usuario cliente."""
     try:
@@ -265,7 +265,7 @@ def reset_password_usuario(
 def obtener_proyectos_cliente(
     cliente_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_usuario_actual)
 ):
     """Obtiene los proyectos de un cliente."""
     return cliente_service.get_proyectos_cliente(db, cliente_id)
