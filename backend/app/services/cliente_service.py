@@ -225,7 +225,7 @@ def get_estado_cuenta(db: Session, cliente_id: UUID) -> Optional[EstadoCuentaCli
     # Total facturado este mes (egresos del cliente = ingresos nuestros)
     total_facturado = db.query(func.sum(Transaccion.monto)).filter(
         Transaccion.cliente_proveedor_id == cliente_id,
-        Transaccion.tipo == TipoTransaccion.INGRESO,
+        Transaccion.tipo == TipoTransaccion.INGRESO.value,
         Transaccion.fecha >= primer_dia_mes,
         Transaccion.activo == True
     ).scalar() or 0
@@ -233,7 +233,7 @@ def get_estado_cuenta(db: Session, cliente_id: UUID) -> Optional[EstadoCuentaCli
     # Total pagado este mes
     total_pagado = db.query(func.sum(Transaccion.monto)).filter(
         Transaccion.cliente_proveedor_id == cliente_id,
-        Transaccion.tipo == TipoTransaccion.EGRESO,
+        Transaccion.tipo == TipoTransaccion.EGRESO.value,
         Transaccion.concepto.ilike("%pago%"),
         Transaccion.fecha >= primer_dia_mes,
         Transaccion.activo == True
@@ -287,7 +287,7 @@ def get_movimientos_cuenta(
 
     movimientos = []
     for t in transacciones:
-        tipo_mov = "cargo" if t.tipo == TipoTransaccion.INGRESO else "pago"
+        tipo_mov = "cargo" if t.tipo == TipoTransaccion.INGRESO.value else "pago"
 
         # Obtener nombre del proyecto si existe
         proyecto_nombre = None
@@ -330,7 +330,7 @@ def registrar_pago(
 
     # Crear transaccion de pago (egreso desde perspectiva del cliente)
     transaccion = Transaccion(
-        tipo=TipoTransaccion.EGRESO,
+        tipo=TipoTransaccion.EGRESO.value,
         concepto=f"Pago recibido - {numero_recibo}",
         descripcion=pago.notas,
         monto=pago.monto,

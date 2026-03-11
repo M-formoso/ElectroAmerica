@@ -60,7 +60,8 @@ class TransaccionBase(BaseModel):
 
 
 class TransaccionCreate(TransaccionBase):
-    pass
+    class Config:
+        use_enum_values = True
 
 
 class TransaccionUpdate(BaseModel):
@@ -113,7 +114,8 @@ class CuentaBase(BaseModel):
 
 
 class CuentaCreate(CuentaBase):
-    pass
+    class Config:
+        use_enum_values = True
 
 
 class CuentaUpdate(BaseModel):
@@ -157,7 +159,8 @@ class ClienteProveedorBase(BaseModel):
 
 
 class ClienteProveedorCreate(ClienteProveedorBase):
-    pass
+    class Config:
+        use_enum_values = True
 
 
 class ClienteProveedorUpdate(BaseModel):

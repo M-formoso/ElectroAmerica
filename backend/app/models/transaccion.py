@@ -1,5 +1,5 @@
-from sqlalchemy import Column, String, Date, Numeric, ForeignKey, Enum, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Date, Numeric, ForeignKey, Text, Enum
+from sqlalchemy.dialects.postgresql import UUID, ENUM as PgEnum
 from sqlalchemy.orm import relationship
 from app.db.base_class import Base, BaseModel
 import enum
@@ -29,22 +29,42 @@ class EstadoTransaccion(str, enum.Enum):
     ANULADA = "anulada"
 
 
+# PostgreSQL ENUMs - usan los valores del enum (minuscula)
+TipoTransaccionDB = PgEnum(
+    'ingreso', 'egreso',
+    name='tipotransaccion',
+    create_type=False
+)
+
+MetodoPagoDB = PgEnum(
+    'efectivo', 'transferencia', 'tarjeta_debito', 'tarjeta_credito', 'cheque', 'mercado_pago', 'otro',
+    name='metodopago',
+    create_type=False
+)
+
+EstadoTransaccionDB = PgEnum(
+    'pendiente', 'confirmada', 'anulada',
+    name='estadotransaccion',
+    create_type=False
+)
+
+
 class Transaccion(Base, BaseModel):
     """Modelo de transaccion financiera (ingreso o egreso)."""
     __tablename__ = "transacciones"
 
-    tipo = Column(Enum(TipoTransaccion), nullable=False)
+    tipo = Column(TipoTransaccionDB, nullable=False)
     concepto = Column(String(300), nullable=False)
     descripcion = Column(Text, nullable=True)
     monto = Column(Numeric(12, 2), nullable=False)
     fecha = Column(Date, nullable=False)
 
     # Metodo de pago
-    metodo_pago = Column(Enum(MetodoPago), default=MetodoPago.EFECTIVO)
+    metodo_pago = Column(MetodoPagoDB, default='efectivo')
     referencia_pago = Column(String(100), nullable=True)  # Nro cheque, transferencia, etc.
 
     # Estado
-    estado = Column(Enum(EstadoTransaccion), default=EstadoTransaccion.CONFIRMADA)
+    estado = Column(EstadoTransaccionDB, default='confirmada')
 
     # Comprobante
     numero_comprobante = Column(String(100), nullable=True)
@@ -79,12 +99,19 @@ class TipoCuenta(str, enum.Enum):
     OTRO = "otro"
 
 
+TipoCuentaDB = PgEnum(
+    'caja', 'banco', 'mercado_pago', 'otro',
+    name='tipocuenta',
+    create_type=False
+)
+
+
 class Cuenta(Base, BaseModel):
     """Cuenta financiera (caja, banco, etc.)."""
     __tablename__ = "cuentas"
 
     nombre = Column(String(100), nullable=False)
-    tipo = Column(Enum(TipoCuenta), default=TipoCuenta.CAJA)
+    tipo = Column(TipoCuentaDB, default='caja')
     descripcion = Column(String(300), nullable=True)
     numero_cuenta = Column(String(50), nullable=True)
     banco = Column(String(100), nullable=True)
@@ -115,11 +142,18 @@ class TipoClienteProveedor(str, enum.Enum):
     AMBOS = "ambos"
 
 
+TipoClienteProveedorDB = PgEnum(
+    'cliente', 'proveedor', 'ambos',
+    name='tipoclienteproveedor',
+    create_type=False
+)
+
+
 class ClienteProveedor(Base, BaseModel):
     """Cliente o proveedor para finanzas."""
     __tablename__ = "clientes_proveedores"
 
-    tipo = Column(Enum(TipoClienteProveedor), default=TipoClienteProveedor.CLIENTE)
+    tipo = Column(TipoClienteProveedorDB, default='cliente')
     razon_social = Column(String(200), nullable=False)
     nombre_fantasia = Column(String(200), nullable=True)
     cuit = Column(String(15), nullable=True)

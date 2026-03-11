@@ -293,7 +293,7 @@ def anular_transaccion(db: Session, transaccion_id: UUID) -> Optional[Transaccio
     if not db_transaccion:
         return None
 
-    db_transaccion.estado = EstadoTransaccion.ANULADA
+    db_transaccion.estado = EstadoTransaccion.ANULADA.value
     db.commit()
     db.refresh(db_transaccion)
     return db_transaccion
@@ -360,16 +360,16 @@ def get_saldo_cuenta(db: Session, cuenta_id: UUID) -> dict:
     # Sumar ingresos
     total_ingresos = db.query(func.coalesce(func.sum(Transaccion.monto), 0)).filter(
         Transaccion.cuenta_id == cuenta_id,
-        Transaccion.tipo == TipoTransaccion.INGRESO,
-        Transaccion.estado == EstadoTransaccion.CONFIRMADA,
+        Transaccion.tipo == TipoTransaccion.INGRESO.value,
+        Transaccion.estado == EstadoTransaccion.CONFIRMADA.value,
         Transaccion.activo == True
     ).scalar() or Decimal(0)
 
     # Sumar egresos
     total_egresos = db.query(func.coalesce(func.sum(Transaccion.monto), 0)).filter(
         Transaccion.cuenta_id == cuenta_id,
-        Transaccion.tipo == TipoTransaccion.EGRESO,
-        Transaccion.estado == EstadoTransaccion.CONFIRMADA,
+        Transaccion.tipo == TipoTransaccion.EGRESO.value,
+        Transaccion.estado == EstadoTransaccion.CONFIRMADA.value,
         Transaccion.activo == True
     ).scalar() or Decimal(0)
 
@@ -452,13 +452,13 @@ def get_cuenta_corriente(db: Session, cliente_proveedor_id: UUID) -> dict:
     # Transacciones del cliente/proveedor
     transacciones = db.query(Transaccion).filter(
         Transaccion.cliente_proveedor_id == cliente_proveedor_id,
-        Transaccion.estado == EstadoTransaccion.CONFIRMADA,
+        Transaccion.estado == EstadoTransaccion.CONFIRMADA.value,
         Transaccion.activo == True
     ).order_by(Transaccion.fecha.desc()).all()
 
     # Calcular saldo
-    total_ingresos = sum(float(t.monto) for t in transacciones if t.tipo == TipoTransaccion.INGRESO)
-    total_egresos = sum(float(t.monto) for t in transacciones if t.tipo == TipoTransaccion.EGRESO)
+    total_ingresos = sum(float(t.monto) for t in transacciones if t.tipo == TipoTransaccion.INGRESO.value)
+    total_egresos = sum(float(t.monto) for t in transacciones if t.tipo == TipoTransaccion.EGRESO.value)
 
     return {
         "cliente_proveedor": {
@@ -550,7 +550,7 @@ def get_balance_general(
     base_filters = [
         Transaccion.fecha >= fecha_desde,
         Transaccion.fecha <= fecha_hasta,
-        Transaccion.estado == EstadoTransaccion.CONFIRMADA,
+        Transaccion.estado == EstadoTransaccion.CONFIRMADA.value,
         Transaccion.activo == True
     ]
     if proyecto_id:
@@ -559,13 +559,13 @@ def get_balance_general(
     # Total ingresos
     total_ingresos = db.query(func.coalesce(func.sum(Transaccion.monto), 0)).filter(
         *base_filters,
-        Transaccion.tipo == TipoTransaccion.INGRESO
+        Transaccion.tipo == TipoTransaccion.INGRESO.value
     ).scalar() or Decimal(0)
 
     # Total egresos
     total_egresos = db.query(func.coalesce(func.sum(Transaccion.monto), 0)).filter(
         *base_filters,
-        Transaccion.tipo == TipoTransaccion.EGRESO
+        Transaccion.tipo == TipoTransaccion.EGRESO.value
     ).scalar() or Decimal(0)
 
     # Por categoria - Ingresos
@@ -576,7 +576,7 @@ def get_balance_general(
         CategoriaGasto, Transaccion.categoria_id == CategoriaGasto.id, isouter=True
     ).filter(
         *base_filters,
-        Transaccion.tipo == TipoTransaccion.INGRESO
+        Transaccion.tipo == TipoTransaccion.INGRESO.value
     ).group_by(CategoriaGasto.nombre).all()
 
     # Por categoria - Egresos
@@ -587,7 +587,7 @@ def get_balance_general(
         CategoriaGasto, Transaccion.categoria_id == CategoriaGasto.id, isouter=True
     ).filter(
         *base_filters,
-        Transaccion.tipo == TipoTransaccion.EGRESO
+        Transaccion.tipo == TipoTransaccion.EGRESO.value
     ).group_by(CategoriaGasto.nombre).all()
 
     # Por metodo de pago
@@ -596,7 +596,7 @@ def get_balance_general(
         func.sum(Transaccion.monto).label('total')
     ).filter(
         *base_filters,
-        Transaccion.tipo == TipoTransaccion.INGRESO
+        Transaccion.tipo == TipoTransaccion.INGRESO.value
     ).group_by(Transaccion.metodo_pago).all()
 
     egresos_por_metodo = db.query(
@@ -604,18 +604,18 @@ def get_balance_general(
         func.sum(Transaccion.monto).label('total')
     ).filter(
         *base_filters,
-        Transaccion.tipo == TipoTransaccion.EGRESO
+        Transaccion.tipo == TipoTransaccion.EGRESO.value
     ).group_by(Transaccion.metodo_pago).all()
 
     # Cantidad de transacciones
     cant_ingresos = db.query(func.count(Transaccion.id)).filter(
         *base_filters,
-        Transaccion.tipo == TipoTransaccion.INGRESO
+        Transaccion.tipo == TipoTransaccion.INGRESO.value
     ).scalar() or 0
 
     cant_egresos = db.query(func.count(Transaccion.id)).filter(
         *base_filters,
-        Transaccion.tipo == TipoTransaccion.EGRESO
+        Transaccion.tipo == TipoTransaccion.EGRESO.value
     ).scalar() or 0
 
     return {
@@ -665,7 +665,7 @@ def get_flujo_caja(
     while current_date <= fecha_hasta:
         base_filters = [
             Transaccion.fecha == current_date,
-            Transaccion.estado == EstadoTransaccion.CONFIRMADA,
+            Transaccion.estado == EstadoTransaccion.CONFIRMADA.value,
             Transaccion.activo == True
         ]
         if cuenta_id:
@@ -673,12 +673,12 @@ def get_flujo_caja(
 
         ingresos = db.query(func.coalesce(func.sum(Transaccion.monto), 0)).filter(
             *base_filters,
-            Transaccion.tipo == TipoTransaccion.INGRESO
+            Transaccion.tipo == TipoTransaccion.INGRESO.value
         ).scalar() or Decimal(0)
 
         egresos = db.query(func.coalesce(func.sum(Transaccion.monto), 0)).filter(
             *base_filters,
-            Transaccion.tipo == TipoTransaccion.EGRESO
+            Transaccion.tipo == TipoTransaccion.EGRESO.value
         ).scalar() or Decimal(0)
 
         saldo_inicial = saldo_acumulado
@@ -787,7 +787,7 @@ def get_dashboard_finanzas(db: Session) -> dict:
 
     # Transacciones pendientes
     pendientes = db.query(Transaccion).filter(
-        Transaccion.estado == EstadoTransaccion.PENDIENTE,
+        Transaccion.estado == EstadoTransaccion.PENDIENTE.value,
         Transaccion.activo == True
     ).count()
 
