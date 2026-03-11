@@ -45,7 +45,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Label } from '@/components/ui/label'
-import { usuariosService, Usuario, UsuarioCreate } from '@/services/usuarios'
+import { usuariosService, type Usuario, type UsuarioCreate } from '@/services/usuarios'
 import { useToast } from '@/hooks/use-toast'
 
 const rolColors: Record<string, string> = {
