@@ -12,6 +12,7 @@ import { ProyectoEditarPage } from '@/pages/ProyectoEditar'
 import { MaterialesPage } from '@/pages/Materiales'
 import { EquiposPage } from '@/pages/Equipos'
 import { GastosPage } from '@/pages/Gastos'
+import { FinanzasPage } from '@/pages/Finanzas'
 import { UsuariosPage } from '@/pages/Usuarios'
 import { ReportesPage } from '@/pages/Reportes'
 import { MisProyectosPage } from '@/pages/portal/MisProyectos'
@@ -97,6 +98,7 @@ function AppRoutes() {
         <Route path="proyectos/:proyectoId/editar" element={<ProyectoEditarPage />} />
         <Route path="materiales" element={<MaterialesPage />} />
         <Route path="equipos" element={<EquiposPage />} />
+        <Route path="finanzas" element={<FinanzasPage />} />
         <Route path="gastos" element={<GastosPage />} />
         <Route path="reportes" element={<ReportesPage />} />
         <Route path="usuarios" element={<UsuariosPage />} />
