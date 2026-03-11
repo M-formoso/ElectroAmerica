@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth,
     usuarios,
+    clientes,
     proyectos,
     etapas,
     items_trabajo,
@@ -30,6 +31,13 @@ api_router.include_router(
     usuarios.router,
     prefix="/usuarios",
     tags=["Usuarios"]
+)
+
+# Clientes
+api_router.include_router(
+    clientes.router,
+    prefix="/clientes",
+    tags=["Clientes"]
 )
 
 # Proyectos

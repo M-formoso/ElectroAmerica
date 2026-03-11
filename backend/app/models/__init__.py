@@ -1,5 +1,6 @@
 # Importar todos los modelos para que Alembic los detecte
 from app.models.usuario import Usuario, RolUsuario
+from app.models.cliente import Cliente, TipoCliente, CondicionIVA
 from app.models.proyecto import Proyecto, EstadoProyecto
 from app.models.etapa import Etapa, EstadoEtapa
 from app.models.item_trabajo import ItemTrabajo, EstadoItem

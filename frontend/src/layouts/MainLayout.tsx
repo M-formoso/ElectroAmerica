@@ -14,6 +14,7 @@ import {
   ChevronDown,
   FileText,
   Wallet,
+  Building2,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -32,6 +33,7 @@ import { useAuthStore, useUser } from '@/store/auth'
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ['administrador', 'supervisor', 'operario'] },
   { name: 'Proyectos', href: '/proyectos', icon: FolderKanban, roles: ['administrador', 'supervisor', 'operario'] },
+  { name: 'Clientes', href: '/clientes', icon: Building2, roles: ['administrador', 'supervisor'] },
   { name: 'Materiales', href: '/materiales', icon: Package, roles: ['administrador', 'supervisor', 'operario'] },
   { name: 'Equipos', href: '/equipos', icon: Wrench, roles: ['administrador', 'supervisor', 'operario'] },
   { name: 'Finanzas', href: '/finanzas', icon: Wallet, roles: ['administrador', 'supervisor'] },

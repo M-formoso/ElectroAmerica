@@ -12,6 +12,7 @@ import { ProyectoEditarPage } from '@/pages/ProyectoEditar'
 import { MaterialesPage } from '@/pages/Materiales'
 import { EquiposPage } from '@/pages/Equipos'
 import { FinanzasPage } from '@/pages/Finanzas'
+import { ClientesPage } from '@/pages/Clientes'
 import { UsuariosPage } from '@/pages/Usuarios'
 import { MisProyectosPage } from '@/pages/portal/MisProyectos'
 import { DetalleProyectoPage } from '@/pages/portal/DetalleProyecto'
@@ -97,6 +98,7 @@ function AppRoutes() {
         <Route path="materiales" element={<MaterialesPage />} />
         <Route path="equipos" element={<EquiposPage />} />
         <Route path="finanzas" element={<FinanzasPage />} />
+        <Route path="clientes" element={<ClientesPage />} />
         <Route path="usuarios" element={<UsuariosPage />} />
       </Route>
 
