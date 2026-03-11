@@ -1,5 +1,5 @@
-from sqlalchemy import Column, String, Enum, Text, Date, Numeric, Boolean, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Text, Date, Numeric, Boolean, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID, ENUM as PgEnum
 from sqlalchemy.orm import relationship
 from app.db.base_class import Base, BaseModel
 import enum
@@ -24,6 +24,20 @@ class CondicionIVA(str, enum.Enum):
     NO_RESPONSABLE = "no_responsable"
 
 
+# PostgreSQL ENUMs - usan los valores del enum (minuscula)
+TipoClienteDB = PgEnum(
+    'particular', 'empresa', 'gobierno', 'constructora', 'consorcio', 'otro',
+    name='tipocliente',
+    create_type=False
+)
+
+CondicionIVADB = PgEnum(
+    'responsable_inscripto', 'monotributo', 'exento', 'consumidor_final', 'no_responsable',
+    name='condicioniva',
+    create_type=False
+)
+
+
 class Cliente(Base, BaseModel):
     """Modelo de cliente de la empresa."""
     __tablename__ = "clientes"
@@ -32,7 +46,7 @@ class Cliente(Base, BaseModel):
     codigo = Column(String(20), unique=True, nullable=False, index=True)
 
     # Tipo de cliente
-    tipo = Column(Enum(TipoCliente), default=TipoCliente.PARTICULAR)
+    tipo = Column(TipoClienteDB, default='particular')
 
     # Datos basicos
     razon_social = Column(String(200), nullable=False)
@@ -40,7 +54,7 @@ class Cliente(Base, BaseModel):
 
     # Datos fiscales
     cuit = Column(String(15), unique=True, nullable=True, index=True)
-    condicion_iva = Column(Enum(CondicionIVA), default=CondicionIVA.CONSUMIDOR_FINAL)
+    condicion_iva = Column(CondicionIVADB, default='consumidor_final')
 
     # Contacto
     email = Column(String(255), nullable=True)

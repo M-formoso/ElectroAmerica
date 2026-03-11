@@ -48,7 +48,8 @@ class ClienteBase(BaseModel):
 
 
 class ClienteCreate(ClienteBase):
-    pass
+    class Config:
+        use_enum_values = True
 
 
 class ClienteUpdate(BaseModel):
@@ -72,6 +73,9 @@ class ClienteUpdate(BaseModel):
     enviar_notificaciones: Optional[bool] = None
     notas: Optional[str] = None
     notas_internas: Optional[str] = None
+
+    class Config:
+        use_enum_values = True
 
 
 class ClienteInDB(ClienteBase):
