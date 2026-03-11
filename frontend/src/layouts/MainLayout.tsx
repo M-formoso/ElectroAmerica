@@ -35,7 +35,6 @@ const navigation = [
   { name: 'Materiales', href: '/materiales', icon: Package, roles: ['administrador', 'supervisor', 'operario'] },
   { name: 'Equipos', href: '/equipos', icon: Wrench, roles: ['administrador', 'supervisor', 'operario'] },
   { name: 'Finanzas', href: '/finanzas', icon: Wallet, roles: ['administrador', 'supervisor'] },
-  { name: 'Reportes', href: '/reportes', icon: FileText, roles: ['administrador', 'supervisor'] },
   { name: 'Usuarios', href: '/usuarios', icon: Users, roles: ['administrador'] },
 ]
 
