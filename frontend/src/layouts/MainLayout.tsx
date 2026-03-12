@@ -4,17 +4,17 @@ import {
   FolderKanban,
   Package,
   Wrench,
-  Receipt,
   Users,
   Settings,
   LogOut,
   Menu,
   X,
-  Bell,
   ChevronDown,
-  FileText,
   Wallet,
   Building2,
+  FileBarChart,
+  AlertCircle,
+  Activity,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useAuthStore, useUser } from '@/store/auth'
+import { AlertasDropdown } from '@/components/AlertasDropdown'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ['administrador', 'supervisor', 'operario'] },
@@ -37,6 +38,9 @@ const navigation = [
   { name: 'Materiales', href: '/materiales', icon: Package, roles: ['administrador', 'supervisor', 'operario'] },
   { name: 'Equipos', href: '/equipos', icon: Wrench, roles: ['administrador', 'supervisor', 'operario'] },
   { name: 'Finanzas', href: '/finanzas', icon: Wallet, roles: ['administrador', 'supervisor'] },
+  { name: 'Reportes', href: '/reportes', icon: FileBarChart, roles: ['administrador', 'supervisor'] },
+  { name: 'Alertas', href: '/alertas', icon: AlertCircle, roles: ['administrador', 'supervisor'] },
+  { name: 'Auditoria', href: '/auditoria', icon: Activity, roles: ['administrador'] },
   { name: 'Usuarios', href: '/usuarios', icon: Users, roles: ['administrador'] },
 ]
 
@@ -154,10 +158,7 @@ export function MainLayout() {
           <div className="flex-1" />
 
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-            </Button>
+            <AlertasDropdown />
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

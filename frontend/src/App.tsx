@@ -16,6 +16,9 @@ import { ClientesPage } from '@/pages/Clientes'
 import { UsuariosPage } from '@/pages/Usuarios'
 import { MisProyectosPage } from '@/pages/portal/MisProyectos'
 import { DetalleProyectoPage } from '@/pages/portal/DetalleProyecto'
+import { AlertasPage } from '@/pages/Alertas'
+import { ReportesPage } from '@/pages/Reportes'
+import { AuditoriaPage } from '@/pages/Auditoria'
 import { useAuthStore, useIsAuthenticated, useIsCliente } from '@/store/auth'
 
 const queryClient = new QueryClient({
@@ -99,6 +102,9 @@ function AppRoutes() {
         <Route path="equipos" element={<EquiposPage />} />
         <Route path="finanzas" element={<FinanzasPage />} />
         <Route path="clientes" element={<ClientesPage />} />
+        <Route path="alertas" element={<AlertasPage />} />
+        <Route path="reportes" element={<ReportesPage />} />
+        <Route path="auditoria" element={<AuditoriaPage />} />
         <Route path="usuarios" element={<UsuariosPage />} />
       </Route>
 

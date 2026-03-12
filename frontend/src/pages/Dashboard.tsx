@@ -11,6 +11,7 @@ import {
   DollarSign,
   Image as ImageIcon,
   ArrowRight,
+  Bell,
 } from 'lucide-react'
 import {
   BarChart,
@@ -31,6 +32,8 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { dashboardService } from '@/services/dashboard'
+import { materialesService } from '@/services/materiales'
+import { alertasService } from '@/services/alertas'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useUser, useIsAdmin } from '@/store/auth'
 
@@ -78,6 +81,16 @@ export function DashboardPage() {
     queryFn: () => dashboardService.getUltimasFotos(6),
   })
 
+  const { data: stockBajo } = useQuery({
+    queryKey: ['materiales-stock-bajo'],
+    queryFn: materialesService.getStockBajo,
+  })
+
+  const { data: alertasConteo } = useQuery({
+    queryKey: ['alertas-conteo'],
+    queryFn: alertasService.getConteo,
+  })
+
   const variacionPositiva = (resumen?.gastos.variacion_porcentaje || 0) < 0
 
   return (
@@ -105,7 +118,7 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={(resumen?.materiales.stock_bajo || 0) > 0 ? 'border-yellow-500' : ''}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Materiales</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
@@ -115,6 +128,11 @@ export function DashboardPage() {
               {resumen?.materiales.stock_bajo || 0}
             </div>
             <p className="text-xs text-muted-foreground">con stock bajo</p>
+            {(resumen?.materiales.stock_bajo || 0) > 0 && (
+              <Link to="/materiales" className="text-xs text-primary hover:underline mt-1 inline-block">
+                Ver materiales
+              </Link>
+            )}
           </CardContent>
         </Card>
 
@@ -352,20 +370,75 @@ export function DashboardPage() {
         </Card>
       </div>
 
+      {/* Stock Crítico */}
+      {stockBajo && stockBajo.length > 0 && (
+        <Card className="border-yellow-500 bg-yellow-50/50 dark:bg-yellow-950/20">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
+                <AlertTriangle className="h-5 w-5" />
+                Stock Crítico
+                <Badge variant="warning">{stockBajo.length}</Badge>
+              </CardTitle>
+              <CardDescription>Materiales que necesitan reposición urgente</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/materiales">
+                Ver todos
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {stockBajo.slice(0, 6).map((material) => (
+                <div
+                  key={material.id}
+                  className="p-3 bg-background rounded-lg border flex items-center justify-between"
+                >
+                  <div>
+                    <p className="font-medium text-sm">{material.nombre}</p>
+                    <p className="text-xs text-muted-foreground">{material.codigo}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-red-600">
+                      {material.stock_actual} {material.unidad}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Mín: {material.stock_minimo}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Alertas */}
+        {/* Alertas del Sistema */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-500" />
-              Alertas
-              {alertas && alertas.length > 0 && (
-                <Badge variant="destructive" className="ml-2">
-                  {alertas.length}
-                </Badge>
-              )}
-            </CardTitle>
-            <CardDescription>Situaciones que requieren atención</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="h-5 w-5 text-primary" />
+                Alertas del Sistema
+                {alertasConteo && alertasConteo.total > 0 && (
+                  <Badge variant={alertasConteo.criticas > 0 ? 'destructive' : 'warning'}>
+                    {alertasConteo.total}
+                  </Badge>
+                )}
+              </CardTitle>
+              <CardDescription>
+                {alertasConteo?.criticas || 0} críticas, {alertasConteo?.altas || 0} altas
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/alertas">
+                Ver todas
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[250px] pr-4">

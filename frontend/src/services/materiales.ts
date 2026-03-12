@@ -81,4 +81,40 @@ export const materialesService = {
     const response = await api.get(`/proyectos/${proyectoId}/materiales`)
     return response.data
   },
+
+  async getMovimientos(materialId: string, limit: number = 50): Promise<MovimientoStock[]> {
+    const response = await api.get(`/materiales/${materialId}/movimientos`, { params: { limit } })
+    return response.data
+  },
+
+  async getValorInventario(): Promise<ValorInventario> {
+    const response = await api.get('/materiales/valor-total')
+    return response.data
+  },
+
+  async getUbicaciones(): Promise<string[]> {
+    const response = await api.get('/materiales/ubicaciones')
+    return response.data.ubicaciones
+  },
+}
+
+export interface MovimientoStock {
+  id: string
+  material_id: string
+  tipo: 'entrada' | 'salida' | 'ajuste'
+  cantidad: number
+  stock_anterior: number
+  stock_nuevo: number
+  motivo?: string
+  proyecto_id?: string
+  proyecto_nombre?: string
+  usuario_id: string
+  usuario_nombre?: string
+  created_at: string
+}
+
+export interface ValorInventario {
+  valor_total: number
+  total_items: number
+  items_stock_bajo: number
 }

@@ -11,6 +11,10 @@ import {
   Edit,
   Trash2,
   Loader2,
+  History,
+  TrendingUp,
+  TrendingDown,
+  RefreshCw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -40,8 +44,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Label } from '@/components/ui/label'
-import { materialesService } from '@/services/materiales'
-import { formatCurrency } from '@/lib/utils'
+import { materialesService, type MovimientoStock } from '@/services/materiales'
+import { formatCurrency, formatDate } from '@/lib/utils'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/hooks/use-toast'
 import { useIsAdmin } from '@/store/auth'
 import type { Material } from '@/types'
@@ -72,6 +77,7 @@ export function MaterialesPage() {
   const [search, setSearch] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isMovimientoOpen, setIsMovimientoOpen] = useState(false)
+  const [isHistorialOpen, setIsHistorialOpen] = useState(false)
   const [movimientoTipo, setMovimientoTipo] = useState<'entrada' | 'salida'>('entrada')
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null)
   const [movimientoCantidad, setMovimientoCantidad] = useState('')
@@ -90,6 +96,12 @@ export function MaterialesPage() {
   const { data: stockBajo } = useQuery({
     queryKey: ['materiales-stock-bajo'],
     queryFn: materialesService.getStockBajo,
+  })
+
+  const { data: movimientos, isLoading: isLoadingMovimientos } = useQuery({
+    queryKey: ['movimientos', selectedMaterial?.id],
+    queryFn: () => materialesService.getMovimientos(selectedMaterial!.id),
+    enabled: !!selectedMaterial && isHistorialOpen,
   })
 
   const entradaMutation = useMutation({
@@ -347,6 +359,15 @@ export function MaterialesPage() {
                           <ArrowDownCircle className="h-4 w-4 mr-2 text-red-600" />
                           Salida
                         </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedMaterial(material)
+                            setIsHistorialOpen(true)
+                          }}
+                        >
+                          <History className="h-4 w-4 mr-2" />
+                          Historial
+                        </DropdownMenuItem>
                         {isAdmin && (
                           <>
                             <DropdownMenuSeparator />
@@ -532,6 +553,102 @@ export function MaterialesPage() {
               variant={movimientoTipo === 'salida' ? 'destructive' : 'default'}
             >
               {movimientoTipo === 'entrada' ? 'Registrar Entrada' : 'Registrar Salida'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Historial dialog */}
+      <Dialog open={isHistorialOpen} onOpenChange={setIsHistorialOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Historial de Movimientos
+            </DialogTitle>
+            <DialogDescription>
+              {selectedMaterial?.nombre} - Stock actual: {selectedMaterial?.stock_actual}{' '}
+              {selectedMaterial?.unidad}
+            </DialogDescription>
+          </DialogHeader>
+
+          <ScrollArea className="h-[400px] pr-4">
+            {isLoadingMovimientos ? (
+              <div className="flex items-center justify-center h-40">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : movimientos?.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No hay movimientos registrados</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {movimientos?.map((mov) => (
+                  <div
+                    key={mov.id}
+                    className="flex items-start gap-4 p-3 rounded-lg border bg-card"
+                  >
+                    <div
+                      className={`p-2 rounded-full ${
+                        mov.tipo === 'entrada'
+                          ? 'bg-green-100 text-green-600'
+                          : mov.tipo === 'salida'
+                          ? 'bg-red-100 text-red-600'
+                          : 'bg-blue-100 text-blue-600'
+                      }`}
+                    >
+                      {mov.tipo === 'entrada' ? (
+                        <TrendingUp className="h-4 w-4" />
+                      ) : mov.tipo === 'salida' ? (
+                        <TrendingDown className="h-4 w-4" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium capitalize">{mov.tipo}</span>
+                        <span
+                          className={`font-bold ${
+                            mov.tipo === 'entrada'
+                              ? 'text-green-600'
+                              : mov.tipo === 'salida'
+                              ? 'text-red-600'
+                              : ''
+                          }`}
+                        >
+                          {mov.tipo === 'entrada' ? '+' : '-'}
+                          {mov.cantidad} {selectedMaterial?.unidad}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                        <span>
+                          Stock: {mov.stock_anterior} → {mov.stock_nuevo}
+                        </span>
+                      </div>
+                      {mov.motivo && (
+                        <p className="text-sm mt-1">{mov.motivo}</p>
+                      )}
+                      {mov.proyecto_nombre && (
+                        <Badge variant="outline" className="mt-1">
+                          {mov.proyecto_nombre}
+                        </Badge>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {formatDate(mov.created_at)}
+                        {mov.usuario_nombre && ` - ${mov.usuario_nombre}`}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsHistorialOpen(false)}>
+              Cerrar
             </Button>
           </DialogFooter>
         </DialogContent>

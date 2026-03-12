@@ -152,4 +152,28 @@ export const reportesService = {
     const response = await api.get(`/reportes/semanal/${proyectoId}`)
     return response.data
   },
+
+  descargarPDF: async (
+    proyectoId: string,
+    fechaDesde: string,
+    fechaHasta: string
+  ): Promise<Blob> => {
+    const response = await api.get(`/reportes/proyecto/${proyectoId}/pdf`, {
+      params: { fecha_desde: fechaDesde, fecha_hasta: fechaHasta },
+      responseType: 'blob'
+    })
+    return response.data
+  },
+
+  descargarExcel: async (
+    proyectoId: string,
+    fechaDesde: string,
+    fechaHasta: string
+  ): Promise<Blob> => {
+    const response = await api.get(`/reportes/proyecto/${proyectoId}/excel`, {
+      params: { fecha_desde: fechaDesde, fecha_hasta: fechaHasta },
+      responseType: 'blob'
+    })
+    return response.data
+  },
 }

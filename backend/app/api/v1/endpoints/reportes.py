@@ -1,13 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
 from datetime import date
+import io
 from app.core.deps import get_db, get_usuario_actual, require_staff, require_admin_or_supervisor
 from app.models.usuario import Usuario
 from app.schemas.reporte import ReporteCreate, ReporteResponse, CompartirReporteRequest
 from app.services import reporte_service, proyecto_service
+from app.services.pdf_service import generar_pdf_reporte
+from app.services.excel_service import generar_excel_reporte
 
 router = APIRouter()
 
@@ -104,3 +107,63 @@ def compartir_reporte(
         "reporte_id": str(reporte.id),
         "compartido_cliente": True
     }
+
+
+@router.get("/proyecto/{proyecto_id}/pdf")
+def descargar_pdf(
+    proyecto_id: UUID,
+    fecha_desde: date,
+    fecha_hasta: date,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_staff)
+):
+    """Genera y descarga un reporte en formato PDF."""
+    datos = reporte_service.obtener_datos_reporte(db, proyecto_id, fecha_desde, fecha_hasta)
+    if not datos:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    pdf_bytes = generar_pdf_reporte(datos)
+    if not pdf_bytes:
+        raise HTTPException(
+            status_code=501,
+            detail="La generacion de PDF no esta disponible. Instale WeasyPrint."
+        )
+
+    proyecto_nombre = datos['proyecto']['nombre'].replace(' ', '_')
+    filename = f"reporte_{proyecto_nombre}_{fecha_desde}_{fecha_hasta}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get("/proyecto/{proyecto_id}/excel")
+def descargar_excel(
+    proyecto_id: UUID,
+    fecha_desde: date,
+    fecha_hasta: date,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_staff)
+):
+    """Genera y descarga un reporte en formato Excel."""
+    datos = reporte_service.obtener_datos_reporte(db, proyecto_id, fecha_desde, fecha_hasta)
+    if not datos:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    excel_bytes = generar_excel_reporte(datos)
+    if not excel_bytes:
+        raise HTTPException(
+            status_code=501,
+            detail="La generacion de Excel no esta disponible. Instale openpyxl."
+        )
+
+    proyecto_nombre = datos['proyecto']['nombre'].replace(' ', '_')
+    filename = f"reporte_{proyecto_nombre}_{fecha_desde}_{fecha_hasta}.xlsx"
+
+    return Response(
+        content=excel_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )

@@ -14,7 +14,10 @@ from app.api.v1.endpoints import (
     reportes,
     portal,
     dashboard,
-    upload
+    upload,
+    alertas,
+    jornadas,
+    auditoria
 )
 
 api_router = APIRouter()
@@ -122,4 +125,25 @@ api_router.include_router(
     upload.router,
     prefix="/upload",
     tags=["Upload"]
+)
+
+# Alertas
+api_router.include_router(
+    alertas.router,
+    prefix="/alertas",
+    tags=["Alertas"]
+)
+
+# Jornadas (mano de obra)
+api_router.include_router(
+    jornadas.router,
+    prefix="/jornadas",
+    tags=["Jornadas"]
+)
+
+# Auditoría (solo admin)
+api_router.include_router(
+    auditoria.router,
+    prefix="/auditoria",
+    tags=["Auditoría"]
 )
