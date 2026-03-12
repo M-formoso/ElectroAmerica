@@ -41,8 +41,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle'
 import { proyectosService } from '@/services/proyectos'
 import { formatDate } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
@@ -66,8 +75,8 @@ const estadoColors: Record<EstadoProyecto, string> = {
 }
 
 const estadoLabels: Record<EstadoProyecto, string> = {
-  planificacion: 'Planificación',
-  en_ejecucion: 'En Ejecución',
+  planificacion: 'Planificacion',
+  en_ejecucion: 'En Ejecucion',
   pausado: 'Pausado',
   finalizado: 'Finalizado',
 }
@@ -75,6 +84,7 @@ const estadoLabels: Record<EstadoProyecto, string> = {
 export function ProyectosPage() {
   const [search, setSearch] = useState('')
   const [estadoFilter, setEstadoFilter] = useState<string>('todos')
+  const [viewMode, setViewMode] = useState<ViewMode>('cards')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [selectedProyecto, setSelectedProyecto] = useState<Proyecto | null>(null)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
@@ -148,6 +158,191 @@ export function ProyectosPage() {
     p.ubicacion?.toLowerCase().includes(search.toLowerCase())
   )
 
+  const renderCardView = () => (
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {filteredProyectos?.map((proyecto) => (
+        <Card key={proyecto.id} className="hover:shadow-md transition-shadow">
+          <CardHeader className="pb-2">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1 flex-1 min-w-0">
+                <CardTitle className="text-lg truncate">
+                  {proyecto.nombre}
+                </CardTitle>
+                {proyecto.ubicacion && (
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />
+                    {proyecto.ubicacion}
+                  </p>
+                )}
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem asChild>
+                    <Link to={`/proyectos/${proyecto.id}`}>
+                      <Eye className="h-4 w-4 mr-2" />
+                      Ver detalles
+                    </Link>
+                  </DropdownMenuItem>
+                  {isAdmin && (
+                    <>
+                      <DropdownMenuItem asChild>
+                        <Link to={`/proyectos/${proyecto.id}/editar`}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Editar
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive"
+                        onClick={() => {
+                          setSelectedProyecto(proyecto)
+                          setIsDeleteOpen(true)
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Eliminar
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Avance</span>
+                <span className="font-medium">
+                  {Number(proyecto.porcentaje_avance).toFixed(0)}%
+                </span>
+              </div>
+              <Progress value={Number(proyecto.porcentaje_avance)} className="h-2" />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Badge variant={estadoColors[proyecto.estado] as any}>
+                {estadoLabels[proyecto.estado]}
+              </Badge>
+              {proyecto.fecha_fin_estimada && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  {formatDate(proyecto.fecha_fin_estimada)}
+                </span>
+              )}
+            </div>
+
+            {proyecto.cliente && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground pt-2 border-t">
+                <User className="h-3 w-3" />
+                <span className="truncate">
+                  {proyecto.cliente.nombre} {proyecto.cliente.apellido}
+                </span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
+
+  const renderListView = () => (
+    <Card>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Proyecto</TableHead>
+            <TableHead>Ubicacion</TableHead>
+            <TableHead>Estado</TableHead>
+            <TableHead>Avance</TableHead>
+            <TableHead>Fecha Fin</TableHead>
+            <TableHead>Cliente</TableHead>
+            <TableHead className="w-[50px]"></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {filteredProyectos?.map((proyecto) => (
+            <TableRow key={proyecto.id}>
+              <TableCell>
+                <Link
+                  to={`/proyectos/${proyecto.id}`}
+                  className="font-medium hover:underline"
+                >
+                  {proyecto.nombre}
+                </Link>
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {proyecto.ubicacion || '-'}
+              </TableCell>
+              <TableCell>
+                <Badge variant={estadoColors[proyecto.estado] as any}>
+                  {estadoLabels[proyecto.estado]}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <Progress value={Number(proyecto.porcentaje_avance)} className="h-2 w-16" />
+                  <span className="text-sm">{Number(proyecto.porcentaje_avance).toFixed(0)}%</span>
+                </div>
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {proyecto.fecha_fin_estimada ? formatDate(proyecto.fecha_fin_estimada) : '-'}
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {proyecto.cliente
+                  ? `${proyecto.cliente.nombre} ${proyecto.cliente.apellido}`
+                  : '-'
+                }
+              </TableCell>
+              <TableCell>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem asChild>
+                      <Link to={`/proyectos/${proyecto.id}`}>
+                        <Eye className="h-4 w-4 mr-2" />
+                        Ver detalles
+                      </Link>
+                    </DropdownMenuItem>
+                    {isAdmin && (
+                      <>
+                        <DropdownMenuItem asChild>
+                          <Link to={`/proyectos/${proyecto.id}/editar`}>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Editar
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => {
+                            setSelectedProyecto(proyecto)
+                            setIsDeleteOpen(true)
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Eliminar
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </Card>
+  )
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -155,7 +350,7 @@ export function ProyectosPage() {
         <div>
           <h1 className="text-2xl font-bold">Proyectos</h1>
           <p className="text-muted-foreground">
-            Gestiona los proyectos de construcción
+            Gestiona los proyectos de construccion
           </p>
         </div>
         {isAdmin && (
@@ -177,22 +372,25 @@ export function ProyectosPage() {
             className="pl-9"
           />
         </div>
-        <Select value={estadoFilter} onValueChange={setEstadoFilter}>
-          <SelectTrigger className="w-full sm:w-[180px]">
-            <Filter className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Estado" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos</SelectItem>
-            <SelectItem value="planificacion">Planificación</SelectItem>
-            <SelectItem value="en_ejecucion">En Ejecución</SelectItem>
-            <SelectItem value="pausado">Pausado</SelectItem>
-            <SelectItem value="finalizado">Finalizado</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex gap-2">
+          <Select value={estadoFilter} onValueChange={setEstadoFilter}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <Filter className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="planificacion">Planificacion</SelectItem>
+              <SelectItem value="en_ejecucion">En Ejecucion</SelectItem>
+              <SelectItem value="pausado">Pausado</SelectItem>
+              <SelectItem value="finalizado">Finalizado</SelectItem>
+            </SelectContent>
+          </Select>
+          <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
+        </div>
       </div>
 
-      {/* Projects grid */}
+      {/* Projects grid/list */}
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[...Array(6)].map((_, i) => (
@@ -208,96 +406,10 @@ export function ProyectosPage() {
             </Card>
           ))}
         </div>
+      ) : viewMode === 'cards' ? (
+        renderCardView()
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredProyectos?.map((proyecto) => (
-            <Card key={proyecto.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1 flex-1 min-w-0">
-                    <CardTitle className="text-lg truncate">
-                      {proyecto.nombre}
-                    </CardTitle>
-                    {proyecto.ubicacion && (
-                      <p className="text-sm text-muted-foreground flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        {proyecto.ubicacion}
-                      </p>
-                    )}
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild>
-                        <Link to={`/proyectos/${proyecto.id}`}>
-                          <Eye className="h-4 w-4 mr-2" />
-                          Ver detalles
-                        </Link>
-                      </DropdownMenuItem>
-                      {isAdmin && (
-                        <>
-                          <DropdownMenuItem asChild>
-                            <Link to={`/proyectos/${proyecto.id}/editar`}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Editar
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => {
-                              setSelectedProyecto(proyecto)
-                              setIsDeleteOpen(true)
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Eliminar
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Avance</span>
-                    <span className="font-medium">
-                      {Number(proyecto.porcentaje_avance).toFixed(0)}%
-                    </span>
-                  </div>
-                  <Progress value={Number(proyecto.porcentaje_avance)} className="h-2" />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <Badge variant={estadoColors[proyecto.estado] as any}>
-                    {estadoLabels[proyecto.estado]}
-                  </Badge>
-                  {proyecto.fecha_fin_estimada && (
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {formatDate(proyecto.fecha_fin_estimada)}
-                    </span>
-                  )}
-                </div>
-
-                {proyecto.cliente && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground pt-2 border-t">
-                    <User className="h-3 w-3" />
-                    <span className="truncate">
-                      {proyecto.cliente.nombre} {proyecto.cliente.apellido}
-                    </span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        renderListView()
       )}
 
       {filteredProyectos?.length === 0 && !isLoading && (
@@ -328,22 +440,22 @@ export function ProyectosPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="descripcion">Descripción</Label>
+                <Label htmlFor="descripcion">Descripcion</Label>
                 <Textarea
                   id="descripcion"
                   value={formData.descripcion}
                   onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                  placeholder="Descripción del proyecto"
+                  placeholder="Descripcion del proyecto"
                   rows={3}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="ubicacion">Ubicación</Label>
+                <Label htmlFor="ubicacion">Ubicacion</Label>
                 <Input
                   id="ubicacion"
                   value={formData.ubicacion}
                   onChange={(e) => setFormData({ ...formData, ubicacion: e.target.value })}
-                  placeholder="Dirección o ubicación"
+                  placeholder="Direccion o ubicacion"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -398,7 +510,7 @@ export function ProyectosPage() {
           <DialogHeader>
             <DialogTitle>Eliminar proyecto</DialogTitle>
             <DialogDescription>
-              ¿Estás seguro de eliminar "{selectedProyecto?.nombre}"? Esta acción no se puede deshacer.
+              Estas seguro de eliminar "{selectedProyecto?.nombre}"? Esta accion no se puede deshacer.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle'
 import {
   Table,
   TableBody,
@@ -99,6 +100,7 @@ export function EquiposPage() {
   const [search, setSearch] = useState('')
   const [estadoFilter, setEstadoFilter] = useState<string>('todos')
   const [tipoFilter, setTipoFilter] = useState<string>('todos')
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isAsignarOpen, setIsAsignarOpen] = useState(false)
   const [selectedEquipo, setSelectedEquipo] = useState<Equipo | null>(null)
@@ -299,9 +301,123 @@ export function EquiposPage() {
             <SelectItem value="otro">Otro</SelectItem>
           </SelectContent>
         </Select>
+        <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
       </div>
 
-      {/* Table */}
+      {/* Cards View */}
+      {viewMode === 'cards' && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {isLoading ? (
+            [...Array(6)].map((_, i) => (
+              <Card key={i} className="animate-pulse">
+                <CardHeader className="space-y-2">
+                  <div className="h-5 bg-muted rounded w-3/4" />
+                  <div className="h-4 bg-muted rounded w-1/2" />
+                </CardHeader>
+                <CardContent>
+                  <div className="h-4 bg-muted rounded w-1/4" />
+                </CardContent>
+              </Card>
+            ))
+          ) : filteredEquipos?.length === 0 ? (
+            <div className="col-span-full text-center py-12 text-muted-foreground">
+              No se encontraron equipos
+            </div>
+          ) : (
+            filteredEquipos?.map((equipo) => {
+              const TipoIcon = tipoIcons[equipo.tipo]
+              return (
+                <Card key={equipo.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1 flex-1 min-w-0">
+                        <CardTitle className="text-lg truncate flex items-center gap-2">
+                          <TipoIcon className="h-4 w-4 text-muted-foreground" />
+                          {equipo.nombre}
+                        </CardTitle>
+                        <p className="text-sm text-muted-foreground font-mono">
+                          {equipo.codigo}
+                        </p>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {equipo.estado === 'disponible' && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedEquipo(equipo)
+                                setIsAsignarOpen(true)
+                              }}
+                            >
+                              <ArrowRight className="h-4 w-4 mr-2" />
+                              Asignar a proyecto
+                            </DropdownMenuItem>
+                          )}
+                          {equipo.estado === 'asignado' && (
+                            <DropdownMenuItem
+                              onClick={() => devolverMutation.mutate(equipo.id)}
+                            >
+                              <ArrowLeft className="h-4 w-4 mr-2" />
+                              Devolver
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() =>
+                              cambiarEstadoMutation.mutate({
+                                id: equipo.id,
+                                estado: 'mantenimiento',
+                              })
+                            }
+                          >
+                            <Wrench className="h-4 w-4 mr-2" />
+                            Enviar a mantenimiento
+                          </DropdownMenuItem>
+                          {isAdmin && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem>
+                                <Edit className="h-4 w-4 mr-2" />
+                                Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-destructive">
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Eliminar
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground capitalize">
+                        {equipo.tipo}
+                      </span>
+                      <Badge variant={estadoColors[equipo.estado] as any}>
+                        {estadoLabels[equipo.estado]}
+                      </Badge>
+                    </div>
+                    {(equipo.marca || equipo.modelo) && (
+                      <p className="text-sm text-muted-foreground">
+                        {[equipo.marca, equipo.modelo].filter(Boolean).join(' ')}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })
+          )}
+        </div>
+      )}
+
+      {/* Table View */}
+      {viewMode === 'list' && (
       <Card>
         <Table>
           <TableHeader>
@@ -418,6 +534,7 @@ export function EquiposPage() {
           </TableBody>
         </Table>
       </Card>
+      )}
 
       {/* Create equipo dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>

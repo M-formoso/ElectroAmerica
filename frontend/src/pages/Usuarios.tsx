@@ -9,11 +9,14 @@ import {
   UserCheck,
   UserX,
   Loader2,
+  Mail,
+  Phone,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle'
 import {
   Table,
   TableBody,
@@ -83,6 +86,7 @@ const initialFormState: UsuarioForm = {
 export function UsuariosPage() {
   const [search, setSearch] = useState('')
   const [rolFilter, setRolFilter] = useState<string>('todos')
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [selectedUsuario, setSelectedUsuario] = useState<Usuario | null>(null)
@@ -185,9 +189,100 @@ export function UsuariosPage() {
             <SelectItem value="cliente">Cliente</SelectItem>
           </SelectContent>
         </Select>
+        <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
       </div>
 
-      {/* Table */}
+      {/* Cards View */}
+      {viewMode === 'cards' && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {isLoading ? (
+            [...Array(6)].map((_, i) => (
+              <Card key={i} className="animate-pulse">
+                <CardHeader className="space-y-2">
+                  <div className="h-5 bg-muted rounded w-3/4" />
+                  <div className="h-4 bg-muted rounded w-1/2" />
+                </CardHeader>
+                <CardContent>
+                  <div className="h-4 bg-muted rounded w-1/4" />
+                </CardContent>
+              </Card>
+            ))
+          ) : filteredUsuarios?.length === 0 ? (
+            <div className="col-span-full text-center py-12 text-muted-foreground">
+              No se encontraron usuarios
+            </div>
+          ) : (
+            filteredUsuarios?.map((usuario) => (
+              <Card key={usuario.id} className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1 flex-1 min-w-0">
+                      <CardTitle className="text-lg truncate">
+                        {usuario.nombre} {usuario.apellido}
+                      </CardTitle>
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Mail className="h-3 w-3" />
+                        {usuario.email}
+                      </div>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => {
+                            setSelectedUsuario(usuario)
+                            setIsDeleteOpen(true)
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Eliminar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {usuario.telefono && (
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <Phone className="h-3 w-3" />
+                      {usuario.telefono}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <Badge variant={rolColors[usuario.rol] as any}>
+                      {rolLabels[usuario.rol]}
+                    </Badge>
+                    {usuario.activo ? (
+                      <Badge variant="success" className="gap-1">
+                        <UserCheck className="h-3 w-3" />
+                        Activo
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="gap-1">
+                        <UserX className="h-3 w-3" />
+                        Inactivo
+                      </Badge>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Table View */}
+      {viewMode === 'list' && (
       <Card>
         <Table>
           <TableHeader>
@@ -277,6 +372,7 @@ export function UsuariosPage() {
           </TableBody>
         </Table>
       </Card>
+      )}
 
       {/* Create usuario dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>

@@ -67,6 +67,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle'
 import { useToast } from '@/hooks/use-toast'
 import { useIsAdmin } from '@/store/auth'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -131,6 +132,7 @@ export function ClientesPage() {
   const [search, setSearch] = useState('')
   const [tipoFilter, setTipoFilter] = useState<string>('todos')
   const [conDeudaFilter, setConDeudaFilter] = useState<boolean | undefined>(undefined)
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
@@ -440,9 +442,88 @@ export function ClientesPage() {
             <SelectItem value="sin_deuda">Sin deuda</SelectItem>
           </SelectContent>
         </Select>
+        <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
       </div>
 
-      {/* Table */}
+      {/* Cards View */}
+      {viewMode === 'cards' && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {isLoading ? (
+            [...Array(6)].map((_, i) => (
+              <Card key={i} className="animate-pulse">
+                <CardHeader className="space-y-2">
+                  <div className="h-5 bg-muted rounded w-3/4" />
+                  <div className="h-4 bg-muted rounded w-1/2" />
+                </CardHeader>
+                <CardContent>
+                  <div className="h-4 bg-muted rounded w-1/4" />
+                </CardContent>
+              </Card>
+            ))
+          ) : clientes?.length === 0 ? (
+            <div className="col-span-full text-center py-12 text-muted-foreground">
+              No se encontraron clientes
+            </div>
+          ) : (
+            clientes?.map((cliente) => (
+              <Card
+                key={cliente.id}
+                className="hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => openDetail(cliente)}
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1 flex-1 min-w-0">
+                      <CardTitle className="text-lg truncate">
+                        {cliente.razon_social}
+                      </CardTitle>
+                      {cliente.nombre_fantasia && (
+                        <p className="text-sm text-muted-foreground truncate">
+                          {cliente.nombre_fantasia}
+                        </p>
+                      )}
+                    </div>
+                    <Badge className={clientesService.getTipoClienteColor(cliente.tipo)}>
+                      {TIPO_ICONS[cliente.tipo]}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="text-sm space-y-1">
+                    {cliente.email && (
+                      <div className="flex items-center gap-1 text-muted-foreground truncate">
+                        <Mail className="h-3 w-3 flex-shrink-0" />
+                        {cliente.email}
+                      </div>
+                    )}
+                    {cliente.telefono && (
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <Phone className="h-3 w-3" />
+                        {cliente.telefono}
+                      </div>
+                    )}
+                    {cliente.ciudad && (
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <MapPin className="h-3 w-3" />
+                        {cliente.ciudad}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <span className="text-sm text-muted-foreground">Saldo CC</span>
+                    <span className={`font-bold ${cliente.saldo_cuenta_corriente > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {formatCurrency(cliente.saldo_cuenta_corriente)}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Table View */}
+      {viewMode === 'list' && (
       <Card>
         <Table>
           <TableHeader>
@@ -569,6 +650,7 @@ export function ClientesPage() {
           </TableBody>
         </Table>
       </Card>
+      )}
 
       {/* Dialog: Crear Cliente */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>

@@ -15,11 +15,13 @@ import {
   TrendingUp,
   TrendingDown,
   RefreshCw,
+  MapPin,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle'
 import {
   Table,
   TableBody,
@@ -75,6 +77,7 @@ const initialFormState: MaterialForm = {
 
 export function MaterialesPage() {
   const [search, setSearch] = useState('')
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isMovimientoOpen, setIsMovimientoOpen] = useState(false)
   const [isHistorialOpen, setIsHistorialOpen] = useState(false)
@@ -255,18 +258,149 @@ export function MaterialesPage() {
         </Card>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por nombre o código..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      {/* Search and View Toggle */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nombre o código..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
       </div>
 
-      {/* Table */}
+      {/* Cards View */}
+      {viewMode === 'cards' && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {isLoading ? (
+            [...Array(6)].map((_, i) => (
+              <Card key={i} className="animate-pulse">
+                <CardHeader className="space-y-2">
+                  <div className="h-5 bg-muted rounded w-3/4" />
+                  <div className="h-4 bg-muted rounded w-1/2" />
+                </CardHeader>
+                <CardContent>
+                  <div className="h-4 bg-muted rounded w-1/4" />
+                </CardContent>
+              </Card>
+            ))
+          ) : filteredMateriales?.length === 0 ? (
+            <div className="col-span-full text-center py-12 text-muted-foreground">
+              No se encontraron materiales
+            </div>
+          ) : (
+            filteredMateriales?.map((material) => (
+              <Card key={material.id} className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1 flex-1 min-w-0">
+                      <CardTitle className="text-lg truncate flex items-center gap-2">
+                        <Package className="h-4 w-4 text-muted-foreground" />
+                        {material.nombre}
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground font-mono">
+                        {material.codigo}
+                      </p>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedMaterial(material)
+                            setMovimientoTipo('entrada')
+                            setIsMovimientoOpen(true)
+                          }}
+                        >
+                          <ArrowUpCircle className="h-4 w-4 mr-2 text-green-600" />
+                          Entrada
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedMaterial(material)
+                            setMovimientoTipo('salida')
+                            setIsMovimientoOpen(true)
+                          }}
+                        >
+                          <ArrowDownCircle className="h-4 w-4 mr-2 text-red-600" />
+                          Salida
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedMaterial(material)
+                            setIsHistorialOpen(true)
+                          }}
+                        >
+                          <History className="h-4 w-4 mr-2" />
+                          Historial
+                        </DropdownMenuItem>
+                        {isAdmin && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive">
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Eliminar
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Stock</span>
+                    <span className="font-bold">
+                      {material.stock_actual} {material.unidad}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Minimo</span>
+                    <span className="text-sm">
+                      {material.stock_minimo} {material.unidad}
+                    </span>
+                  </div>
+                  {material.precio_unitario && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Precio</span>
+                      <span className="text-sm font-medium">
+                        {formatCurrency(material.precio_unitario)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    {material.stock_actual <= material.stock_minimo ? (
+                      <Badge variant="warning">Stock bajo</Badge>
+                    ) : (
+                      <Badge variant="success">OK</Badge>
+                    )}
+                    {material.ubicacion_almacen && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {material.ubicacion_almacen}
+                      </span>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Table View */}
+      {viewMode === 'list' && (
       <Card>
         <Table>
           <TableHeader>
@@ -390,6 +524,7 @@ export function MaterialesPage() {
           </TableBody>
         </Table>
       </Card>
+      )}
 
       {/* Create material dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
