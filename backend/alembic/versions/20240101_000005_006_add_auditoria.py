@@ -1,7 +1,7 @@
 """Add auditoría table
 
-Revision ID: 006_add_auditoria
-Revises: 005_add_alertas_jornadas_mejoras
+Revision ID: 006
+Revises: 005
 Create Date: 2024-01-01 00:00:06.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '006_add_auditoria'
-down_revision = '005_add_alertas_jornadas_mejoras'
+revision = '006'
+down_revision = '005'
 branch_labels = None
 depends_on = None
 
