@@ -6,7 +6,7 @@ from sqlalchemy import Column, String, Text, ForeignKey, Enum as PgEnum
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import enum
-from app.db.base import Base, BaseModel
+from app.db.base_class import Base, BaseModel
 
 
 class TipoAccion(str, enum.Enum):
