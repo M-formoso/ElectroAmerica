@@ -17,70 +17,67 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Crear enum tipoaccion
-    tipoaccion_enum = postgresql.ENUM(
-        'crear', 'actualizar', 'eliminar', 'login', 'logout',
-        'ver', 'exportar', 'asignar', 'desasignar', 'cambiar_estado', 'subir_archivo',
-        name='tipoaccion'
-    )
-    tipoaccion_enum.create(op.get_bind())
+    # Crear enums usando DO block para evitar error si ya existen
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE tipoaccion AS ENUM (
+                'crear', 'actualizar', 'eliminar', 'login', 'logout',
+                'ver', 'exportar', 'asignar', 'desasignar', 'cambiar_estado', 'subir_archivo'
+            );
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
 
-    # Crear enum moduloauditado
-    moduloauditado_enum = postgresql.ENUM(
-        'auth', 'usuarios', 'proyectos', 'etapas', 'items_trabajo',
-        'materiales', 'equipos', 'gastos', 'clientes', 'fotos',
-        'reportes', 'finanzas', 'alertas', 'jornadas',
-        name='moduloauditado'
-    )
-    moduloauditado_enum.create(op.get_bind())
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE moduloauditado AS ENUM (
+                'auth', 'usuarios', 'proyectos', 'etapas', 'items_trabajo',
+                'materiales', 'equipos', 'gastos', 'clientes', 'fotos',
+                'reportes', 'finanzas', 'alertas', 'jornadas'
+            );
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
 
-    # Crear tabla auditorias
-    op.create_table(
-        'auditorias',
-        sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column('usuario_id', postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column('accion', sa.Enum(
-            'crear', 'actualizar', 'eliminar', 'login', 'logout',
-            'ver', 'exportar', 'asignar', 'desasignar', 'cambiar_estado', 'subir_archivo',
-            name='tipoaccion', create_type=False
-        ), nullable=False),
-        sa.Column('modulo', sa.Enum(
-            'auth', 'usuarios', 'proyectos', 'etapas', 'items_trabajo',
-            'materiales', 'equipos', 'gastos', 'clientes', 'fotos',
-            'reportes', 'finanzas', 'alertas', 'jornadas',
-            name='moduloauditado', create_type=False
-        ), nullable=False),
-        sa.Column('descripcion', sa.String(500), nullable=False),
-        sa.Column('recurso_id', postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column('recurso_tipo', sa.String(50), nullable=True),
-        sa.Column('datos_adicionales', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column('ip_address', sa.String(50), nullable=True),
-        sa.Column('user_agent', sa.String(500), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.Column('activo', sa.Boolean(), server_default='true', nullable=False),
-        sa.ForeignKeyConstraint(['usuario_id'], ['usuarios.id'], ondelete='SET NULL'),
-        sa.PrimaryKeyConstraint('id')
-    )
+    # Crear tabla auditorias usando SQL directo para IF NOT EXISTS
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS auditorias (
+            id UUID PRIMARY KEY,
+            usuario_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+            accion tipoaccion NOT NULL,
+            modulo moduloauditado NOT NULL,
+            descripcion VARCHAR(500) NOT NULL,
+            recurso_id UUID,
+            recurso_tipo VARCHAR(50),
+            datos_adicionales JSONB,
+            ip_address VARCHAR(50),
+            user_agent VARCHAR(500),
+            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+            updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+            activo BOOLEAN NOT NULL DEFAULT true
+        );
+    """)
 
-    # Crear índices para búsquedas comunes
-    op.create_index('ix_auditorias_usuario_id', 'auditorias', ['usuario_id'])
-    op.create_index('ix_auditorias_accion', 'auditorias', ['accion'])
-    op.create_index('ix_auditorias_modulo', 'auditorias', ['modulo'])
-    op.create_index('ix_auditorias_recurso_id', 'auditorias', ['recurso_id'])
-    op.create_index('ix_auditorias_created_at', 'auditorias', ['created_at'])
+    # Crear índices si no existen
+    op.execute("CREATE INDEX IF NOT EXISTS ix_auditorias_usuario_id ON auditorias(usuario_id);")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_auditorias_accion ON auditorias(accion);")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_auditorias_modulo ON auditorias(modulo);")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_auditorias_recurso_id ON auditorias(recurso_id);")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_auditorias_created_at ON auditorias(created_at);")
 
 
 def downgrade() -> None:
     # Eliminar índices
-    op.drop_index('ix_auditorias_created_at', table_name='auditorias')
-    op.drop_index('ix_auditorias_recurso_id', table_name='auditorias')
-    op.drop_index('ix_auditorias_modulo', table_name='auditorias')
-    op.drop_index('ix_auditorias_accion', table_name='auditorias')
-    op.drop_index('ix_auditorias_usuario_id', table_name='auditorias')
+    op.execute('DROP INDEX IF EXISTS ix_auditorias_created_at')
+    op.execute('DROP INDEX IF EXISTS ix_auditorias_recurso_id')
+    op.execute('DROP INDEX IF EXISTS ix_auditorias_modulo')
+    op.execute('DROP INDEX IF EXISTS ix_auditorias_accion')
+    op.execute('DROP INDEX IF EXISTS ix_auditorias_usuario_id')
 
     # Eliminar tabla
-    op.drop_table('auditorias')
+    op.execute('DROP TABLE IF EXISTS auditorias')
 
     # Eliminar enums
     op.execute('DROP TYPE IF EXISTS moduloauditado')
