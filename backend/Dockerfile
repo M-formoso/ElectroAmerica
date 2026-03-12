@@ -8,27 +8,11 @@ ENV PYTHONUNBUFFERED=1
 # Set work directory
 WORKDIR /app
 
-# Install system dependencies (including WeasyPrint dependencies)
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
     curl \
-    # WeasyPrint dependencies (full set)
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libpangoft2-1.0-0 \
-    libgdk-pixbuf2.0-0 \
-    libffi-dev \
-    shared-mime-info \
-    libcairo2 \
-    libcairo2-dev \
-    libgirepository1.0-dev \
-    gir1.2-pango-1.0 \
-    libglib2.0-0 \
-    libgobject-2.0-0 \
-    libharfbuzz0b \
-    libfontconfig1 \
-    fonts-liberation \
     # For python-magic
     libmagic1 \
     && rm -rf /var/lib/apt/lists/*
