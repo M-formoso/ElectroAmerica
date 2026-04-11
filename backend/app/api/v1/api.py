@@ -17,7 +17,10 @@ from app.api.v1.endpoints import (
     upload,
     alertas,
     jornadas,
-    auditoria
+    auditoria,
+    jornadas_operario,
+    asignaciones_diarias,
+    actividades_tipo
 )
 
 api_router = APIRouter()
@@ -146,4 +149,25 @@ api_router.include_router(
     auditoria.router,
     prefix="/auditoria",
     tags=["Auditoría"]
+)
+
+# Jornadas de operarios (nuevo módulo)
+api_router.include_router(
+    jornadas_operario.router,
+    prefix="/jornadas-operario",
+    tags=["Jornadas Operario"]
+)
+
+# Asignaciones diarias (planificación)
+api_router.include_router(
+    asignaciones_diarias.router,
+    prefix="/asignaciones-diarias",
+    tags=["Asignaciones Diarias"]
+)
+
+# Actividades tipo (catálogo)
+api_router.include_router(
+    actividades_tipo.router,
+    prefix="/actividades-tipo",
+    tags=["Actividades Tipo"]
 )

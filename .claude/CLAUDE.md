@@ -77,6 +77,9 @@ Sistema de Gestión Integral para empresa de construcción e ingeniería eléctr
 8. **Portal Cliente** - Vista restringida por cliente
 9. **Usuarios y Roles** - ABM con permisos
 10. **Dashboard** - Vista general operativa
+11. **Jornadas de Operarios** - Control de jornadas con vehículos, zonas y materiales
+12. **Actividades Tipo** - Catálogo de actividades con materiales predefinidos
+13. **Alertas Inteligentes** - Materiales pendientes, tareas urgentes, stock bajo
 
 ---
 
@@ -150,6 +153,8 @@ El desarrollo está organizado por **subagentes especializados** ubicados en `.c
 - `portal-agent.md` — Portal del cliente
 - `reportes-agent.md` — Generación de reportes
 - `dashboard-agent.md` — Dashboard principal
+- `jornadas-agent.md` — Jornadas de operarios y asignaciones
+- `actividades-tipo-agent.md` — Catálogo de actividades con materiales
 
 ---
 
@@ -238,6 +243,200 @@ VITE_API_URL=http://localhost:8000/api/v1
 2. Seguir las fases en orden
 3. Cada módulo tiene su agente especializado
 4. Consultar `inicial.md` para especificaciones completas
+
+---
+
+## Módulo: Jornadas de Operarios (NUEVO)
+
+### Descripción
+Sistema de control de jornadas laborales donde el operario al iniciar su día debe registrar:
+- En qué vehículo/camión viaja
+- A qué proyecto/obra se dirige
+- Qué materiales lleva del depósito
+
+### Flujo Completo
+
+```
+NOCHE ANTERIOR (Supervisor)
+├── Planifica tareas del día siguiente
+├── Asigna operarios a proyectos/zonas
+├── Define materiales necesarios por tarea
+└── Asigna vehículos
+        │
+        ▼
+MAÑANA (Operario)
+├── Abre app → Pantalla "Iniciar Jornada"
+├── Selecciona vehículo asignado
+├── Confirma proyecto/zona destino
+├── Revisa lista de materiales a cargar
+├── Confirma materiales cargados
+└── Inicia jornada → Estado: EN_CAMINO
+        │
+        ▼
+DURANTE EL DÍA (En obra)
+├── Marca llegada → Estado: EN_OBRA
+├── Registra avance de tareas
+├── Sube fotos de progreso
+├── Reporta novedades/faltantes
+└── Puede solicitar materiales adicionales
+        │
+        ▼
+FIN DE DÍA (Cierre)
+├── Inicia cierre de jornada
+├── Registra km final del vehículo
+├── Rinde materiales (consumidos/sobrantes)
+├── Indica destino de sobrantes (depósito/obra)
+└── Finaliza → Sistema actualiza stock
+```
+
+### Modelos de Datos
+
+**JornadaOperario**
+- id, operario_id, fecha
+- vehiculo_id (FK a Equipo tipo vehículo)
+- proyecto_id, etapa_id (destino)
+- km_inicial, km_final
+- hora_inicio, hora_fin
+- estado: PLANIFICADA | INICIADA | EN_CAMINO | EN_OBRA | FINALIZADA
+- observaciones
+
+**MaterialJornada**
+- id, jornada_id, material_id
+- cantidad_asignada (lo que debía llevar)
+- cantidad_cargada (lo que confirmó)
+- cantidad_consumida (lo que usó)
+- cantidad_devuelta (sobrante)
+- destino_devolucion: DEPOSITO | OBRA
+- estado: ASIGNADO | CARGADO | EN_USO | CONSUMIDO | DEVUELTO
+
+**AsignacionDiaria**
+- id, fecha, operario_id
+- proyecto_id, etapa_id, vehiculo_id
+- estado: PLANIFICADA | CONFIRMADA | EN_CURSO | COMPLETADA
+- creado_por_id (supervisor)
+
+**ActividadTipo**
+- id, codigo, nombre, descripcion
+- categoria (instalacion, tendido, montaje, etc.)
+- activo
+
+**MaterialActividadTipo**
+- id, actividad_tipo_id, material_id
+- cantidad_por_unidad
+- es_opcional
+- notas
+
+### Estados de Jornada
+
+| Estado | Descripción | Quién lo activa |
+|--------|-------------|-----------------|
+| PLANIFICADA | Supervisor asignó al operario | Supervisor |
+| INICIADA | Operario confirmó inicio | Operario |
+| EN_CAMINO | Salió hacia la obra | Operario |
+| EN_OBRA | Llegó y está trabajando | Operario |
+| FINALIZADA | Cerró jornada y rindió materiales | Operario |
+
+### Alertas del Módulo
+
+**Para Operarios:**
+- "Tenés materiales pendientes de retirar para mañana"
+- "No olvidés cerrar tu jornada"
+- "Tenés tareas urgentes asignadas"
+
+**Para Supervisores:**
+- "Juan Pérez inició jornada - Camión 01 - Obra Centro"
+- "María García reporta falta de material"
+- "3 operarios no cerraron jornada de ayer"
+- "Stock bajo de Cable 2.5mm - 5 jornadas lo requieren mañana"
+
+**Para Depósito:**
+- "8 pedidos de materiales para mañana"
+- "Solicitud urgente de material adicional en obra"
+
+### Endpoints API
+
+```
+POST   /jornadas/iniciar              # Operario inicia jornada
+PUT    /jornadas/{id}/llegada         # Marca llegada a obra
+PUT    /jornadas/{id}/cerrar          # Cierra jornada con rendición
+GET    /jornadas/activas              # Jornadas en curso (supervisor)
+GET    /jornadas/mi-jornada           # Jornada actual del operario
+GET    /jornadas/historial            # Historial con filtros
+
+POST   /asignaciones-diarias          # Supervisor planifica
+GET    /asignaciones-diarias/fecha    # Asignaciones de un día
+PUT    /asignaciones-diarias/{id}     # Modifica asignación
+
+GET    /actividades-tipo              # Catálogo de actividades
+POST   /actividades-tipo              # Crear actividad tipo
+GET    /actividades-tipo/{id}/materiales  # Materiales de una actividad
+POST   /actividades-tipo/{id}/materiales  # Agregar material a actividad
+```
+
+### Pantallas Frontend
+
+**Operario:**
+1. `/operario/iniciar-jornada` - Selección de vehículo, destino, materiales
+2. `/operario/jornada-activa` - Estado actual, tareas, reportar novedades
+3. `/operario/cerrar-jornada` - Rendición de materiales, observaciones
+
+**Supervisor:**
+1. `/admin/planificacion-diaria` - Calendario de asignaciones
+2. `/admin/monitor-jornadas` - Vista en tiempo real de operarios
+3. `/admin/actividades-tipo` - ABM de actividades con materiales
+
+---
+
+## Módulo: Actividades Tipo con Materiales (NUEVO)
+
+### Descripción
+Catálogo de actividades estándar que se repiten en las obras. Cada actividad tiene una lista predefinida de materiales necesarios, permitiendo calcular automáticamente qué materiales se necesitan al asignar tareas.
+
+### Ejemplo de Actividad Tipo
+
+**Actividad:** Instalación de tablero monofásico 6 módulos
+**Categoría:** Instalación eléctrica
+**Materiales:**
+- Tablero 6 módulos × 1 unidad
+- Disyuntor 20A × 2 unidades
+- Cable 2.5mm² × 5 metros
+- Bornera × 2 unidades
+- Tornillos 6mm × 8 unidades
+
+### Flujo de Cálculo Automático
+
+1. Supervisor crea tarea "Instalar 3 tableros monofásicos"
+2. Selecciona actividad tipo "Instalación tablero monofásico"
+3. Indica cantidad: 3
+4. Sistema calcula automáticamente:
+   - Tablero 6 módulos × 3 = 3 unidades
+   - Disyuntor 20A × 6 = 6 unidades
+   - Cable 2.5mm² × 15 = 15 metros
+   - etc.
+5. Supervisor puede ajustar cantidades manualmente
+6. Sistema verifica stock y genera alertas si falta material
+
+---
+
+## Módulo: Alertas de Materiales Pendientes (MEJORA)
+
+### Tipos de Alerta Nuevos
+
+| Tipo | Prioridad | Descripción |
+|------|-----------|-------------|
+| MATERIAL_PENDIENTE_RETIRO | ALTA | Material asignado que no fue retirado |
+| MATERIAL_FALTANTE_JORNADA | CRITICA | No hay stock para jornadas de mañana |
+| TAREA_URGENTE | ALTA/CRITICA | Tarea con prioridad urgente sin asignar |
+| JORNADA_SIN_CERRAR | MEDIA | Operario no cerró jornada |
+| VEHICULO_SIN_DEVOLVER | ALTA | Vehículo no regresó al depósito |
+
+### Orden de Urgencia para Tareas
+
+Las tareas se ordenan por:
+1. **Prioridad:** CRITICA > URGENTE > ALTA > MEDIA > BAJA
+2. **Fecha límite:** Más próxima primero
+3. **Dependencias:** Si bloquea otras tareas, sube prioridad
+4. **Cliente VIP:** Proyectos de clientes prioritarios
 
 ---
 

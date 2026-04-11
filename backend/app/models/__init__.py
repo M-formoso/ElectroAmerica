@@ -23,3 +23,9 @@ from app.models.transaccion import (
 from app.models.alerta import Alerta, TipoAlerta, PrioridadAlerta
 from app.models.jornada import Jornada
 from app.models.auditoria import Auditoria, TipoAccion, ModuloAuditado
+
+# Nuevos modelos de Jornadas de Operarios
+from app.models.actividad_tipo import ActividadTipo, MaterialActividadTipo
+from app.models.asignacion_diaria import AsignacionDiaria, EstadoAsignacion
+from app.models.jornada_operario import JornadaOperario, EstadoJornada
+from app.models.material_jornada import MaterialJornada, EstadoMaterialJornada, DestinoDevolucion
