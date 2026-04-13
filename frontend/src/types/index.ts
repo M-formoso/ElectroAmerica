@@ -103,6 +103,7 @@ export interface Equipo {
   tipo: TipoEquipo
   marca?: string
   modelo?: string
+  patente?: string
   estado: EstadoEquipo
   fecha_adquisicion?: string
   costo_adquisicion?: number

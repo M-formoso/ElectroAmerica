@@ -19,6 +19,14 @@ import { DetalleProyectoPage } from '@/pages/portal/DetalleProyecto'
 import { AlertasPage } from '@/pages/Alertas'
 import { ReportesPage } from '@/pages/Reportes'
 import { AuditoriaPage } from '@/pages/Auditoria'
+// Operario pages
+import IniciarJornadaPage from '@/pages/operario/IniciarJornada'
+import JornadaActivaPage from '@/pages/operario/JornadaActiva'
+import HistorialJornadasPage from '@/pages/operario/HistorialJornadas'
+// Supervisor pages
+import MonitorJornadasPage from '@/pages/admin/MonitorJornadas'
+import PlanificacionDiariaPage from '@/pages/admin/PlanificacionDiaria'
+import ActividadesTipoPage from '@/pages/admin/ActividadesTipo'
 import { useAuthStore, useIsAuthenticated, useIsCliente } from '@/store/auth'
 
 const queryClient = new QueryClient({
@@ -106,6 +114,14 @@ function AppRoutes() {
         <Route path="reportes" element={<ReportesPage />} />
         <Route path="auditoria" element={<AuditoriaPage />} />
         <Route path="usuarios" element={<UsuariosPage />} />
+        {/* Operario routes */}
+        <Route path="operario/iniciar-jornada" element={<IniciarJornadaPage />} />
+        <Route path="operario/jornada-activa" element={<JornadaActivaPage />} />
+        <Route path="operario/historial" element={<HistorialJornadasPage />} />
+        {/* Supervisor routes */}
+        <Route path="jornadas/monitor" element={<MonitorJornadasPage />} />
+        <Route path="jornadas/planificacion" element={<PlanificacionDiariaPage />} />
+        <Route path="actividades-tipo" element={<ActividadesTipoPage />} />
       </Route>
 
       {/* Client portal routes */}

@@ -15,6 +15,11 @@ import {
   FileBarChart,
   AlertCircle,
   Activity,
+  Clock,
+  Calendar,
+  PlayCircle,
+  History,
+  ClipboardList,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -37,6 +42,15 @@ const navigation = [
   { name: 'Clientes', href: '/clientes', icon: Building2, roles: ['administrador', 'supervisor'] },
   { name: 'Materiales', href: '/materiales', icon: Package, roles: ['administrador', 'supervisor', 'operario'] },
   { name: 'Equipos', href: '/equipos', icon: Wrench, roles: ['administrador', 'supervisor', 'operario'] },
+  // Jornadas - Operario
+  { name: 'Iniciar Jornada', href: '/operario/iniciar-jornada', icon: PlayCircle, roles: ['operario'] },
+  { name: 'Mi Jornada', href: '/operario/jornada-activa', icon: Clock, roles: ['operario'] },
+  { name: 'Mi Historial', href: '/operario/historial', icon: History, roles: ['operario'] },
+  // Jornadas - Supervisor
+  { name: 'Monitor Jornadas', href: '/jornadas/monitor', icon: Clock, roles: ['administrador', 'supervisor'] },
+  { name: 'Planificación', href: '/jornadas/planificacion', icon: Calendar, roles: ['administrador', 'supervisor'] },
+  { name: 'Actividades Tipo', href: '/actividades-tipo', icon: ClipboardList, roles: ['administrador', 'supervisor'] },
+  // Finanzas y Reportes
   { name: 'Finanzas', href: '/finanzas', icon: Wallet, roles: ['administrador', 'supervisor'] },
   { name: 'Reportes', href: '/reportes', icon: FileBarChart, roles: ['administrador', 'supervisor'] },
   { name: 'Alertas', href: '/alertas', icon: AlertCircle, roles: ['administrador', 'supervisor'] },

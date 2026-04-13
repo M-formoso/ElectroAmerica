@@ -64,6 +64,8 @@ export interface JornadaOperarioList {
   estado: EstadoJornada
   hora_inicio?: string
   hora_fin?: string
+  hora_llegada_obra?: string
+  km_recorridos?: number
 }
 
 export interface IniciarJornadaRequest {
@@ -313,6 +315,86 @@ export const asignacionesDiariasService = {
   async getResumenDia(fecha?: string): Promise<any> {
     const params = fecha ? { fecha } : {}
     const response = await api.get('/asignaciones-diarias/resumen/dia', { params })
+    return response.data
+  },
+}
+
+// ============== ACTIVIDADES TIPO ==============
+
+export interface MaterialActividadTipo {
+  material_id: string
+  cantidad_default: number
+  material_nombre?: string
+  material_unidad?: string
+}
+
+export interface ActividadTipo {
+  id: string
+  nombre: string
+  descripcion?: string
+  categoria?: string
+  activo: boolean
+  created_at: string
+  materiales?: MaterialActividadTipo[]
+}
+
+export interface ActividadTipoCreate {
+  nombre: string
+  descripcion?: string
+  categoria?: string
+  materiales?: { material_id: string; cantidad_default: number }[]
+}
+
+export interface AsignacionDiariaCreate {
+  fecha: string
+  operario_id: string
+  proyecto_id: string
+  etapa_id?: string
+  vehiculo_id?: string
+  prioridad?: 'normal' | 'urgente' | 'baja'
+  notas?: string
+  tareas_planificadas?: any[]
+  materiales_planificados?: any[]
+}
+
+export const actividadesTipoService = {
+  // Listar actividades tipo
+  async getActividadesTipo(params?: {
+    categoria?: string
+    activo?: boolean
+    skip?: number
+    limit?: number
+  }): Promise<ActividadTipo[]> {
+    const response = await api.get<ActividadTipo[]>('/actividades-tipo', { params })
+    return response.data
+  },
+
+  // Obtener actividad por ID
+  async getActividadTipo(id: string): Promise<ActividadTipo> {
+    const response = await api.get<ActividadTipo>(`/actividades-tipo/${id}`)
+    return response.data
+  },
+
+  // Crear actividad tipo
+  async crearActividadTipo(data: ActividadTipoCreate): Promise<ActividadTipo> {
+    const response = await api.post<ActividadTipo>('/actividades-tipo', data)
+    return response.data
+  },
+
+  // Actualizar actividad tipo
+  async actualizarActividadTipo(id: string, data: ActividadTipoCreate): Promise<ActividadTipo> {
+    const response = await api.put<ActividadTipo>(`/actividades-tipo/${id}`, data)
+    return response.data
+  },
+
+  // Eliminar actividad tipo (soft delete)
+  async eliminarActividadTipo(id: string): Promise<void> {
+    await api.delete(`/actividades-tipo/${id}`)
+  },
+
+  // Obtener categorías
+  async getCategorias(): Promise<string[]> {
+    const response = await api.get<string[]>('/actividades-tipo/categorias')
     return response.data
   },
 }

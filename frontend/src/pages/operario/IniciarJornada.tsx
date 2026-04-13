@@ -14,7 +14,7 @@ import { jornadasOperarioService, asignacionesDiariasService, type IniciarJornad
 import { equiposService } from '@/services/equipos'
 import { proyectosService } from '@/services/proyectos'
 import { materialesService } from '@/services/materiales'
-import { useAuthStore } from '@/store/authStore'
+import { useAuthStore } from '@/store/auth'
 
 export default function IniciarJornada() {
   const navigate = useNavigate()
@@ -63,14 +63,14 @@ export default function IniciarJornada() {
   // Cargar etapas del proyecto seleccionado
   const { data: etapas } = useQuery({
     queryKey: ['etapas-proyecto', proyectoId],
-    queryFn: () => proyectosService.getEtapasProyecto(proyectoId),
+    queryFn: () => proyectosService.getEtapas(proyectoId),
     enabled: !!proyectoId,
   })
 
   // Cargar materiales disponibles
   const { data: materiales } = useQuery({
     queryKey: ['materiales-disponibles'],
-    queryFn: materialesService.getMateriales,
+    queryFn: () => materialesService.getMateriales(),
   })
 
   // Mutation para iniciar jornada
@@ -232,7 +232,7 @@ export default function IniciarJornada() {
                 <SelectContent>
                   {vehiculos?.map(v => (
                     <SelectItem key={v.id} value={v.id}>
-                      {v.patente} - {v.nombre}
+                      {v.patente || v.codigo} - {v.nombre}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -285,7 +285,7 @@ export default function IniciarJornada() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">Sin especificar</SelectItem>
-                    {etapas.map(e => (
+                    {etapas.map((e: { id: string; nombre: string }) => (
                       <SelectItem key={e.id} value={e.id}>
                         {e.nombre}
                       </SelectItem>
