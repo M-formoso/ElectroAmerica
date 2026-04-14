@@ -36,8 +36,8 @@ const estadoConfig: Record<string, { label: string; color: string; icon: React.R
 
 export default function MonitorJornadas() {
   const [fecha, setFecha] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [proyectoFiltro, setProyectoFiltro] = useState<string>('')
-  const [estadoFiltro, setEstadoFiltro] = useState<string>('')
+  const [proyectoFiltro, setProyectoFiltro] = useState<string>('__all__')
+  const [estadoFiltro, setEstadoFiltro] = useState<string>('__all__')
   const [jornadaSeleccionada, setJornadaSeleccionada] = useState<JornadaOperario | null>(null)
   const [loadingDetalle, setLoadingDetalle] = useState(false)
 
@@ -47,8 +47,8 @@ export default function MonitorJornadas() {
     queryFn: () =>
       jornadasOperarioService.getJornadas({
         fecha,
-        proyecto_id: proyectoFiltro || undefined,
-        estado: (estadoFiltro as EstadoJornada) || undefined,
+        proyecto_id: proyectoFiltro !== '__all__' ? proyectoFiltro : undefined,
+        estado: estadoFiltro !== '__all__' ? (estadoFiltro as EstadoJornada) : undefined,
       }),
     refetchInterval: 30000, // Refresh cada 30 segundos
   })
@@ -156,7 +156,7 @@ export default function MonitorJornadas() {
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value="__all__">Todos</SelectItem>
                   {proyectos?.map(p => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.nombre}
@@ -172,7 +172,7 @@ export default function MonitorJornadas() {
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value="__all__">Todos</SelectItem>
                   {Object.entries(estadoConfig).map(([key, config]) => (
                     <SelectItem key={key} value={key}>
                       {config.label}
@@ -186,8 +186,8 @@ export default function MonitorJornadas() {
                 variant="outline"
                 onClick={() => {
                   setFecha(format(new Date(), 'yyyy-MM-dd'))
-                  setProyectoFiltro('')
-                  setEstadoFiltro('')
+                  setProyectoFiltro('__all__')
+                  setEstadoFiltro('__all__')
                 }}
               >
                 Limpiar

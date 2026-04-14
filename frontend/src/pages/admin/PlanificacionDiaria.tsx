@@ -134,8 +134,8 @@ export default function PlanificacionDiaria() {
         setFormData({
           operario_id: asig.operario_id,
           proyecto_id: asig.proyecto_id,
-          etapa_id: asig.etapa_id || '',
-          vehiculo_id: asig.vehiculo_id || '',
+          etapa_id: asig.etapa_id || '__none__',
+          vehiculo_id: asig.vehiculo_id || '__none__',
           prioridad: asig.prioridad,
           notas: asig.notas || '',
         })
@@ -145,8 +145,8 @@ export default function PlanificacionDiaria() {
       setFormData({
         operario_id: '',
         proyecto_id: '',
-        etapa_id: '',
-        vehiculo_id: '',
+        etapa_id: '__none__',
+        vehiculo_id: '__none__',
         prioridad: 'normal',
         notas: '',
       })
@@ -161,8 +161,8 @@ export default function PlanificacionDiaria() {
     setFormData({
       operario_id: '',
       proyecto_id: '',
-      etapa_id: '',
-      vehiculo_id: '',
+      etapa_id: '__none__',
+      vehiculo_id: '__none__',
       prioridad: 'normal',
       notas: '',
     })
@@ -175,8 +175,8 @@ export default function PlanificacionDiaria() {
     const data: AsignacionDiariaCreate = {
       operario_id: formData.operario_id,
       proyecto_id: formData.proyecto_id,
-      etapa_id: formData.etapa_id || undefined,
-      vehiculo_id: formData.vehiculo_id || undefined,
+      etapa_id: formData.etapa_id && formData.etapa_id !== '__none__' ? formData.etapa_id : undefined,
+      vehiculo_id: formData.vehiculo_id && formData.vehiculo_id !== '__none__' ? formData.vehiculo_id : undefined,
       fecha: fechaSeleccionada,
       prioridad: formData.prioridad as 'normal' | 'urgente' | 'baja',
       notas: formData.notas || undefined,
@@ -375,7 +375,7 @@ export default function PlanificacionDiaria() {
               <Select
                 value={formData.proyecto_id}
                 onValueChange={v =>
-                  setFormData(prev => ({ ...prev, proyecto_id: v, etapa_id: '' }))
+                  setFormData(prev => ({ ...prev, proyecto_id: v, etapa_id: '__none__' }))
                 }
               >
                 <SelectTrigger>
@@ -402,7 +402,7 @@ export default function PlanificacionDiaria() {
                     <SelectValue placeholder="Seleccionar etapa" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Sin especificar</SelectItem>
+                    <SelectItem value="__none__">Sin especificar</SelectItem>
                     {etapas.map((e: { id: string; nombre: string }) => (
                       <SelectItem key={e.id} value={e.id}>
                         {e.nombre}
@@ -423,7 +423,7 @@ export default function PlanificacionDiaria() {
                   <SelectValue placeholder="Seleccionar vehículo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sin asignar</SelectItem>
+                  <SelectItem value="__none__">Sin asignar</SelectItem>
                   {vehiculos?.map(v => (
                     <SelectItem key={v.id} value={v.id}>
                       {v.patente || v.codigo} - {v.nombre}
