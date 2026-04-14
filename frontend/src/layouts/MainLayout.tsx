@@ -24,6 +24,9 @@ import {
   Truck,
   DollarSign,
   Shield,
+  Hammer,
+  HandCoins,
+  ClipboardCheck,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -101,6 +104,15 @@ const navigationSections: NavSection[] = [
     items: [
       { name: 'Materiales', href: '/materiales', icon: Package, roles: ['administrador', 'supervisor', 'operario'] },
       { name: 'Equipos', href: '/equipos', icon: Wrench, roles: ['administrador', 'supervisor', 'operario'] },
+    ],
+  },
+  {
+    title: 'Herramientas',
+    icon: Hammer,
+    roles: ['administrador', 'supervisor'],
+    items: [
+      { name: 'Control Préstamos', href: '/herramientas/prestamos', icon: HandCoins, roles: ['administrador', 'supervisor'] },
+      { name: 'Inventario', href: '/herramientas/inventario', icon: ClipboardCheck, roles: ['administrador', 'supervisor'] },
     ],
   },
   {

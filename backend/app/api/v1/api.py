@@ -20,7 +20,8 @@ from app.api.v1.endpoints import (
     auditoria,
     jornadas_operario,
     asignaciones_diarias,
-    actividades_tipo
+    actividades_tipo,
+    herramientas
 )
 
 api_router = APIRouter()
@@ -170,4 +171,11 @@ api_router.include_router(
     actividades_tipo.router,
     prefix="/actividades-tipo",
     tags=["Actividades Tipo"]
+)
+
+# Herramientas y préstamos
+api_router.include_router(
+    herramientas.router,
+    prefix="/herramientas",
+    tags=["Herramientas"]
 )

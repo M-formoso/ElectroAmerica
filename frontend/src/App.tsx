@@ -27,6 +27,9 @@ import HistorialJornadasPage from '@/pages/operario/HistorialJornadas'
 import MonitorJornadasPage from '@/pages/admin/MonitorJornadas'
 import PlanificacionDiariaPage from '@/pages/admin/PlanificacionDiaria'
 import ActividadesTipoPage from '@/pages/admin/ActividadesTipo'
+// Herramientas pages
+import ControlPrestamosPage from '@/pages/herramientas/ControlPrestamos'
+import InventarioHerramientasPage from '@/pages/herramientas/InventarioHerramientas'
 import { useAuthStore, useIsAuthenticated, useIsCliente } from '@/store/auth'
 
 const queryClient = new QueryClient({
@@ -122,6 +125,9 @@ function AppRoutes() {
         <Route path="jornadas/monitor" element={<MonitorJornadasPage />} />
         <Route path="jornadas/planificacion" element={<PlanificacionDiariaPage />} />
         <Route path="actividades-tipo" element={<ActividadesTipoPage />} />
+        {/* Herramientas routes */}
+        <Route path="herramientas/prestamos" element={<ControlPrestamosPage />} />
+        <Route path="herramientas/inventario" element={<InventarioHerramientasPage />} />
       </Route>
 
       {/* Client portal routes */}

@@ -29,3 +29,6 @@ from app.models.actividad_tipo import ActividadTipo, MaterialActividadTipo
 from app.models.asignacion_diaria import AsignacionDiaria, EstadoAsignacion
 from app.models.jornada_operario import JornadaOperario, EstadoJornada
 from app.models.material_jornada import MaterialJornada, EstadoMaterialJornada, DestinoDevolucion
+
+# Herramientas y Préstamos
+from app.models.herramienta import Herramienta, PrestamoHerramienta, EstadoHerramienta, EstadoPrestamo
