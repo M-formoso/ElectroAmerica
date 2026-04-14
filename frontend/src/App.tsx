@@ -30,6 +30,8 @@ import ActividadesTipoPage from '@/pages/admin/ActividadesTipo'
 // Herramientas pages
 import ControlPrestamosPage from '@/pages/herramientas/ControlPrestamos'
 import InventarioHerramientasPage from '@/pages/herramientas/InventarioHerramientas'
+// Materiales pages
+import RequerimientosProyectoPage from '@/pages/materiales/RequerimientosProyecto'
 import { useAuthStore, useIsAuthenticated, useIsCliente } from '@/store/auth'
 
 const queryClient = new QueryClient({
@@ -128,6 +130,8 @@ function AppRoutes() {
         {/* Herramientas routes */}
         <Route path="herramientas/prestamos" element={<ControlPrestamosPage />} />
         <Route path="herramientas/inventario" element={<InventarioHerramientasPage />} />
+        {/* Materiales por proyecto */}
+        <Route path="proyectos/:proyectoId/materiales" element={<RequerimientosProyectoPage />} />
       </Route>
 
       {/* Client portal routes */}

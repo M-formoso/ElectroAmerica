@@ -21,7 +21,8 @@ from app.api.v1.endpoints import (
     jornadas_operario,
     asignaciones_diarias,
     actividades_tipo,
-    herramientas
+    herramientas,
+    requerimientos_material
 )
 
 api_router = APIRouter()
@@ -178,4 +179,11 @@ api_router.include_router(
     herramientas.router,
     prefix="/herramientas",
     tags=["Herramientas"]
+)
+
+# Requerimientos de material
+api_router.include_router(
+    requerimientos_material.router,
+    prefix="/requerimientos-material",
+    tags=["Requerimientos Material"]
 )

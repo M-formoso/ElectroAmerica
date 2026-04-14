@@ -32,3 +32,9 @@ from app.models.material_jornada import MaterialJornada, EstadoMaterialJornada, 
 
 # Herramientas y Préstamos
 from app.models.herramienta import Herramienta, PrestamoHerramienta, EstadoHerramienta, EstadoPrestamo
+
+# Requerimientos de Material
+from app.models.requerimiento_material import (
+    RequerimientoMaterial, HistorialRequerimiento, EmpresaProveedora,
+    EstadoRequerimiento, OrigenMaterial, PrioridadRequerimiento
+)
