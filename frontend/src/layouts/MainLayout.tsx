@@ -20,6 +20,10 @@ import {
   PlayCircle,
   History,
   ClipboardList,
+  HardHat,
+  Truck,
+  DollarSign,
+  Shield,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -36,26 +40,88 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useAuthStore, useUser } from '@/store/auth'
 import { AlertasDropdown } from '@/components/AlertasDropdown'
 
-const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ['administrador', 'supervisor', 'operario'] },
-  { name: 'Proyectos', href: '/proyectos', icon: FolderKanban, roles: ['administrador', 'supervisor', 'operario'] },
-  { name: 'Clientes', href: '/clientes', icon: Building2, roles: ['administrador', 'supervisor'] },
-  { name: 'Materiales', href: '/materiales', icon: Package, roles: ['administrador', 'supervisor', 'operario'] },
-  { name: 'Equipos', href: '/equipos', icon: Wrench, roles: ['administrador', 'supervisor', 'operario'] },
-  // Jornadas - Operario
-  { name: 'Iniciar Jornada', href: '/operario/iniciar-jornada', icon: PlayCircle, roles: ['operario'] },
-  { name: 'Mi Jornada', href: '/operario/jornada-activa', icon: Clock, roles: ['operario'] },
-  { name: 'Mi Historial', href: '/operario/historial', icon: History, roles: ['operario'] },
-  // Jornadas - Supervisor
-  { name: 'Monitor Jornadas', href: '/jornadas/monitor', icon: Clock, roles: ['administrador', 'supervisor'] },
-  { name: 'Planificación', href: '/jornadas/planificacion', icon: Calendar, roles: ['administrador', 'supervisor'] },
-  { name: 'Actividades Tipo', href: '/actividades-tipo', icon: ClipboardList, roles: ['administrador', 'supervisor'] },
-  // Finanzas y Reportes
-  { name: 'Finanzas', href: '/finanzas', icon: Wallet, roles: ['administrador', 'supervisor'] },
-  { name: 'Reportes', href: '/reportes', icon: FileBarChart, roles: ['administrador', 'supervisor'] },
-  { name: 'Alertas', href: '/alertas', icon: AlertCircle, roles: ['administrador', 'supervisor'] },
-  { name: 'Auditoria', href: '/auditoria', icon: Activity, roles: ['administrador'] },
-  { name: 'Usuarios', href: '/usuarios', icon: Users, roles: ['administrador'] },
+type RolUsuario = 'administrador' | 'supervisor' | 'operario' | 'cliente'
+
+interface NavItem {
+  name: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  roles: RolUsuario[]
+}
+
+interface NavSection {
+  title: string
+  icon: React.ComponentType<{ className?: string }>
+  roles: RolUsuario[]
+  items: NavItem[]
+}
+
+const navigationSections: NavSection[] = [
+  {
+    title: 'General',
+    icon: LayoutDashboard,
+    roles: ['administrador', 'supervisor', 'operario'],
+    items: [
+      { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ['administrador', 'supervisor', 'operario'] },
+    ],
+  },
+  {
+    title: 'Producción',
+    icon: HardHat,
+    roles: ['administrador', 'supervisor', 'operario'],
+    items: [
+      { name: 'Proyectos', href: '/proyectos', icon: FolderKanban, roles: ['administrador', 'supervisor', 'operario'] },
+      { name: 'Clientes', href: '/clientes', icon: Building2, roles: ['administrador', 'supervisor'] },
+    ],
+  },
+  {
+    title: 'Mi Jornada',
+    icon: Clock,
+    roles: ['operario'],
+    items: [
+      { name: 'Iniciar Jornada', href: '/operario/iniciar-jornada', icon: PlayCircle, roles: ['operario'] },
+      { name: 'Jornada Activa', href: '/operario/jornada-activa', icon: Clock, roles: ['operario'] },
+      { name: 'Mi Historial', href: '/operario/historial', icon: History, roles: ['operario'] },
+    ],
+  },
+  {
+    title: 'Gestión de Jornadas',
+    icon: Calendar,
+    roles: ['administrador', 'supervisor'],
+    items: [
+      { name: 'Monitor Jornadas', href: '/jornadas/monitor', icon: Clock, roles: ['administrador', 'supervisor'] },
+      { name: 'Planificación', href: '/jornadas/planificacion', icon: Calendar, roles: ['administrador', 'supervisor'] },
+      { name: 'Actividades Tipo', href: '/actividades-tipo', icon: ClipboardList, roles: ['administrador', 'supervisor'] },
+    ],
+  },
+  {
+    title: 'Recursos',
+    icon: Truck,
+    roles: ['administrador', 'supervisor', 'operario'],
+    items: [
+      { name: 'Materiales', href: '/materiales', icon: Package, roles: ['administrador', 'supervisor', 'operario'] },
+      { name: 'Equipos', href: '/equipos', icon: Wrench, roles: ['administrador', 'supervisor', 'operario'] },
+    ],
+  },
+  {
+    title: 'Finanzas',
+    icon: DollarSign,
+    roles: ['administrador', 'supervisor'],
+    items: [
+      { name: 'Resumen Financiero', href: '/finanzas', icon: Wallet, roles: ['administrador', 'supervisor'] },
+      { name: 'Reportes', href: '/reportes', icon: FileBarChart, roles: ['administrador', 'supervisor'] },
+    ],
+  },
+  {
+    title: 'Administración',
+    icon: Shield,
+    roles: ['administrador'],
+    items: [
+      { name: 'Usuarios', href: '/usuarios', icon: Users, roles: ['administrador'] },
+      { name: 'Alertas', href: '/alertas', icon: AlertCircle, roles: ['administrador', 'supervisor'] },
+      { name: 'Auditoría', href: '/auditoria', icon: Activity, roles: ['administrador'] },
+    ],
+  },
 ]
 
 export function MainLayout() {
@@ -70,9 +136,14 @@ export function MainLayout() {
     navigate('/login')
   }
 
-  const filteredNavigation = navigation.filter(
-    (item) => user && item.roles.includes(user.rol)
-  )
+  // Filtrar secciones y sus items según el rol del usuario
+  const filteredSections = navigationSections
+    .filter((section) => user && section.roles.includes(user.rol))
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => user && item.roles.includes(user.rol)),
+    }))
+    .filter((section) => section.items.length > 0)
 
   const userInitials = user
     ? `${user.nombre.charAt(0)}${user.apellido.charAt(0)}`.toUpperCase()
@@ -113,28 +184,43 @@ export function MainLayout() {
           </Button>
         </div>
 
-        <nav className="flex-1 space-y-1 px-2 py-4">
-          {filteredNavigation.map((item) => {
-            const isActive = location.pathname === item.href ||
-              (item.href !== '/' && location.pathname.startsWith(item.href))
+        <nav className="flex-1 overflow-y-auto px-2 py-4">
+          {filteredSections.map((section, sectionIndex) => (
+            <div key={section.title} className={cn(sectionIndex > 0 && 'mt-4')}>
+              {/* Section header */}
+              <div className="flex items-center gap-2 px-3 py-2">
+                <section.icon className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  {section.title}
+                </span>
+              </div>
 
-            return (
-              <Link
-                key={item.name}
-                to={item.href}
-                onClick={() => setSidebarOpen(false)}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                )}
-              >
-                <item.icon className="h-5 w-5" />
-                {item.name}
-              </Link>
-            )
-          })}
+              {/* Section items */}
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const isActive = location.pathname === item.href ||
+                    (item.href !== '/' && location.pathname.startsWith(item.href))
+
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.href}
+                      onClick={() => setSidebarOpen(false)}
+                      className={cn(
+                        'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ml-2',
+                        isActive
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                      )}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      {item.name}
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         <div className="border-t p-4 mt-auto">
