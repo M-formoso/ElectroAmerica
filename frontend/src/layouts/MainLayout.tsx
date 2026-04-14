@@ -201,8 +201,8 @@ export function MainLayout() {
             <div key={section.title} className={cn(sectionIndex > 0 && 'mt-4')}>
               {/* Section header */}
               <div className="flex items-center gap-2 px-3 py-2">
-                <section.icon className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <section.icon className="h-4 w-4 text-gray-700" />
+                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
                   {section.title}
                 </span>
               </div>
