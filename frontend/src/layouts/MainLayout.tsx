@@ -40,7 +40,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { useAuthStore, useUser } from '@/store/auth'
+import { useAuthStore, useUser, useModulosEfectivos } from '@/store/auth'
 import { AlertasDropdown } from '@/components/AlertasDropdown'
 
 type RolUsuario = 'administrador' | 'supervisor' | 'operario' | 'cliente'
@@ -50,6 +50,7 @@ interface NavItem {
   href: string
   icon: React.ComponentType<{ className?: string }>
   roles: RolUsuario[]
+  modulo?: string // Módulo requerido para ver este item
 }
 
 interface NavSection {
@@ -57,6 +58,7 @@ interface NavSection {
   icon: React.ComponentType<{ className?: string }>
   roles: RolUsuario[]
   items: NavItem[]
+  modulo?: string // Módulo requerido para ver toda la sección
 }
 
 const navigationSections: NavSection[] = [
@@ -64,8 +66,9 @@ const navigationSections: NavSection[] = [
     title: 'General',
     icon: LayoutDashboard,
     roles: ['administrador', 'supervisor', 'operario'],
+    modulo: 'dashboard',
     items: [
-      { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ['administrador', 'supervisor', 'operario'] },
+      { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ['administrador', 'supervisor', 'operario'], modulo: 'dashboard' },
     ],
   },
   {
@@ -73,28 +76,30 @@ const navigationSections: NavSection[] = [
     icon: HardHat,
     roles: ['administrador', 'supervisor', 'operario'],
     items: [
-      { name: 'Proyectos', href: '/proyectos', icon: FolderKanban, roles: ['administrador', 'supervisor', 'operario'] },
-      { name: 'Clientes', href: '/clientes', icon: Building2, roles: ['administrador', 'supervisor'] },
+      { name: 'Proyectos', href: '/proyectos', icon: FolderKanban, roles: ['administrador', 'supervisor', 'operario'], modulo: 'proyectos' },
+      { name: 'Clientes', href: '/clientes', icon: Building2, roles: ['administrador', 'supervisor'], modulo: 'clientes' },
     ],
   },
   {
     title: 'Mi Jornada',
     icon: Clock,
     roles: ['operario'],
+    modulo: 'jornadas_operario',
     items: [
-      { name: 'Iniciar Jornada', href: '/operario/iniciar-jornada', icon: PlayCircle, roles: ['operario'] },
-      { name: 'Jornada Activa', href: '/operario/jornada-activa', icon: Clock, roles: ['operario'] },
-      { name: 'Mi Historial', href: '/operario/historial', icon: History, roles: ['operario'] },
+      { name: 'Iniciar Jornada', href: '/operario/iniciar-jornada', icon: PlayCircle, roles: ['operario'], modulo: 'jornadas_operario' },
+      { name: 'Jornada Activa', href: '/operario/jornada-activa', icon: Clock, roles: ['operario'], modulo: 'jornadas_operario' },
+      { name: 'Mi Historial', href: '/operario/historial', icon: History, roles: ['operario'], modulo: 'jornadas_operario' },
     ],
   },
   {
     title: 'Gestión de Jornadas',
     icon: Calendar,
     roles: ['administrador', 'supervisor'],
+    modulo: 'jornadas_gestion',
     items: [
-      { name: 'Monitor Jornadas', href: '/jornadas/monitor', icon: Clock, roles: ['administrador', 'supervisor'] },
-      { name: 'Planificación', href: '/jornadas/planificacion', icon: Calendar, roles: ['administrador', 'supervisor'] },
-      { name: 'Actividades Tipo', href: '/actividades-tipo', icon: ClipboardList, roles: ['administrador', 'supervisor'] },
+      { name: 'Monitor Jornadas', href: '/jornadas/monitor', icon: Clock, roles: ['administrador', 'supervisor'], modulo: 'jornadas_gestion' },
+      { name: 'Planificación', href: '/jornadas/planificacion', icon: Calendar, roles: ['administrador', 'supervisor'], modulo: 'jornadas_gestion' },
+      { name: 'Actividades Tipo', href: '/actividades-tipo', icon: ClipboardList, roles: ['administrador', 'supervisor'], modulo: 'actividades_tipo' },
     ],
   },
   {
@@ -102,26 +107,28 @@ const navigationSections: NavSection[] = [
     icon: Truck,
     roles: ['administrador', 'supervisor', 'operario'],
     items: [
-      { name: 'Materiales', href: '/materiales', icon: Package, roles: ['administrador', 'supervisor', 'operario'] },
-      { name: 'Equipos', href: '/equipos', icon: Wrench, roles: ['administrador', 'supervisor', 'operario'] },
+      { name: 'Materiales', href: '/materiales', icon: Package, roles: ['administrador', 'supervisor', 'operario'], modulo: 'materiales' },
+      { name: 'Equipos', href: '/equipos', icon: Wrench, roles: ['administrador', 'supervisor', 'operario'], modulo: 'equipos' },
     ],
   },
   {
     title: 'Herramientas',
     icon: Hammer,
     roles: ['administrador', 'supervisor'],
+    modulo: 'herramientas',
     items: [
-      { name: 'Control Préstamos', href: '/herramientas/prestamos', icon: HandCoins, roles: ['administrador', 'supervisor'] },
-      { name: 'Inventario', href: '/herramientas/inventario', icon: ClipboardCheck, roles: ['administrador', 'supervisor'] },
+      { name: 'Control Préstamos', href: '/herramientas/prestamos', icon: HandCoins, roles: ['administrador', 'supervisor'], modulo: 'herramientas' },
+      { name: 'Inventario', href: '/herramientas/inventario', icon: ClipboardCheck, roles: ['administrador', 'supervisor'], modulo: 'herramientas' },
     ],
   },
   {
     title: 'Finanzas',
     icon: DollarSign,
     roles: ['administrador', 'supervisor'],
+    modulo: 'finanzas',
     items: [
-      { name: 'Resumen Financiero', href: '/finanzas', icon: Wallet, roles: ['administrador', 'supervisor'] },
-      { name: 'Reportes', href: '/reportes', icon: FileBarChart, roles: ['administrador', 'supervisor'] },
+      { name: 'Resumen Financiero', href: '/finanzas', icon: Wallet, roles: ['administrador', 'supervisor'], modulo: 'finanzas' },
+      { name: 'Reportes', href: '/reportes', icon: FileBarChart, roles: ['administrador', 'supervisor'], modulo: 'reportes' },
     ],
   },
   {
@@ -129,9 +136,9 @@ const navigationSections: NavSection[] = [
     icon: Shield,
     roles: ['administrador'],
     items: [
-      { name: 'Usuarios', href: '/usuarios', icon: Users, roles: ['administrador'] },
-      { name: 'Alertas', href: '/alertas', icon: AlertCircle, roles: ['administrador', 'supervisor'] },
-      { name: 'Auditoría', href: '/auditoria', icon: Activity, roles: ['administrador'] },
+      { name: 'Usuarios', href: '/usuarios', icon: Users, roles: ['administrador'], modulo: 'usuarios' },
+      { name: 'Alertas', href: '/alertas', icon: AlertCircle, roles: ['administrador', 'supervisor'], modulo: 'alertas' },
+      { name: 'Auditoría', href: '/auditoria', icon: Activity, roles: ['administrador'], modulo: 'auditoria' },
     ],
   },
 ]
@@ -141,6 +148,7 @@ export function MainLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const user = useUser()
+  const modulosEfectivos = useModulosEfectivos()
   const logout = useAuthStore((state) => state.logout)
 
   const handleLogout = () => {
@@ -148,12 +156,30 @@ export function MainLayout() {
     navigate('/login')
   }
 
-  // Filtrar secciones y sus items según el rol del usuario
+  // Helper para verificar si tiene acceso a un módulo
+  const tieneAccesoModulo = (modulo?: string) => {
+    if (!modulo) return true // Si no tiene módulo definido, mostrar siempre
+    return modulosEfectivos.includes(modulo)
+  }
+
+  // Filtrar secciones y sus items según el rol del usuario Y sus módulos permitidos
   const filteredSections = navigationSections
-    .filter((section) => user && section.roles.includes(user.rol))
+    .filter((section) => {
+      // Verificar rol
+      if (!user || !section.roles.includes(user.rol)) return false
+      // Verificar módulo de la sección (si tiene)
+      if (section.modulo && !tieneAccesoModulo(section.modulo)) return false
+      return true
+    })
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => user && item.roles.includes(user.rol)),
+      items: section.items.filter((item) => {
+        // Verificar rol
+        if (!user || !item.roles.includes(user.rol)) return false
+        // Verificar módulo del item
+        if (!tieneAccesoModulo(item.modulo)) return false
+        return true
+      }),
     }))
     .filter((section) => section.items.length > 0)
 

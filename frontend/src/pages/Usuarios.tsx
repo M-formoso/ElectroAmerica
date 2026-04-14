@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus,
@@ -11,12 +11,16 @@ import {
   Loader2,
   Mail,
   Phone,
+  Shield,
+  Settings,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -48,8 +52,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Label } from '@/components/ui/label'
-import { usuariosService, type Usuario, type UsuarioCreate } from '@/services/usuarios'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { usuariosService, type Usuario, type UsuarioCreate, moduloLabels } from '@/services/usuarios'
 import { useToast } from '@/hooks/use-toast'
+import { useIsSuperadmin } from '@/store/auth'
 
 const rolColors: Record<string, string> = {
   administrador: 'destructive',
@@ -65,6 +71,39 @@ const rolLabels: Record<string, string> = {
   cliente: 'Cliente',
 }
 
+// Módulos disponibles en el sistema
+const MODULOS_DISPONIBLES = [
+  'dashboard',
+  'proyectos',
+  'clientes',
+  'materiales',
+  'equipos',
+  'herramientas',
+  'finanzas',
+  'reportes',
+  'usuarios',
+  'alertas',
+  'auditoria',
+  'jornadas_operario',
+  'jornadas_gestion',
+  'actividades_tipo',
+]
+
+// Módulos por defecto según rol
+const MODULOS_POR_ROL: Record<string, string[]> = {
+  administrador: MODULOS_DISPONIBLES,
+  supervisor: [
+    'dashboard', 'proyectos', 'clientes', 'materiales', 'equipos',
+    'herramientas', 'finanzas', 'reportes', 'alertas',
+    'jornadas_gestion', 'actividades_tipo'
+  ],
+  operario: [
+    'dashboard', 'proyectos', 'materiales', 'equipos',
+    'jornadas_operario'
+  ],
+  cliente: []
+}
+
 interface UsuarioForm {
   email: string
   password: string
@@ -72,6 +111,9 @@ interface UsuarioForm {
   apellido: string
   telefono: string
   rol: string
+  es_superadmin: boolean
+  modulos_permitidos: string[]
+  usar_modulos_personalizados: boolean
 }
 
 const initialFormState: UsuarioForm = {
@@ -81,6 +123,9 @@ const initialFormState: UsuarioForm = {
   apellido: '',
   telefono: '',
   rol: 'operario',
+  es_superadmin: false,
+  modulos_permitidos: [],
+  usar_modulos_personalizados: false,
 }
 
 export function UsuariosPage() {
@@ -88,12 +133,25 @@ export function UsuariosPage() {
   const [rolFilter, setRolFilter] = useState<string>('todos')
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [selectedUsuario, setSelectedUsuario] = useState<Usuario | null>(null)
   const [formData, setFormData] = useState<UsuarioForm>(initialFormState)
+  const [activeTab, setActiveTab] = useState('datos')
 
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const isSuperadmin = useIsSuperadmin()
+
+  // Cuando cambia el rol, actualizar módulos por defecto
+  useEffect(() => {
+    if (!formData.usar_modulos_personalizados) {
+      setFormData(prev => ({
+        ...prev,
+        modulos_permitidos: MODULOS_POR_ROL[prev.rol] || []
+      }))
+    }
+  }, [formData.rol, formData.usar_modulos_personalizados])
 
   const { data: usuarios, isLoading } = useQuery({
     queryKey: ['usuarios', rolFilter],
@@ -109,11 +167,32 @@ export function UsuariosPage() {
       toast({ title: 'Usuario creado exitosamente' })
       setIsCreateOpen(false)
       setFormData(initialFormState)
+      setActiveTab('datos')
     },
     onError: (error: any) => {
       toast({
         variant: 'destructive',
         title: 'Error al crear usuario',
+        description: error.response?.data?.detail || 'Error desconocido',
+      })
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      usuariosService.updateUsuario(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['usuarios'] })
+      toast({ title: 'Usuario actualizado exitosamente' })
+      setIsEditOpen(false)
+      setSelectedUsuario(null)
+      setFormData(initialFormState)
+      setActiveTab('datos')
+    },
+    onError: (error: any) => {
+      toast({
+        variant: 'destructive',
+        title: 'Error al actualizar usuario',
         description: error.response?.data?.detail || 'Error desconocido',
       })
     },
@@ -141,7 +220,72 @@ export function UsuariosPage() {
       apellido: formData.apellido,
       telefono: formData.telefono || undefined,
       rol: formData.rol,
+      es_superadmin: formData.es_superadmin,
+      modulos_permitidos: formData.usar_modulos_personalizados ? formData.modulos_permitidos : undefined,
     })
+  }
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedUsuario) return
+
+    const updateData: any = {
+      email: formData.email,
+      nombre: formData.nombre,
+      apellido: formData.apellido,
+      telefono: formData.telefono || undefined,
+      rol: formData.rol,
+      es_superadmin: formData.es_superadmin,
+      modulos_permitidos: formData.usar_modulos_personalizados ? formData.modulos_permitidos : null,
+    }
+
+    // Solo incluir password si se modificó
+    if (formData.password) {
+      updateData.password = formData.password
+    }
+
+    updateMutation.mutate({ id: selectedUsuario.id, data: updateData })
+  }
+
+  const handleOpenEdit = (usuario: Usuario) => {
+    setSelectedUsuario(usuario)
+    const tieneModulosPersonalizados = usuario.modulos_permitidos && usuario.modulos_permitidos.length > 0
+    setFormData({
+      email: usuario.email,
+      password: '',
+      nombre: usuario.nombre,
+      apellido: usuario.apellido,
+      telefono: usuario.telefono || '',
+      rol: usuario.rol,
+      es_superadmin: usuario.es_superadmin,
+      modulos_permitidos: usuario.modulos_permitidos || MODULOS_POR_ROL[usuario.rol] || [],
+      usar_modulos_personalizados: !!tieneModulosPersonalizados,
+    })
+    setActiveTab('datos')
+    setIsEditOpen(true)
+  }
+
+  const handleToggleModulo = (modulo: string) => {
+    setFormData(prev => ({
+      ...prev,
+      modulos_permitidos: prev.modulos_permitidos.includes(modulo)
+        ? prev.modulos_permitidos.filter(m => m !== modulo)
+        : [...prev.modulos_permitidos, modulo]
+    }))
+  }
+
+  const handleSelectAllModulos = () => {
+    setFormData(prev => ({
+      ...prev,
+      modulos_permitidos: MODULOS_DISPONIBLES
+    }))
+  }
+
+  const handleDeselectAllModulos = () => {
+    setFormData(prev => ({
+      ...prev,
+      modulos_permitidos: []
+    }))
   }
 
   const filteredUsuarios = usuarios?.filter((u) =>
@@ -232,7 +376,7 @@ export function UsuariosPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleOpenEdit(usuario)}>
                           <Edit className="h-4 w-4 mr-2" />
                           Editar
                         </DropdownMenuItem>
@@ -259,9 +403,17 @@ export function UsuariosPage() {
                     </div>
                   )}
                   <div className="flex items-center justify-between pt-2 border-t">
-                    <Badge variant={rolColors[usuario.rol] as any}>
-                      {rolLabels[usuario.rol]}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={rolColors[usuario.rol] as any}>
+                        {rolLabels[usuario.rol]}
+                      </Badge>
+                      {usuario.es_superadmin && (
+                        <Badge variant="destructive" className="gap-1">
+                          <Shield className="h-3 w-3" />
+                          Superadmin
+                        </Badge>
+                      )}
+                    </div>
                     {usuario.activo ? (
                       <Badge variant="success" className="gap-1">
                         <UserCheck className="h-3 w-3" />
@@ -323,9 +475,17 @@ export function UsuariosPage() {
                   <TableCell>{usuario.email}</TableCell>
                   <TableCell>{usuario.telefono || '-'}</TableCell>
                   <TableCell>
-                    <Badge variant={rolColors[usuario.rol] as any}>
-                      {rolLabels[usuario.rol]}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={rolColors[usuario.rol] as any}>
+                        {rolLabels[usuario.rol]}
+                      </Badge>
+                      {usuario.es_superadmin && (
+                        <Badge variant="destructive" className="gap-1">
+                          <Shield className="h-3 w-3" />
+                          Super
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     {usuario.activo ? (
@@ -348,7 +508,7 @@ export function UsuariosPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleOpenEdit(usuario)}>
                           <Edit className="h-4 w-4 mr-2" />
                           Editar
                         </DropdownMenuItem>
@@ -375,86 +535,200 @@ export function UsuariosPage() {
       )}
 
       {/* Create usuario dialog */}
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+      <Dialog open={isCreateOpen} onOpenChange={(open) => {
+        setIsCreateOpen(open)
+        if (!open) {
+          setFormData(initialFormState)
+          setActiveTab('datos')
+        }
+      }}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nuevo Usuario</DialogTitle>
             <DialogDescription>
-              Ingresa los datos del nuevo usuario
+              Ingresa los datos del nuevo usuario y configura sus permisos
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateSubmit}>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="datos">Datos</TabsTrigger>
+                <TabsTrigger value="permisos">Permisos</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="datos" className="space-y-4 mt-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Nombre *</Label>
+                    <Input
+                      value={formData.nombre}
+                      onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                      placeholder="Nombre"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Apellido *</Label>
+                    <Input
+                      value={formData.apellido}
+                      onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
+                      placeholder="Apellido"
+                      required
+                    />
+                  </div>
+                </div>
                 <div className="space-y-2">
-                  <Label>Nombre *</Label>
+                  <Label>Email *</Label>
                   <Input
-                    value={formData.nombre}
-                    onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                    placeholder="Nombre"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="email@ejemplo.com"
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Apellido *</Label>
+                  <Label>Contraseña *</Label>
                   <Input
-                    value={formData.apellido}
-                    onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
-                    placeholder="Apellido"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="Mínimo 6 caracteres"
                     required
+                    minLength={6}
                   />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Email *</Label>
-                <Input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="email@ejemplo.com"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Contraseña *</Label>
-                <Input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="Mínimo 6 caracteres"
-                  required
-                  minLength={6}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Teléfono</Label>
-                  <Input
-                    value={formData.telefono}
-                    onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                    placeholder="+54 9 11 1234-5678"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Teléfono</Label>
+                    <Input
+                      value={formData.telefono}
+                      onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                      placeholder="+54 9 11 1234-5678"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Rol *</Label>
+                    <Select
+                      value={formData.rol}
+                      onValueChange={(v) => setFormData({ ...formData, rol: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="administrador">Administrador</SelectItem>
+                        <SelectItem value="supervisor">Supervisor</SelectItem>
+                        <SelectItem value="operario">Operario</SelectItem>
+                        <SelectItem value="cliente">Cliente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Rol *</Label>
-                  <Select
-                    value={formData.rol}
-                    onValueChange={(v) => setFormData({ ...formData, rol: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="administrador">Administrador</SelectItem>
-                      <SelectItem value="supervisor">Supervisor</SelectItem>
-                      <SelectItem value="operario">Operario</SelectItem>
-                      <SelectItem value="cliente">Cliente</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
+              </TabsContent>
+
+              <TabsContent value="permisos" className="space-y-4 mt-4">
+                {/* Superadmin toggle */}
+                {isSuperadmin && (
+                  <Card className="border-red-200 bg-red-50">
+                    <CardContent className="pt-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-base flex items-center gap-2">
+                            <Shield className="h-4 w-4 text-red-600" />
+                            Superadministrador
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            Acceso total a todos los módulos del sistema
+                          </p>
+                        </div>
+                        <Switch
+                          checked={formData.es_superadmin}
+                          onCheckedChange={(checked: boolean) => setFormData({ ...formData, es_superadmin: checked })}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {!formData.es_superadmin && (
+                  <>
+                    {/* Toggle permisos personalizados */}
+                    <Card>
+                      <CardContent className="pt-4">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="text-base flex items-center gap-2">
+                              <Settings className="h-4 w-4" />
+                              Permisos personalizados
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                              {formData.usar_modulos_personalizados
+                                ? 'Selecciona manualmente los módulos'
+                                : `Usa permisos por defecto del rol ${rolLabels[formData.rol]}`}
+                            </p>
+                          </div>
+                          <Switch
+                            checked={formData.usar_modulos_personalizados}
+                            onCheckedChange={(checked: boolean) => setFormData({
+                              ...formData,
+                              usar_modulos_personalizados: checked,
+                              modulos_permitidos: checked ? formData.modulos_permitidos : MODULOS_POR_ROL[formData.rol] || []
+                            })}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Lista de módulos */}
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base">Módulos</CardTitle>
+                          {formData.usar_modulos_personalizados && (
+                            <div className="flex gap-2">
+                              <Button type="button" variant="outline" size="sm" onClick={handleSelectAllModulos}>
+                                Todos
+                              </Button>
+                              <Button type="button" variant="outline" size="sm" onClick={handleDeselectAllModulos}>
+                                Ninguno
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                        <CardDescription>
+                          {formData.modulos_permitidos.length} de {MODULOS_DISPONIBLES.length} módulos seleccionados
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 gap-3">
+                          {MODULOS_DISPONIBLES.map((modulo) => (
+                            <div key={modulo} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`modulo-${modulo}`}
+                                checked={formData.modulos_permitidos.includes(modulo)}
+                                onCheckedChange={() => handleToggleModulo(modulo)}
+                                disabled={!formData.usar_modulos_personalizados}
+                              />
+                              <label
+                                htmlFor={`modulo-${modulo}`}
+                                className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed ${
+                                  !formData.usar_modulos_personalizados ? 'text-muted-foreground' : ''
+                                }`}
+                              >
+                                {moduloLabels[modulo] || modulo}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
+              </TabsContent>
+            </Tabs>
+
+            <DialogFooter className="mt-6">
               <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
                 Cancelar
               </Button>
@@ -464,6 +738,216 @@ export function UsuariosPage() {
               >
                 {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Crear Usuario
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit usuario dialog */}
+      <Dialog open={isEditOpen} onOpenChange={(open) => {
+        setIsEditOpen(open)
+        if (!open) {
+          setSelectedUsuario(null)
+          setFormData(initialFormState)
+          setActiveTab('datos')
+        }
+      }}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Usuario</DialogTitle>
+            <DialogDescription>
+              Modifica los datos del usuario y sus permisos
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit}>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="datos">Datos</TabsTrigger>
+                <TabsTrigger value="permisos">Permisos</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="datos" className="space-y-4 mt-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Nombre *</Label>
+                    <Input
+                      value={formData.nombre}
+                      onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                      placeholder="Nombre"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Apellido *</Label>
+                    <Input
+                      value={formData.apellido}
+                      onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
+                      placeholder="Apellido"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Email *</Label>
+                  <Input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="email@ejemplo.com"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nueva contraseña (dejar vacío para no cambiar)</Label>
+                  <Input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="Nueva contraseña"
+                    minLength={6}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Teléfono</Label>
+                    <Input
+                      value={formData.telefono}
+                      onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                      placeholder="+54 9 11 1234-5678"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Rol *</Label>
+                    <Select
+                      value={formData.rol}
+                      onValueChange={(v) => setFormData({ ...formData, rol: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="administrador">Administrador</SelectItem>
+                        <SelectItem value="supervisor">Supervisor</SelectItem>
+                        <SelectItem value="operario">Operario</SelectItem>
+                        <SelectItem value="cliente">Cliente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="permisos" className="space-y-4 mt-4">
+                {/* Superadmin toggle */}
+                {isSuperadmin && (
+                  <Card className="border-red-200 bg-red-50">
+                    <CardContent className="pt-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-base flex items-center gap-2">
+                            <Shield className="h-4 w-4 text-red-600" />
+                            Superadministrador
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            Acceso total a todos los módulos del sistema
+                          </p>
+                        </div>
+                        <Switch
+                          checked={formData.es_superadmin}
+                          onCheckedChange={(checked: boolean) => setFormData({ ...formData, es_superadmin: checked })}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {!formData.es_superadmin && (
+                  <>
+                    {/* Toggle permisos personalizados */}
+                    <Card>
+                      <CardContent className="pt-4">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="text-base flex items-center gap-2">
+                              <Settings className="h-4 w-4" />
+                              Permisos personalizados
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                              {formData.usar_modulos_personalizados
+                                ? 'Selecciona manualmente los módulos'
+                                : `Usa permisos por defecto del rol ${rolLabels[formData.rol]}`}
+                            </p>
+                          </div>
+                          <Switch
+                            checked={formData.usar_modulos_personalizados}
+                            onCheckedChange={(checked: boolean) => setFormData({
+                              ...formData,
+                              usar_modulos_personalizados: checked,
+                              modulos_permitidos: checked ? formData.modulos_permitidos : MODULOS_POR_ROL[formData.rol] || []
+                            })}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Lista de módulos */}
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base">Módulos</CardTitle>
+                          {formData.usar_modulos_personalizados && (
+                            <div className="flex gap-2">
+                              <Button type="button" variant="outline" size="sm" onClick={handleSelectAllModulos}>
+                                Todos
+                              </Button>
+                              <Button type="button" variant="outline" size="sm" onClick={handleDeselectAllModulos}>
+                                Ninguno
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                        <CardDescription>
+                          {formData.modulos_permitidos.length} de {MODULOS_DISPONIBLES.length} módulos seleccionados
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 gap-3">
+                          {MODULOS_DISPONIBLES.map((modulo) => (
+                            <div key={modulo} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`edit-modulo-${modulo}`}
+                                checked={formData.modulos_permitidos.includes(modulo)}
+                                onCheckedChange={() => handleToggleModulo(modulo)}
+                                disabled={!formData.usar_modulos_personalizados}
+                              />
+                              <label
+                                htmlFor={`edit-modulo-${modulo}`}
+                                className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed ${
+                                  !formData.usar_modulos_personalizados ? 'text-muted-foreground' : ''
+                                }`}
+                              >
+                                {moduloLabels[modulo] || modulo}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
+              </TabsContent>
+            </Tabs>
+
+            <DialogFooter className="mt-6">
+              <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={updateMutation.isPending || !formData.email || !formData.nombre || !formData.apellido}
+              >
+                {updateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Guardar Cambios
               </Button>
             </DialogFooter>
           </form>

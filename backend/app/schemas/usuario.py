@@ -1,8 +1,8 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
-from app.models.usuario import RolUsuario
+from app.models.usuario import RolUsuario, MODULOS_SISTEMA
 
 
 class UsuarioBase(BaseModel):
@@ -17,6 +17,8 @@ class UsuarioBase(BaseModel):
 class UsuarioCreate(UsuarioBase):
     """Schema para crear usuario."""
     password: str = Field(..., min_length=6)
+    modulos_permitidos: Optional[List[str]] = None
+    es_superadmin: bool = False
 
 
 class UsuarioUpdate(BaseModel):
@@ -28,6 +30,8 @@ class UsuarioUpdate(BaseModel):
     rol: Optional[RolUsuario] = None
     activo: Optional[bool] = None
     password: Optional[str] = Field(None, min_length=6)
+    modulos_permitidos: Optional[List[str]] = None
+    es_superadmin: Optional[bool] = None
 
 
 class UsuarioResponse(UsuarioBase):
@@ -36,9 +40,16 @@ class UsuarioResponse(UsuarioBase):
     activo: bool
     ultimo_acceso: Optional[datetime] = None
     created_at: datetime
+    modulos_permitidos: Optional[List[str]] = None
+    es_superadmin: bool = False
 
     class Config:
         from_attributes = True
+
+
+class ModulosDisponibles(BaseModel):
+    """Lista de módulos disponibles en el sistema."""
+    modulos: List[str] = Field(default_factory=lambda: MODULOS_SISTEMA.copy())
 
 
 class Token(BaseModel):

@@ -10,6 +10,8 @@ export interface Usuario {
   rol: RolUsuario
   activo: boolean
   created_at: string
+  modulos_permitidos?: string[] | null
+  es_superadmin: boolean
 }
 
 // Auth types
