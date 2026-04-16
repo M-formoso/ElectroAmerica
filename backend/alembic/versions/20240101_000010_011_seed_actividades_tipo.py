@@ -6,6 +6,7 @@ Create Date: 2024-01-01 00:00:10.000000
 
 """
 from typing import Sequence, Union
+import uuid
 
 from alembic import op
 import sqlalchemy as sa
@@ -22,7 +23,7 @@ def upgrade() -> None:
     # Definir tabla de actividades tipo
     actividades_tipo = table(
         'actividades_tipo',
-        column('id', sa.String),
+        column('id', sa.dialects.postgresql.UUID),
         column('codigo', sa.String),
         column('nombre', sa.String),
         column('descripcion', sa.String),
@@ -36,7 +37,7 @@ def upgrade() -> None:
     actividades = [
         # ============== BASES ==============
         {
-            'id': 'act00000-0000-0000-0000-000000000001',
+            'id': str(uuid.uuid4()),
             'codigo': 'BASE-CAV-CH',
             'nombre': 'Cavado de base chica',
             'descripcion': 'Excavación manual o mecánica para base de columna chica',
@@ -46,7 +47,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000002',
+            'id': str(uuid.uuid4()),
             'codigo': 'BASE-CAV-GR',
             'nombre': 'Cavado de base grande',
             'descripcion': 'Excavación manual o mecánica para base de columna grande',
@@ -56,7 +57,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000003',
+            'id': str(uuid.uuid4()),
             'codigo': 'BASE-ROMP-VER',
             'nombre': 'Romper vereda',
             'descripcion': 'Rotura de vereda existente para instalación',
@@ -66,7 +67,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000004',
+            'id': str(uuid.uuid4()),
             'codigo': 'BASE-LLEN-CH',
             'nombre': 'Llenado de base chica',
             'descripcion': 'Hormigonado de base chica con mezcla',
@@ -76,7 +77,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000005',
+            'id': str(uuid.uuid4()),
             'codigo': 'BASE-LLEN-GR',
             'nombre': 'Llenado de base grande',
             'descripcion': 'Hormigonado de base grande con mezcla',
@@ -86,7 +87,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000006',
+            'id': str(uuid.uuid4()),
             'codigo': 'BASE-CONTRA',
             'nombre': 'Contrabases',
             'descripcion': 'Instalación de contrabases',
@@ -96,7 +97,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000007',
+            'id': str(uuid.uuid4()),
             'codigo': 'BASE-LIMP',
             'nombre': 'Limpieza x bases cavadas',
             'descripcion': 'Limpieza y retiro de escombros de bases excavadas',
@@ -106,7 +107,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000008',
+            'id': str(uuid.uuid4()),
             'codigo': 'BASE-REACON-PAT',
             'nombre': 'Reacondicionamiento PAT (romper+jab+contrabase)',
             'descripcion': 'Reacondicionamiento completo de puesta a tierra incluyendo rotura, jabalina y contrabase',
@@ -118,7 +119,7 @@ def upgrade() -> None:
 
         # ============== COLUMNAS ==============
         {
-            'id': 'act00000-0000-0000-0000-000000000010',
+            'id': str(uuid.uuid4()),
             'codigo': 'COL-AEREA-770',
             'nombre': 'Colocación y aplomado de columna Aérea 7,70',
             'descripcion': 'Instalación y aplomado de columna aérea de 7,70 metros',
@@ -128,7 +129,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000011',
+            'id': str(uuid.uuid4()),
             'codigo': 'COL-AEREA-880',
             'nombre': 'Colocación y aplomado de columna Aérea 8,80',
             'descripcion': 'Instalación y aplomado de columna aérea de 8,80 metros',
@@ -138,7 +139,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000012',
+            'id': str(uuid.uuid4()),
             'codigo': 'COL-SUBT-770',
             'nombre': 'Colocación y aplomado de columna Subterra 7,70',
             'descripcion': 'Instalación y aplomado de columna subterránea de 7,70 metros',
@@ -148,7 +149,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000013',
+            'id': str(uuid.uuid4()),
             'codigo': 'COL-SUBT-880',
             'nombre': 'Colocación y aplomado de columna Subterra 8,80',
             'descripcion': 'Instalación y aplomado de columna subterránea de 8,80 metros',
@@ -158,7 +159,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000014',
+            'id': str(uuid.uuid4()),
             'codigo': 'COL-CURVA',
             'nombre': 'Colocación de columna curva',
             'descripcion': 'Instalación de columna con brazo curvo',
@@ -168,7 +169,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000015',
+            'id': str(uuid.uuid4()),
             'codigo': 'COL-POSTE-RET',
             'nombre': 'Colocación y aplomado de poste retención',
             'descripcion': 'Instalación de poste de retención para cables',
@@ -178,7 +179,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000016',
+            'id': str(uuid.uuid4()),
             'codigo': 'COL-PRFV',
             'nombre': 'Colocación de poste PRFV',
             'descripcion': 'Instalación de poste de plástico reforzado con fibra de vidrio',
@@ -188,7 +189,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000017',
+            'id': str(uuid.uuid4()),
             'codigo': 'COL-PERF',
             'nombre': 'Perforación de columna',
             'descripcion': 'Perforación de columna para instalaciones',
@@ -198,7 +199,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000018',
+            'id': str(uuid.uuid4()),
             'codigo': 'COL-RETIRO',
             'nombre': 'Retirar columna vieja',
             'descripcion': 'Retiro y disposición de columna existente',
@@ -208,7 +209,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000019',
+            'id': str(uuid.uuid4()),
             'codigo': 'COL-PINTAR-CURVA',
             'nombre': 'Pintar columnas curvas',
             'descripcion': 'Pintura de columnas con brazo curvo',
@@ -218,7 +219,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000020',
+            'id': str(uuid.uuid4()),
             'codigo': 'COL-NORM-CURVA',
             'nombre': 'Normalizado de columnas curvas',
             'descripcion': 'Trabajo de normalización en columnas curvas existentes',
@@ -230,7 +231,7 @@ def upgrade() -> None:
 
         # ============== ACOPLES ==============
         {
-            'id': 'act00000-0000-0000-0000-000000000025',
+            'id': str(uuid.uuid4()),
             'codigo': 'ACOP-SIMPLE',
             'nombre': 'Colocación de acople simple',
             'descripcion': 'Instalación de acople simple para luminaria',
@@ -240,7 +241,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000026',
+            'id': str(uuid.uuid4()),
             'codigo': 'ACOP-DOBLE-180',
             'nombre': 'Colocación de acople doble 180°',
             'descripcion': 'Instalación de acople doble a 180 grados',
@@ -250,7 +251,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000027',
+            'id': str(uuid.uuid4()),
             'codigo': 'ACOP-DOBLE-120',
             'nombre': 'Colocación de acople doble 120°',
             'descripcion': 'Instalación de acople doble a 120 grados',
@@ -260,7 +261,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000028',
+            'id': str(uuid.uuid4()),
             'codigo': 'ACOP-TRIPLE',
             'nombre': 'Colocación de acople triple',
             'descripcion': 'Instalación de acople triple para luminarias',
@@ -272,7 +273,7 @@ def upgrade() -> None:
 
         # ============== SISTEMA PAT ==============
         {
-            'id': 'act00000-0000-0000-0000-000000000030',
+            'id': str(uuid.uuid4()),
             'codigo': 'PAT-SISTEMA',
             'nombre': 'Sistema PAT',
             'descripcion': 'Instalación completa de sistema de puesta a tierra',
@@ -282,7 +283,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000031',
+            'id': str(uuid.uuid4()),
             'codigo': 'PAT-MEDICION',
             'nombre': 'Medición PAT',
             'descripcion': 'Medición y verificación del sistema de puesta a tierra',
@@ -294,7 +295,7 @@ def upgrade() -> None:
 
         # ============== TENDIDO ==============
         {
-            'id': 'act00000-0000-0000-0000-000000000035',
+            'id': str(uuid.uuid4()),
             'codigo': 'TEND-LINEA-DED',
             'nombre': 'Tendido de línea dedicada x metro',
             'descripcion': 'Tendido de línea eléctrica dedicada por metro lineal',
@@ -304,7 +305,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000036',
+            'id': str(uuid.uuid4()),
             'codigo': 'TEND-CABLE-ZANJA',
             'nombre': 'Tendido de cable en zanja',
             'descripcion': 'Tendido de cable subterráneo en zanja preparada',
@@ -316,7 +317,7 @@ def upgrade() -> None:
 
         # ============== LUMINARIAS ==============
         {
-            'id': 'act00000-0000-0000-0000-000000000040',
+            'id': str(uuid.uuid4()),
             'codigo': 'LUMIN-CABLE',
             'nombre': 'Cableado de luminaria (lo hace EMA)',
             'descripcion': 'Cableado interno de luminaria - realizado por EMA',
@@ -326,7 +327,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000041',
+            'id': str(uuid.uuid4()),
             'codigo': 'LUMIN-CONEX-RED',
             'nombre': 'Conexión de luminaria a red (lo hace EMA)',
             'descripcion': 'Conexión de luminaria a la red eléctrica - realizado por EMA',
@@ -338,7 +339,7 @@ def upgrade() -> None:
 
         # ============== SUBTERRÁNEO ==============
         {
-            'id': 'act00000-0000-0000-0000-000000000045',
+            'id': str(uuid.uuid4()),
             'codigo': 'SUBT-ZANJEO',
             'nombre': 'Zanjeo',
             'descripcion': 'Excavación de zanja para cableado subterráneo',
@@ -348,7 +349,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000046',
+            'id': str(uuid.uuid4()),
             'codigo': 'SUBT-ARENA',
             'nombre': 'Arena',
             'descripcion': 'Colocación de cama de arena en zanja',
@@ -358,7 +359,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000047',
+            'id': str(uuid.uuid4()),
             'codigo': 'SUBT-CEMENT',
             'nombre': 'Cementado en cable subterráneo - pegotes',
             'descripcion': 'Cementado de protección para cable subterráneo con pegotes',
@@ -368,7 +369,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000048',
+            'id': str(uuid.uuid4()),
             'codigo': 'SUBT-LIMP-ZANJA',
             'nombre': 'Limpieza x metros de zanja',
             'descripcion': 'Limpieza y retiro de escombros de zanja',
@@ -380,7 +381,7 @@ def upgrade() -> None:
 
         # ============== TABLEROS ==============
         {
-            'id': 'act00000-0000-0000-0000-000000000050',
+            'id': str(uuid.uuid4()),
             'codigo': 'TAB-ARM-COL',
             'nombre': 'Armado, colocación y conexionado de tableros de columnas',
             'descripcion': 'Armado completo, instalación y conexionado de tableros en columnas',
@@ -390,7 +391,7 @@ def upgrade() -> None:
             'activo': True,
         },
         {
-            'id': 'act00000-0000-0000-0000-000000000051',
+            'id': str(uuid.uuid4()),
             'codigo': 'TAB-GENERAL',
             'nombre': 'Colocación de tablero general',
             'descripcion': 'Instalación de tablero general de distribución',
@@ -402,7 +403,7 @@ def upgrade() -> None:
 
         # ============== MANTENIMIENTO ==============
         {
-            'id': 'act00000-0000-0000-0000-000000000055',
+            'id': str(uuid.uuid4()),
             'codigo': 'MANT-PODA',
             'nombre': 'Poda',
             'descripcion': 'Poda de árboles y vegetación cercana a líneas',
@@ -414,7 +415,7 @@ def upgrade() -> None:
 
         # ============== LOGÍSTICA ==============
         {
-            'id': 'act00000-0000-0000-0000-000000000060',
+            'id': str(uuid.uuid4()),
             'codigo': 'LOG-MATERIALES',
             'nombre': 'Logística de materiales a obra',
             'descripcion': 'Transporte y distribución de materiales en obra',
@@ -429,5 +430,20 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Eliminar actividades tipo insertadas
-    op.execute("DELETE FROM actividades_tipo WHERE id LIKE 'act00000-0000-0000-0000-00000000%'")
+    # Eliminar actividades tipo por código
+    codigos = [
+        'BASE-CAV-CH', 'BASE-CAV-GR', 'BASE-ROMP-VER', 'BASE-LLEN-CH', 'BASE-LLEN-GR',
+        'BASE-CONTRA', 'BASE-LIMP', 'BASE-REACON-PAT',
+        'COL-AEREA-770', 'COL-AEREA-880', 'COL-SUBT-770', 'COL-SUBT-880', 'COL-CURVA',
+        'COL-POSTE-RET', 'COL-PRFV', 'COL-PERF', 'COL-RETIRO', 'COL-PINTAR-CURVA', 'COL-NORM-CURVA',
+        'ACOP-SIMPLE', 'ACOP-DOBLE-180', 'ACOP-DOBLE-120', 'ACOP-TRIPLE',
+        'PAT-SISTEMA', 'PAT-MEDICION',
+        'TEND-LINEA-DED', 'TEND-CABLE-ZANJA',
+        'LUMIN-CABLE', 'LUMIN-CONEX-RED',
+        'SUBT-ZANJEO', 'SUBT-ARENA', 'SUBT-CEMENT', 'SUBT-LIMP-ZANJA',
+        'TAB-ARM-COL', 'TAB-GENERAL',
+        'MANT-PODA',
+        'LOG-MATERIALES'
+    ]
+    codigos_str = "', '".join(codigos)
+    op.execute(f"DELETE FROM actividades_tipo WHERE codigo IN ('{codigos_str}')")
