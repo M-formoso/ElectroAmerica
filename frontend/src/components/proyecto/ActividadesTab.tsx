@@ -478,7 +478,7 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
                                       {mat.material_nombre}
                                     </TableCell>
                                     <TableCell className="text-right py-2">
-                                      {mat.cantidad_total.toFixed(2)} {mat.unidad}
+                                      {Number(mat.cantidad_total).toFixed(2)} {mat.unidad}
                                     </TableCell>
                                   </TableRow>
                                 )
@@ -586,7 +586,7 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
                   <TableRow key={mat.material_id}>
                     <TableCell>{mat.material_nombre}</TableCell>
                     <TableCell className="text-right font-medium">
-                      {mat.cantidad_total.toFixed(2)} {mat.unidad}
+                      {Number(mat.cantidad_total).toFixed(2)} {mat.unidad}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -605,7 +605,7 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
               {selectedActividad && (
                 <span>
                   {selectedActividad.actividad_nombre} - Pendiente:{' '}
-                  {(selectedActividad.cantidad_planificada - selectedActividad.cantidad_ejecutada).toFixed(
+                  {(Number(selectedActividad.cantidad_planificada) - Number(selectedActividad.cantidad_ejecutada)).toFixed(
                     2
                   )}{' '}
                   {selectedActividad.unidad_trabajo}
@@ -644,7 +644,7 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
               />
               {selectedActividad && (
                 <p className="text-xs text-muted-foreground">
-                  Máximo: {(selectedActividad.cantidad_planificada - selectedActividad.cantidad_ejecutada).toFixed(2)}
+                  Máximo: {(Number(selectedActividad.cantidad_planificada) - Number(selectedActividad.cantidad_ejecutada)).toFixed(2)}
                 </p>
               )}
             </div>
