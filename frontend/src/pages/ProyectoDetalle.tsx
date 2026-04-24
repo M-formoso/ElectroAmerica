@@ -232,6 +232,12 @@ export function ProyectoDetallePage() {
     enabled: !!proyectoId,
   })
 
+  const { data: resumenActividades } = useQuery({
+    queryKey: ['proyecto-actividades-resumen', proyectoId],
+    queryFn: () => proyectoActividadesService.getResumen(proyectoId!),
+    enabled: !!proyectoId,
+  })
+
   // Queries para listas de seleccion
   const { data: materialesDisponibles } = useQuery({
     queryKey: ['materiales'],
@@ -659,7 +665,7 @@ export function ProyectoDetallePage() {
           <TabsTrigger value="materiales" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Materiales</span>
-            <Badge variant="secondary" className="ml-1">{materialesAsignados?.length || 0}</Badge>
+            <Badge variant="secondary" className="ml-1">{resumenActividades?.materiales_totales?.length || 0}</Badge>
           </TabsTrigger>
           <TabsTrigger value="equipos" className="flex items-center gap-2">
             <Wrench className="h-4 w-4" />
@@ -856,33 +862,24 @@ export function ProyectoDetallePage() {
           <div className="flex justify-between items-center">
             <div>
               <p className="text-muted-foreground">
-                Materiales asignados a este proyecto
+                Materiales necesarios según las tareas del proyecto
               </p>
-              <p className="text-sm font-medium mt-1">
-                Total en materiales: {formatCurrency(totalMateriales)}
+              <p className="text-sm text-muted-foreground mt-1">
+                Calculados automáticamente en base a las tareas asignadas
               </p>
             </div>
-            {canEdit && (
-              <Button onClick={() => setIsAsignarMaterialOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Asignar Material
-              </Button>
-            )}
           </div>
 
-          {materialesAsignados?.length === 0 ? (
+          {!resumenActividades?.materiales_totales || resumenActividades.materiales_totales.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center">
                 <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <p className="text-muted-foreground mb-4">
-                  No hay materiales asignados a este proyecto
+                  No hay materiales calculados
                 </p>
-                {canEdit && (
-                  <Button onClick={() => setIsAsignarMaterialOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Asignar primer material
-                  </Button>
-                )}
+                <p className="text-sm text-muted-foreground">
+                  Los materiales se calculan automáticamente al asignar tareas al proyecto
+                </p>
               </CardContent>
             </Card>
           ) : (
@@ -891,37 +888,17 @@ export function ProyectoDetallePage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Material</TableHead>
-                    <TableHead>Cantidad</TableHead>
-                    <TableHead>Precio Unit.</TableHead>
-                    <TableHead>Subtotal</TableHead>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead>Etapa</TableHead>
+                    <TableHead className="text-right">Cantidad Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {materialesAsignados?.map((asignacion: any) => (
-                    <TableRow key={asignacion.id}>
+                  {resumenActividades.materiales_totales.map((mat) => (
+                    <TableRow key={mat.material_id}>
                       <TableCell className="font-medium">
-                        {asignacion.material?.nombre || 'Material eliminado'}
+                        {mat.material_nombre}
                       </TableCell>
-                      <TableCell>
-                        {asignacion.cantidad} {asignacion.material?.unidad || ''}
-                      </TableCell>
-                      <TableCell>
-                        {asignacion.material?.precio_unitario
-                          ? formatCurrency(asignacion.material.precio_unitario)
-                          : '-'}
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {asignacion.material?.precio_unitario
-                          ? formatCurrency(asignacion.cantidad * asignacion.material.precio_unitario)
-                          : '-'}
-                      </TableCell>
-                      <TableCell>
-                        {asignacion.fecha_asignacion ? formatDate(asignacion.fecha_asignacion) : '-'}
-                      </TableCell>
-                      <TableCell>
-                        {asignacion.etapa?.nombre || '-'}
+                      <TableCell className="text-right">
+                        {Number(mat.cantidad_total).toFixed(2)} {mat.unidad}
                       </TableCell>
                     </TableRow>
                   ))}
