@@ -20,6 +20,10 @@ class ProyectoCreate(ProyectoBase):
     """Schema para crear proyecto."""
     cliente_id: Optional[UUID] = None
     monto_contratado: Optional[Decimal] = Field(None, ge=0)
+    # Actividades tipo a asignar al proyecto
+    actividades_tipo_ids: Optional[List[UUID]] = None
+    # Herramientas a asignar al proyecto
+    herramientas_ids: Optional[List[UUID]] = None
 
 
 class ProyectoUpdate(BaseModel):

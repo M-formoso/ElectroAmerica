@@ -13,6 +13,9 @@ import {
   Calendar,
   User,
   Loader2,
+  Wrench,
+  ClipboardList,
+  Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -53,10 +56,14 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle'
 import { proyectosService } from '@/services/proyectos'
+import { actividadesTipoService, ActividadTipoList } from '@/services/actividadesTipo'
+import { herramientasService, Herramienta } from '@/services/herramientas'
 import { formatDate } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useIsAdmin } from '@/store/auth'
 import type { Proyecto, EstadoProyecto } from '@/types'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 interface ProyectoForm {
   nombre: string
@@ -65,6 +72,8 @@ interface ProyectoForm {
   fecha_inicio: string
   fecha_fin_estimada: string
   monto_contratado: string
+  actividades_tipo_ids: string[]
+  herramientas_ids: string[]
 }
 
 const estadoColors: Record<EstadoProyecto, string> = {
@@ -95,6 +104,8 @@ export function ProyectosPage() {
     fecha_inicio: '',
     fecha_fin_estimada: '',
     monto_contratado: '',
+    actividades_tipo_ids: [],
+    herramientas_ids: [],
   })
 
   const { toast } = useToast()
@@ -106,6 +117,19 @@ export function ProyectosPage() {
     queryFn: () => proyectosService.getProyectos(
       estadoFilter !== 'todos' ? { estado: estadoFilter } : undefined
     ),
+  })
+
+  // Queries para el formulario de nuevo proyecto
+  const { data: actividadesTipo = [] } = useQuery({
+    queryKey: ['actividades-tipo'],
+    queryFn: () => actividadesTipoService.getActividadesTipo(),
+    enabled: isCreateOpen,
+  })
+
+  const { data: herramientas = [] } = useQuery({
+    queryKey: ['herramientas'],
+    queryFn: () => herramientasService.getHerramientas({ estado: 'buen_estado' }),
+    enabled: isCreateOpen,
   })
 
   const createMutation = useMutation({
@@ -121,6 +145,8 @@ export function ProyectosPage() {
         fecha_inicio: '',
         fecha_fin_estimada: '',
         monto_contratado: '',
+        actividades_tipo_ids: [],
+        herramientas_ids: [],
       })
     },
     onError: () => {
@@ -143,6 +169,7 @@ export function ProyectosPage() {
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    // TODO: Cuando el backend tenga las tablas de relacion, descomentar actividades_tipo_ids y herramientas_ids
     createMutation.mutate({
       nombre: formData.nombre,
       descripcion: formData.descripcion || undefined,
@@ -150,7 +177,28 @@ export function ProyectosPage() {
       fecha_inicio: formData.fecha_inicio || undefined,
       fecha_fin_estimada: formData.fecha_fin_estimada || undefined,
       monto_contratado: formData.monto_contratado ? parseFloat(formData.monto_contratado) : undefined,
+      // actividades_tipo_ids: formData.actividades_tipo_ids.length > 0 ? formData.actividades_tipo_ids : undefined,
+      // herramientas_ids: formData.herramientas_ids.length > 0 ? formData.herramientas_ids : undefined,
     })
+  }
+
+  // Funciones para manejar seleccion de actividades y herramientas
+  const toggleActividadTipo = (id: string) => {
+    setFormData(prev => ({
+      ...prev,
+      actividades_tipo_ids: prev.actividades_tipo_ids.includes(id)
+        ? prev.actividades_tipo_ids.filter(a => a !== id)
+        : [...prev.actividades_tipo_ids, id]
+    }))
+  }
+
+  const toggleHerramienta = (id: string) => {
+    setFormData(prev => ({
+      ...prev,
+      herramientas_ids: prev.herramientas_ids.includes(id)
+        ? prev.herramientas_ids.filter(h => h !== id)
+        : [...prev.herramientas_ids, id]
+    }))
   }
 
   const filteredProyectos = proyectos?.filter((p) =>
@@ -420,7 +468,7 @@ export function ProyectosPage() {
 
       {/* Create project dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nuevo Proyecto</DialogTitle>
             <DialogDescription>
@@ -489,6 +537,108 @@ export function ProyectosPage() {
                   onChange={(e) => setFormData({ ...formData, monto_contratado: e.target.value })}
                   placeholder="0.00"
                 />
+              </div>
+
+              {/* Seccion de Actividades Tipo */}
+              <div className="space-y-3 pt-4 border-t">
+                <div className="flex items-center gap-2">
+                  <ClipboardList className="h-4 w-4 text-primary" />
+                  <Label className="text-base font-semibold">Actividades del Proyecto</Label>
+                  {formData.actividades_tipo_ids.length > 0 && (
+                    <Badge variant="secondary">{formData.actividades_tipo_ids.length} seleccionadas</Badge>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Selecciona las actividades que se realizaran en este proyecto
+                </p>
+                <ScrollArea className="h-[150px] border rounded-md p-3">
+                  <div className="space-y-2">
+                    {actividadesTipo.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No hay actividades tipo disponibles
+                      </p>
+                    ) : (
+                      actividadesTipo.map((actividad) => (
+                        <div
+                          key={actividad.id}
+                          className={`flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors ${
+                            formData.actividades_tipo_ids.includes(actividad.id) ? 'bg-primary/10' : ''
+                          }`}
+                          onClick={() => toggleActividadTipo(actividad.id)}
+                        >
+                          <Checkbox
+                            checked={formData.actividades_tipo_ids.includes(actividad.id)}
+                            onCheckedChange={() => toggleActividadTipo(actividad.id)}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{actividad.nombre}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {actividad.categoria} • {actividad.cantidad_materiales} materiales
+                            </p>
+                          </div>
+                          {formData.actividades_tipo_ids.includes(actividad.id) && (
+                            <Check className="h-4 w-4 text-primary" />
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+
+              {/* Seccion de Herramientas */}
+              <div className="space-y-3 pt-4 border-t">
+                <div className="flex items-center gap-2">
+                  <Wrench className="h-4 w-4 text-primary" />
+                  <Label className="text-base font-semibold">Herramientas</Label>
+                  {formData.herramientas_ids.length > 0 && (
+                    <Badge variant="secondary">{formData.herramientas_ids.length} seleccionadas</Badge>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Selecciona las herramientas necesarias para este proyecto
+                </p>
+                <ScrollArea className="h-[150px] border rounded-md p-3">
+                  <div className="space-y-2">
+                    {herramientas.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No hay herramientas disponibles
+                      </p>
+                    ) : (
+                      herramientas.map((herramienta) => (
+                        <div
+                          key={herramienta.id}
+                          className={`flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors ${
+                            formData.herramientas_ids.includes(herramienta.id) ? 'bg-primary/10' : ''
+                          }`}
+                          onClick={() => toggleHerramienta(herramienta.id)}
+                        >
+                          <Checkbox
+                            checked={formData.herramientas_ids.includes(herramienta.id)}
+                            onCheckedChange={() => toggleHerramienta(herramienta.id)}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{herramienta.nombre}</p>
+                            {herramienta.descripcion && (
+                              <p className="text-xs text-muted-foreground truncate">
+                                {herramienta.descripcion}
+                              </p>
+                            )}
+                          </div>
+                          <Badge
+                            variant={herramienta.estado_prestamo === 'disponible' ? 'secondary' : 'outline'}
+                            className="text-xs"
+                          >
+                            {herramienta.estado_prestamo === 'disponible' ? 'Disponible' : 'En uso'}
+                          </Badge>
+                          {formData.herramientas_ids.includes(herramienta.id) && (
+                            <Check className="h-4 w-4 text-primary" />
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
               </div>
             </div>
             <DialogFooter>
