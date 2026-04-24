@@ -24,9 +24,7 @@ import {
   X,
   Package,
   Wrench,
-  Receipt,
   AlertTriangle,
-  Undo2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -72,9 +70,9 @@ import { proyectosService } from '@/services/proyectos'
 import { etapasService, type EtapaCreate, type EtapaUpdate } from '@/services/etapas'
 import { fotosService } from '@/services/fotos'
 import { materialesService } from '@/services/materiales'
-import { equiposService } from '@/services/equipos'
 import { gastosService } from '@/services/gastos'
 import { proyectoActividadesService } from '@/services/proyectoActividades'
+import { herramientasService, type Herramienta } from '@/services/herramientas'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useIsAdmin, useIsSupervisor } from '@/store/auth'
@@ -114,13 +112,6 @@ const estadoEtapaIcons: Record<EstadoEtapa, React.ReactNode> = {
   en_progreso: <Play className="h-4 w-4" />,
   completada: <CheckCircle2 className="h-4 w-4" />,
   pausada: <Pause className="h-4 w-4" />,
-}
-
-const estadoEquipoColors: Record<string, string> = {
-  disponible: 'success',
-  en_uso: 'default',
-  mantenimiento: 'warning',
-  fuera_servicio: 'destructive',
 }
 
 interface EtapaForm {
@@ -174,10 +165,9 @@ export function ProyectoDetallePage() {
   const [notasMaterial, setNotasMaterial] = useState('')
   const [etapaMaterialId, setEtapaMaterialId] = useState('')
 
-  // Estados para asignar equipos
-  const [isAsignarEquipoOpen, setIsAsignarEquipoOpen] = useState(false)
-  const [selectedEquipoId, setSelectedEquipoId] = useState('')
-  const [fechaDevolucionEst, setFechaDevolucionEst] = useState('')
+  // Estados para asignar herramientas
+  const [isAsignarHerramientaOpen, setIsAsignarHerramientaOpen] = useState(false)
+  const [selectedHerramientas, setSelectedHerramientas] = useState<string[]>([])
 
   // Estados para agregar gasto
   const [isAgregarGastoOpen, setIsAgregarGastoOpen] = useState(false)
@@ -214,9 +204,9 @@ export function ProyectoDetallePage() {
     enabled: !!proyectoId,
   })
 
-  const { data: equiposAsignados } = useQuery({
-    queryKey: ['proyecto-equipos', proyectoId],
-    queryFn: () => equiposService.getAsignacionesProyecto(proyectoId!),
+  const { data: herramientasProyecto } = useQuery({
+    queryKey: ['proyecto-herramientas', proyectoId],
+    queryFn: () => proyectoActividadesService.getHerramientas(proyectoId!),
     enabled: !!proyectoId,
   })
 
@@ -244,9 +234,9 @@ export function ProyectoDetallePage() {
     queryFn: () => materialesService.getMateriales(),
   })
 
-  const { data: equiposDisponibles } = useQuery({
-    queryKey: ['equipos-disponibles'],
-    queryFn: () => equiposService.getDisponibles(),
+  const { data: herramientasDisponibles } = useQuery({
+    queryKey: ['herramientas'],
+    queryFn: () => herramientasService.getHerramientas(),
   })
 
   const { data: categorias } = useQuery({
@@ -346,33 +336,31 @@ export function ProyectoDetallePage() {
     },
   })
 
-  // Mutation para asignar equipo
-  const asignarEquipoMutation = useMutation({
-    mutationFn: ({ equipoId, proyectoId, fechaDevolucionEst }: { equipoId: string; proyectoId: string; fechaDevolucionEst?: string }) =>
-      equiposService.asignarEquipo(equipoId, proyectoId, fechaDevolucionEst),
+  // Mutation para asignar herramientas
+  const asignarHerramientasMutation = useMutation({
+    mutationFn: (herramientasIds: string[]) =>
+      proyectoActividadesService.asignarHerramientas(proyectoId!, herramientasIds),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['proyecto-equipos', proyectoId] })
-      queryClient.invalidateQueries({ queryKey: ['equipos-disponibles'] })
-      toast({ title: 'Equipo asignado exitosamente' })
-      setIsAsignarEquipoOpen(false)
-      setSelectedEquipoId('')
-      setFechaDevolucionEst('')
+      queryClient.invalidateQueries({ queryKey: ['proyecto-herramientas', proyectoId] })
+      toast({ title: 'Herramientas asignadas exitosamente' })
+      setIsAsignarHerramientaOpen(false)
+      setSelectedHerramientas([])
     },
     onError: (error: any) => {
-      toast({ variant: 'destructive', title: error.response?.data?.detail || 'Error al asignar equipo' })
+      toast({ variant: 'destructive', title: error.response?.data?.detail || 'Error al asignar herramientas' })
     },
   })
 
-  // Mutation para devolver equipo
-  const devolverEquipoMutation = useMutation({
-    mutationFn: (equipoId: string) => equiposService.devolverEquipo(equipoId),
+  // Mutation para desasignar herramienta
+  const desasignarHerramientaMutation = useMutation({
+    mutationFn: (herramientaId: string) =>
+      proyectoActividadesService.desasignarHerramienta(proyectoId!, herramientaId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['proyecto-equipos', proyectoId] })
-      queryClient.invalidateQueries({ queryKey: ['equipos-disponibles'] })
-      toast({ title: 'Equipo devuelto exitosamente' })
+      queryClient.invalidateQueries({ queryKey: ['proyecto-herramientas', proyectoId] })
+      toast({ title: 'Herramienta desasignada' })
     },
     onError: () => {
-      toast({ variant: 'destructive', title: 'Error al devolver equipo' })
+      toast({ variant: 'destructive', title: 'Error al desasignar herramienta' })
     },
   })
 
@@ -498,16 +486,6 @@ export function ProyectoDetallePage() {
       etapa_id: etapaMaterialId || undefined,
       cantidad: parseFloat(cantidadMaterial),
       notas: notasMaterial || undefined,
-    })
-  }
-
-  const handleAsignarEquipo = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedEquipoId) return
-    asignarEquipoMutation.mutate({
-      equipoId: selectedEquipoId,
-      proyectoId: proyectoId!,
-      fechaDevolucionEst: fechaDevolucionEst || undefined,
     })
   }
 
@@ -650,10 +628,10 @@ export function ProyectoDetallePage() {
             <span className="hidden sm:inline">Materiales</span>
             <Badge variant="secondary" className="ml-1">{resumenActividades?.materiales_totales?.length || 0}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="equipos" className="flex items-center gap-2">
+          <TabsTrigger value="herramientas" className="flex items-center gap-2">
             <Wrench className="h-4 w-4" />
-            <span className="hidden sm:inline">Equipos</span>
-            <Badge variant="secondary" className="ml-1">{equiposAsignados?.length || 0}</Badge>
+            <span className="hidden sm:inline">Herramientas</span>
+            <Badge variant="secondary" className="ml-1">{herramientasProyecto?.length || 0}</Badge>
           </TabsTrigger>
           <TabsTrigger value="avances" className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4" />
@@ -890,52 +868,51 @@ export function ProyectoDetallePage() {
           )}
         </TabsContent>
 
-        {/* Equipos Tab */}
-        <TabsContent value="equipos" className="space-y-4">
+        {/* Herramientas Tab */}
+        <TabsContent value="herramientas" className="space-y-4">
           <div className="flex justify-between items-center">
             <p className="text-muted-foreground">
-              Equipos y herramientas asignados a este proyecto
+              Herramientas asignadas a este proyecto
             </p>
             {canEdit && (
-              <Button onClick={() => setIsAsignarEquipoOpen(true)}>
+              <Button onClick={() => setIsAsignarHerramientaOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
-                Asignar Equipo
+                Asignar Herramientas
               </Button>
             )}
           </div>
 
-          {equiposAsignados?.length === 0 ? (
+          {!herramientasProyecto || herramientasProyecto.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center">
                 <Wrench className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <p className="text-muted-foreground mb-4">
-                  No hay equipos asignados a este proyecto
+                  No hay herramientas asignadas a este proyecto
                 </p>
                 {canEdit && (
-                  <Button onClick={() => setIsAsignarEquipoOpen(true)}>
+                  <Button onClick={() => setIsAsignarHerramientaOpen(true)}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Asignar primer equipo
+                    Asignar primera herramienta
                   </Button>
                 )}
               </CardContent>
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {equiposAsignados?.map((asignacion: any) => (
+              {herramientasProyecto.map((asignacion: any) => (
                 <Card key={asignacion.id}>
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between">
                       <div>
                         <CardTitle className="text-base">
-                          {asignacion.equipo?.nombre || 'Equipo eliminado'}
+                          {asignacion.herramienta_nombre || 'Herramienta'}
                         </CardTitle>
-                        <CardDescription>
-                          {asignacion.equipo?.tipo || ''}
-                        </CardDescription>
+                        {asignacion.herramienta_codigo && (
+                          <CardDescription>
+                            {asignacion.herramienta_codigo}
+                          </CardDescription>
+                        )}
                       </div>
-                      <Badge variant={estadoEquipoColors[asignacion.equipo?.estado] as any}>
-                        {asignacion.equipo?.estado?.replace('_', ' ') || '-'}
-                      </Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
@@ -943,22 +920,21 @@ export function ProyectoDetallePage() {
                       <span className="text-muted-foreground">Asignado:</span>
                       <span>{asignacion.fecha_asignacion ? formatDate(asignacion.fecha_asignacion) : '-'}</span>
                     </div>
-                    {asignacion.fecha_devolucion_est && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Devolucion Est.:</span>
-                        <span>{formatDate(asignacion.fecha_devolucion_est)}</span>
+                    {asignacion.observaciones && (
+                      <div className="text-muted-foreground text-xs">
+                        {asignacion.observaciones}
                       </div>
                     )}
-                    {asignacion.equipo?.estado === 'en_uso' && canEdit && (
+                    {canEdit && (
                       <Button
                         variant="outline"
                         size="sm"
                         className="w-full mt-2"
-                        onClick={() => devolverEquipoMutation.mutate(asignacion.equipo.id)}
-                        disabled={devolverEquipoMutation.isPending}
+                        onClick={() => desasignarHerramientaMutation.mutate(asignacion.herramienta_id)}
+                        disabled={desasignarHerramientaMutation.isPending}
                       >
-                        <Undo2 className="h-4 w-4 mr-2" />
-                        Devolver
+                        <X className="h-4 w-4 mr-2" />
+                        Desasignar
                       </Button>
                     )}
                   </CardContent>
@@ -1594,70 +1570,78 @@ export function ProyectoDetallePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Asignar Equipo Dialog */}
-      <Dialog open={isAsignarEquipoOpen} onOpenChange={setIsAsignarEquipoOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+      {/* Asignar Herramientas Dialog */}
+      <Dialog open={isAsignarHerramientaOpen} onOpenChange={setIsAsignarHerramientaOpen}>
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Asignar Equipo</DialogTitle>
+            <DialogTitle>Asignar Herramientas</DialogTitle>
             <DialogDescription>
-              Selecciona un equipo disponible para asignar a este proyecto
+              Selecciona las herramientas que deseas asignar a este proyecto
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleAsignarEquipo}>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label>Equipo *</Label>
-                <Select value={selectedEquipoId} onValueChange={setSelectedEquipoId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar equipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {equiposDisponibles?.length === 0 ? (
-                      <SelectItem value="" disabled>
-                        No hay equipos disponibles
-                      </SelectItem>
-                    ) : (
-                      equiposDisponibles?.map((equipo) => (
-                        <SelectItem key={equipo.id} value={equipo.id}>
-                          {equipo.nombre} - {equipo.tipo}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Fecha devolucion estimada (opcional)</Label>
-                <Input
-                  type="date"
-                  value={fechaDevolucionEst}
-                  onChange={(e) => setFechaDevolucionEst(e.target.value)}
-                />
-              </div>
-
-              {equiposDisponibles?.length === 0 && (
+          <div className="py-4">
+            <div className="space-y-4 max-h-[400px] overflow-y-auto">
+              {herramientasDisponibles?.filter(h => h.estado === 'disponible')?.length === 0 ? (
                 <div className="flex items-center gap-2 text-amber-600 bg-amber-50 p-3 rounded-md">
                   <AlertTriangle className="h-4 w-4" />
-                  <p className="text-sm">No hay equipos disponibles en este momento</p>
+                  <p className="text-sm">No hay herramientas disponibles en este momento</p>
                 </div>
+              ) : (
+                herramientasDisponibles
+                  ?.filter(h => h.estado === 'disponible')
+                  ?.filter(h => !herramientasProyecto?.some((hp: any) => hp.herramienta_id === h.id))
+                  ?.map((herramienta) => {
+                    const isSelected = selectedHerramientas.includes(herramienta.id)
+                    return (
+                      <div
+                        key={herramienta.id}
+                        className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                          isSelected ? 'bg-primary/10 border-primary' : 'hover:bg-muted'
+                        }`}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedHerramientas(selectedHerramientas.filter(id => id !== herramienta.id))
+                          } else {
+                            setSelectedHerramientas([...selectedHerramientas, herramienta.id])
+                          }
+                        }}
+                      >
+                        <Checkbox checked={isSelected} />
+                        <div className="flex-1">
+                          <div className="font-medium">{herramienta.nombre}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {herramienta.codigo && <span className="mr-2">{herramienta.codigo}</span>}
+                            {herramienta.categoria && <Badge variant="outline" className="text-xs">{herramienta.categoria}</Badge>}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })
               )}
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsAsignarEquipoOpen(false)}>
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={asignarEquipoMutation.isPending || !selectedEquipoId}
-              >
-                {asignarEquipoMutation.isPending && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                Asignar
-              </Button>
-            </DialogFooter>
-          </form>
+            {selectedHerramientas.length > 0 && (
+              <div className="mt-4 p-2 bg-muted rounded-md">
+                <p className="text-sm font-medium">{selectedHerramientas.length} herramienta(s) seleccionada(s)</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => {
+              setIsAsignarHerramientaOpen(false)
+              setSelectedHerramientas([])
+            }}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => asignarHerramientasMutation.mutate(selectedHerramientas)}
+              disabled={asignarHerramientasMutation.isPending || selectedHerramientas.length === 0}
+            >
+              {asignarHerramientasMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Asignar ({selectedHerramientas.length})
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

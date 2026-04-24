@@ -461,7 +461,7 @@ def listar_herramientas_proyecto(
             proyecto_id=h.proyecto_id,
             herramienta_id=h.herramienta_id,
             herramienta_nombre=h.herramienta.nombre if h.herramienta else None,
-            herramienta_codigo=h.herramienta.codigo if h.herramienta else None,
+            herramienta_codigo=None,  # Herramienta no tiene campo codigo
             fecha_asignacion=h.fecha_asignacion,
             observaciones=h.observaciones,
             activo=h.activo
@@ -488,7 +488,7 @@ def asignar_herramientas_bulk(
                 proyecto_id=h.proyecto_id,
                 herramienta_id=h.herramienta_id,
                 herramienta_nombre=h.herramienta.nombre if h.herramienta else None,
-                herramienta_codigo=h.herramienta.codigo if h.herramienta else None,
+                herramienta_codigo=None,  # Herramienta no tiene campo codigo
                 fecha_asignacion=h.fecha_asignacion,
                 observaciones=h.observaciones,
                 activo=h.activo
