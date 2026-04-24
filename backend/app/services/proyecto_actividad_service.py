@@ -97,7 +97,7 @@ class ProyectoActividadService:
             cantidad_ejecutada=Decimal("0"),
             orden=actividad_data.orden or 0,
             observaciones=actividad_data.observaciones,
-            materiales_calculados=[m.model_dump() for m in materiales_calculados] if materiales_calculados else None
+            materiales_calculados=[m.model_dump(mode='json') for m in materiales_calculados] if materiales_calculados else None
         )
 
         self.db.add(actividad)
@@ -160,7 +160,7 @@ class ProyectoActividadService:
                 actividad.actividad_tipo_id,
                 actividad_data.cantidad_planificada
             )
-            actividad.materiales_calculados = [m.model_dump() for m in materiales_calculados]
+            actividad.materiales_calculados = [m.model_dump(mode='json') for m in materiales_calculados]
 
         if actividad_data.observaciones is not None:
             actividad.observaciones = actividad_data.observaciones
@@ -204,7 +204,7 @@ class ProyectoActividadService:
             cantidad=avance_data.cantidad,
             observaciones=avance_data.observaciones,
             registrado_por_id=registrado_por_id,
-            materiales_consumidos=[m.model_dump() for m in avance_data.materiales_consumidos] if avance_data.materiales_consumidos else None
+            materiales_consumidos=[m.model_dump(mode='json') for m in avance_data.materiales_consumidos] if avance_data.materiales_consumidos else None
         )
 
         self.db.add(avance)
@@ -251,7 +251,7 @@ class ProyectoActividadService:
         if avance_data.observaciones is not None:
             avance.observaciones = avance_data.observaciones
         if avance_data.materiales_consumidos is not None:
-            avance.materiales_consumidos = [m.model_dump() for m in avance_data.materiales_consumidos]
+            avance.materiales_consumidos = [m.model_dump(mode='json') for m in avance_data.materiales_consumidos]
 
         self.db.commit()
         self.db.refresh(avance)
