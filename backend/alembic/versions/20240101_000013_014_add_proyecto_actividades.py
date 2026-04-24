@@ -1,7 +1,7 @@
 """Add proyecto_actividades, avances_actividad, proyecto_herramientas tables
 
-Revision ID: 014_proyecto_actividades
-Revises: 013_materiales_contrabases
+Revision ID: 014
+Revises: 013
 Create Date: 2024-04-24 12:00:00
 
 """
@@ -11,8 +11,8 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 
 # revision identifiers, used by Alembic
-revision = '014_proyecto_actividades'
-down_revision = '013_materiales_contrabases'
+revision = '014'
+down_revision = '013'
 branch_labels = None
 depends_on = None
 
