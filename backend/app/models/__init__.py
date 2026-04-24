@@ -38,3 +38,6 @@ from app.models.requerimiento_material import (
     RequerimientoMaterial, HistorialRequerimiento, EmpresaProveedora,
     EstadoRequerimiento, OrigenMaterial, PrioridadRequerimiento
 )
+
+# Actividades de Proyecto y Avances
+from app.models.proyecto_actividad import ProyectoActividad, AvanceActividad, ProyectoHerramienta

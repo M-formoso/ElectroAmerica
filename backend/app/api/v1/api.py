@@ -22,7 +22,8 @@ from app.api.v1.endpoints import (
     asignaciones_diarias,
     actividades_tipo,
     herramientas,
-    requerimientos_material
+    requerimientos_material,
+    proyecto_actividades
 )
 
 api_router = APIRouter()
@@ -186,4 +187,11 @@ api_router.include_router(
     requerimientos_material.router,
     prefix="/requerimientos-material",
     tags=["Requerimientos Material"]
+)
+
+# Actividades de proyecto y avances
+api_router.include_router(
+    proyecto_actividades.router,
+    prefix="/proyectos",
+    tags=["Actividades de Proyecto"]
 )

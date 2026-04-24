@@ -74,9 +74,11 @@ import { fotosService } from '@/services/fotos'
 import { materialesService } from '@/services/materiales'
 import { equiposService } from '@/services/equipos'
 import { gastosService } from '@/services/gastos'
+import { proyectoActividadesService } from '@/services/proyectoActividades'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useIsAdmin, useIsSupervisor } from '@/store/auth'
+import { ActividadesTab } from '@/components/proyecto/ActividadesTab'
 import type { Etapa, EstadoEtapa, Foto, EstadoProyecto, Material, Equipo, Gasto } from '@/types'
 
 const estadoProyectoColors: Record<EstadoProyecto, string> = {
@@ -221,6 +223,12 @@ export function ProyectoDetallePage() {
   const { data: gastosProyecto } = useQuery({
     queryKey: ['proyecto-gastos', proyectoId],
     queryFn: () => gastosService.getGastosPorProyecto(proyectoId!),
+    enabled: !!proyectoId,
+  })
+
+  const { data: actividadesProyecto } = useQuery({
+    queryKey: ['proyecto-actividades', proyectoId],
+    queryFn: () => proyectoActividadesService.getActividades(proyectoId!),
     enabled: !!proyectoId,
   })
 
@@ -641,8 +649,13 @@ export function ProyectoDetallePage() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="etapas">
-        <TabsList className="grid w-full grid-cols-5">
+      <Tabs defaultValue="actividades">
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="actividades" className="flex items-center gap-2">
+            <Play className="h-4 w-4" />
+            <span className="hidden sm:inline">Actividades</span>
+            <Badge variant="secondary" className="ml-1">{actividadesProyecto?.length || 0}</Badge>
+          </TabsTrigger>
           <TabsTrigger value="etapas" className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4" />
             <span className="hidden sm:inline">Etapas</span>
@@ -669,6 +682,11 @@ export function ProyectoDetallePage() {
             <Badge variant="secondary" className="ml-1">{fotos?.length || 0}</Badge>
           </TabsTrigger>
         </TabsList>
+
+        {/* Actividades Tab */}
+        <TabsContent value="actividades" className="space-y-4">
+          <ActividadesTab proyectoId={proyectoId!} canEdit={canEdit} />
+        </TabsContent>
 
         {/* Etapas Tab */}
         <TabsContent value="etapas" className="space-y-4">

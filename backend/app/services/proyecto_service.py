@@ -6,7 +6,9 @@ from decimal import Decimal
 from app.models.proyecto import Proyecto, EstadoProyecto
 from app.models.etapa import Etapa
 from app.models.usuario import RolUsuario
+from app.models.proyecto_actividad import ProyectoActividad, ProyectoHerramienta
 from app.schemas.proyecto import ProyectoCreate, ProyectoUpdate
+from app.schemas.proyecto_actividad import ProyectoActividadCreate
 
 
 def obtener_proyectos(
@@ -43,7 +45,7 @@ def crear_proyecto(
     proyecto: ProyectoCreate,
     usuario_id: UUID
 ) -> Proyecto:
-    """Crea un nuevo proyecto."""
+    """Crea un nuevo proyecto con actividades y herramientas opcionales."""
     db_proyecto = Proyecto(
         nombre=proyecto.nombre,
         descripcion=proyecto.descripcion,
@@ -57,6 +59,20 @@ def crear_proyecto(
     )
     db.add(db_proyecto)
     db.commit()
+    db.refresh(db_proyecto)
+
+    # Asignar actividades tipo si se proporcionaron
+    if proyecto.actividades_tipo_ids:
+        from app.services.proyecto_actividad_service import ProyectoActividadService
+        actividad_service = ProyectoActividadService(db)
+        actividad_service.asignar_actividades_bulk(db_proyecto.id, proyecto.actividades_tipo_ids)
+
+    # Asignar herramientas si se proporcionaron
+    if proyecto.herramientas_ids:
+        from app.services.proyecto_actividad_service import ProyectoActividadService
+        herramienta_service = ProyectoActividadService(db)
+        herramienta_service.asignar_herramientas_bulk(db_proyecto.id, proyecto.herramientas_ids)
+
     db.refresh(db_proyecto)
     return db_proyecto
 
