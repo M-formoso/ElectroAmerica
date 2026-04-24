@@ -649,17 +649,12 @@ export function ProyectoDetallePage() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="actividades">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="actividades" className="flex items-center gap-2">
+      <Tabs defaultValue="tareas">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="tareas" className="flex items-center gap-2">
             <Play className="h-4 w-4" />
-            <span className="hidden sm:inline">Actividades</span>
+            <span className="hidden sm:inline">Tareas</span>
             <Badge variant="secondary" className="ml-1">{actividadesProyecto?.length || 0}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="etapas" className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Etapas</span>
-            <Badge variant="secondary" className="ml-1">{etapas?.length || 0}</Badge>
           </TabsTrigger>
           <TabsTrigger value="materiales" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
@@ -683,13 +678,13 @@ export function ProyectoDetallePage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Actividades Tab */}
-        <TabsContent value="actividades" className="space-y-4">
+        {/* Tareas Tab */}
+        <TabsContent value="tareas" className="space-y-4">
           <ActividadesTab proyectoId={proyectoId!} proyectoNombre={proyecto.nombre} canEdit={canEdit} />
         </TabsContent>
 
-        {/* Etapas Tab */}
-        <TabsContent value="etapas" className="space-y-4">
+        {/* Etapas Tab - OCULTO */}
+        <TabsContent value="etapas-hidden" className="space-y-4 hidden">
           <div className="flex justify-between items-center">
             <p className="text-muted-foreground">
               Gestiona las etapas del proyecto y actualiza su avance

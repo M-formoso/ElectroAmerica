@@ -99,7 +99,7 @@ const navigationSections: NavSection[] = [
     items: [
       { name: 'Monitor Jornadas', href: '/jornadas/monitor', icon: Clock, roles: ['administrador', 'supervisor'], modulo: 'jornadas_gestion' },
       { name: 'Planificación', href: '/jornadas/planificacion', icon: Calendar, roles: ['administrador', 'supervisor'], modulo: 'jornadas_gestion' },
-      { name: 'Actividades Tipo', href: '/actividades-tipo', icon: ClipboardList, roles: ['administrador', 'supervisor'], modulo: 'actividades_tipo' },
+      { name: 'Tareas', href: '/actividades-tipo', icon: ClipboardList, roles: ['administrador', 'supervisor'], modulo: 'actividades_tipo' },
     ],
   },
   {

@@ -204,7 +204,7 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Actividades
+                Total Tareas
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -285,16 +285,16 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
         </Card>
       )}
 
-      {/* Lista de Actividades */}
+      {/* Lista de Tareas */}
       {actividades?.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center">
             <CheckCircle2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground">
-              No hay actividades asignadas a este proyecto
+              No hay tareas asignadas a este proyecto
             </p>
             <p className="text-sm text-muted-foreground mt-2">
-              Las actividades se asignan al crear el proyecto
+              Las tareas se asignan al crear el proyecto
             </p>
           </CardContent>
         </Card>
