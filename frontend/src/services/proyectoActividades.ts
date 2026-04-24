@@ -197,6 +197,24 @@ export const proyectoActividadesService = {
     return response.data
   },
 
+  // Descargar PDF
+  async descargarResumenPDF(proyectoId: string, nombreProyecto: string): Promise<void> {
+    const response = await api.get(`/proyectos/${proyectoId}/resumen-actividades/pdf`, {
+      responseType: 'blob',
+    })
+
+    // Crear blob y descargar
+    const blob = new Blob([response.data], { type: 'application/pdf' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `resumen_actividades_${nombreProyecto.replace(/\s+/g, '_').substring(0, 30)}.pdf`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  },
+
   // Herramientas
   async getHerramientas(proyectoId: string): Promise<ProyectoHerramienta[]> {
     const response = await api.get<ProyectoHerramienta[]>(`/proyectos/${proyectoId}/herramientas`)

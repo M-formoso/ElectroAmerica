@@ -2,6 +2,7 @@
 Endpoints para gestionar actividades de proyecto y avances.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import UUID
@@ -9,6 +10,7 @@ from datetime import date
 
 from app.core.deps import get_db, get_usuario_actual, require_staff, require_admin_or_supervisor
 from app.models.usuario import Usuario, RolUsuario
+from app.services.pdf_service import generar_pdf_resumen_actividades
 from app.schemas.proyecto_actividad import (
     ProyectoActividadCreate,
     ProyectoActividadUpdate,
@@ -363,6 +365,79 @@ def obtener_resumen_actividades(
 
     service = ProyectoActividadService(db)
     return service.obtener_resumen_proyecto(proyecto_id)
+
+
+@router.get("/{proyecto_id}/resumen-actividades/pdf")
+def descargar_resumen_pdf(
+    proyecto_id: UUID,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_usuario_actual)
+):
+    """Descarga el resumen de actividades y materiales en PDF."""
+    if not proyecto_service.verificar_acceso_proyecto(db, proyecto_id, usuario.id, usuario.rol):
+        raise HTTPException(status_code=403, detail="No tiene acceso a este proyecto")
+
+    # Obtener datos del proyecto
+    proyecto = proyecto_service.obtener_proyecto(db, proyecto_id)
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    # Obtener actividades y resumen
+    service = ProyectoActividadService(db)
+    actividades = service.obtener_actividades_proyecto(proyecto_id)
+    resumen = service.obtener_resumen_proyecto(proyecto_id)
+
+    # Preparar datos para el PDF
+    datos = {
+        'proyecto': {
+            'nombre': proyecto.nombre,
+            'ubicacion': proyecto.ubicacion,
+            'fecha_inicio': proyecto.fecha_inicio.strftime('%d/%m/%Y') if proyecto.fecha_inicio else None,
+            'cliente_nombre': proyecto.cliente.nombre if proyecto.cliente else None,
+        },
+        'actividades': [
+            {
+                'actividad_codigo': a.actividad_tipo.codigo if a.actividad_tipo else '',
+                'actividad_nombre': a.actividad_tipo.nombre if a.actividad_tipo else '',
+                'actividad_categoria': a.actividad_tipo.categoria if a.actividad_tipo else '',
+                'unidad_trabajo': a.actividad_tipo.unidad_trabajo if a.actividad_tipo else '',
+                'cantidad_planificada': float(a.cantidad_planificada),
+                'cantidad_ejecutada': float(a.cantidad_ejecutada),
+                'porcentaje_avance': float(a.porcentaje_avance),
+            }
+            for a in actividades
+        ],
+        'resumen': {
+            'total_actividades': resumen.total_actividades,
+            'actividades_completadas': resumen.actividades_completadas,
+            'actividades_en_progreso': resumen.actividades_en_progreso,
+            'actividades_pendientes': resumen.actividades_pendientes,
+            'porcentaje_avance_global': float(resumen.porcentaje_avance_global),
+        },
+        'materiales_totales': [
+            {
+                'material_nombre': m.material_nombre,
+                'cantidad_total': float(m.cantidad_total),
+                'unidad': m.unidad,
+            }
+            for m in resumen.materiales_totales
+        ]
+    }
+
+    # Generar PDF
+    pdf_bytes = generar_pdf_resumen_actividades(datos)
+
+    # Nombre del archivo
+    nombre_limpio = proyecto.nombre.replace(' ', '_').replace('/', '-')[:30]
+    filename = f"resumen_actividades_{nombre_limpio}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
 
 
 # ============ Herramientas ============

@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronUp,
   Package,
+  Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -44,12 +45,16 @@ import { useToast } from '@/hooks/use-toast'
 
 interface ActividadesTabProps {
   proyectoId: string
+  proyectoNombre: string
   canEdit: boolean
 }
 
-export function ActividadesTab({ proyectoId, canEdit }: ActividadesTabProps) {
+export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: ActividadesTabProps) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
+
+  // Estado para descarga
+  const [isDownloading, setIsDownloading] = useState(false)
 
   // Estados para dialogs
   const [isAvanceDialogOpen, setIsAvanceDialogOpen] = useState(false)
@@ -159,6 +164,18 @@ export function ActividadesTab({ proyectoId, canEdit }: ActividadesTabProps) {
     })
   }
 
+  const handleDescargarPDF = async () => {
+    setIsDownloading(true)
+    try {
+      await proyectoActividadesService.descargarResumenPDF(proyectoId, proyectoNombre)
+      toast({ title: 'PDF descargado exitosamente' })
+    } catch {
+      toast({ variant: 'destructive', title: 'Error al descargar PDF' })
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
   const getAvanceColor = (porcentaje: number) => {
     if (porcentaje >= 100) return 'text-green-600'
     if (porcentaje >= 50) return 'text-yellow-600'
@@ -240,7 +257,22 @@ export function ActividadesTab({ proyectoId, canEdit }: ActividadesTabProps) {
       {resumen && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Avance Global del Proyecto</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm">Avance Global del Proyecto</CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDescargarPDF}
+                disabled={isDownloading}
+              >
+                {isDownloading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                Descargar PDF
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4">

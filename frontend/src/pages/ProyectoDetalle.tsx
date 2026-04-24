@@ -685,7 +685,7 @@ export function ProyectoDetallePage() {
 
         {/* Actividades Tab */}
         <TabsContent value="actividades" className="space-y-4">
-          <ActividadesTab proyectoId={proyectoId!} canEdit={canEdit} />
+          <ActividadesTab proyectoId={proyectoId!} proyectoNombre={proyecto.nombre} canEdit={canEdit} />
         </TabsContent>
 
         {/* Etapas Tab */}

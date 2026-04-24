@@ -238,3 +238,203 @@ def generar_pdf_reporte(datos: dict) -> bytes:
     buffer.close()
 
     return pdf_bytes
+
+
+def generar_pdf_resumen_actividades(datos: dict) -> bytes:
+    """
+    Genera un PDF con el resumen de actividades y materiales del proyecto.
+
+    Args:
+        datos: Diccionario con proyecto, actividades, resumen y materiales_totales
+
+    Returns:
+        bytes del PDF generado
+    """
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=2*cm,
+        leftMargin=2*cm,
+        topMargin=2*cm,
+        bottomMargin=2*cm
+    )
+
+    # Estilos
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(
+        name='TitleRed',
+        parent=styles['Title'],
+        fontSize=20,
+        textColor=colors.HexColor('#E53935'),
+        spaceAfter=6
+    ))
+    styles.add(ParagraphStyle(
+        name='SubtitleGray',
+        parent=styles['Normal'],
+        fontSize=11,
+        textColor=colors.HexColor('#424242'),
+        spaceAfter=16
+    ))
+    styles.add(ParagraphStyle(
+        name='SectionRed',
+        parent=styles['Heading2'],
+        fontSize=13,
+        textColor=colors.HexColor('#C62828'),
+        spaceBefore=16,
+        spaceAfter=10,
+        borderPadding=6,
+        backColor=colors.HexColor('#FFEBEE')
+    ))
+    styles.add(ParagraphStyle(
+        name='FooterCenter',
+        parent=styles['Normal'],
+        fontSize=8,
+        textColor=colors.HexColor('#9ca3af'),
+        alignment=TA_CENTER
+    ))
+
+    elements = []
+
+    proyecto = datos.get('proyecto', {})
+    actividades = datos.get('actividades', [])
+    resumen = datos.get('resumen', {})
+    materiales_totales = datos.get('materiales_totales', [])
+
+    # Header con nombre del proyecto
+    elements.append(Paragraph(f"Resumen de Actividades", styles['TitleRed']))
+    elements.append(Paragraph(proyecto.get('nombre', 'Proyecto'), styles['Heading1']))
+
+    info_proyecto = []
+    if proyecto.get('ubicacion'):
+        info_proyecto.append(f"Ubicación: {proyecto.get('ubicacion')}")
+    if proyecto.get('fecha_inicio'):
+        info_proyecto.append(f"Inicio: {proyecto.get('fecha_inicio')}")
+    if proyecto.get('cliente_nombre'):
+        info_proyecto.append(f"Cliente: {proyecto.get('cliente_nombre')}")
+
+    if info_proyecto:
+        elements.append(Paragraph(' | '.join(info_proyecto), styles['SubtitleGray']))
+
+    elements.append(Spacer(1, 12))
+
+    # Resumen general en cards
+    total_act = resumen.get('total_actividades', 0)
+    completadas = resumen.get('actividades_completadas', 0)
+    en_progreso = resumen.get('actividades_en_progreso', 0)
+    pendientes = resumen.get('actividades_pendientes', 0)
+    avance_global = resumen.get('porcentaje_avance_global', 0)
+
+    resumen_data = [
+        ['Total Actividades', 'Completadas', 'En Progreso', 'Pendientes', 'Avance Global'],
+        [str(total_act), str(completadas), str(en_progreso), str(pendientes), f'{avance_global:.1f}%']
+    ]
+
+    resumen_table = Table(resumen_data, colWidths=[3.2*cm, 3.2*cm, 3.2*cm, 3.2*cm, 3.2*cm])
+    resumen_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#FFEBEE')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#C62828')),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 1), (-1, 1), 14),
+        ('TEXTCOLOR', (1, 1), (1, 1), colors.HexColor('#2e7d32')),  # Completadas verde
+        ('TEXTCOLOR', (2, 1), (2, 1), colors.HexColor('#1565c0')),  # En progreso azul
+        ('TEXTCOLOR', (3, 1), (3, 1), colors.HexColor('#757575')),  # Pendientes gris
+        ('TEXTCOLOR', (4, 1), (4, 1), colors.HexColor('#E53935')),  # Avance rojo
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('TOPPADDING', (0, 1), (-1, 1), 10),
+        ('BOTTOMPADDING', (0, 1), (-1, 1), 10),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#FFCDD2')),
+    ]))
+    elements.append(resumen_table)
+    elements.append(Spacer(1, 20))
+
+    # Lista de Actividades
+    elements.append(Paragraph('Detalle de Actividades', styles['SectionRed']))
+
+    if actividades:
+        act_data = [['Código', 'Actividad', 'Categoría', 'Planif.', 'Ejecut.', 'Avance']]
+        for act in actividades:
+            porcentaje = act.get('porcentaje_avance', 0)
+            estado_str = f'{porcentaje:.0f}%'
+            if porcentaje >= 100:
+                estado_str = '✓ 100%'
+
+            act_data.append([
+                act.get('actividad_codigo', ''),
+                act.get('actividad_nombre', '')[:35],
+                act.get('actividad_categoria', '')[:15],
+                f"{act.get('cantidad_planificada', 0)} {act.get('unidad_trabajo', '')}",
+                f"{act.get('cantidad_ejecutada', 0)} {act.get('unidad_trabajo', '')}",
+                estado_str
+            ])
+
+        act_table = Table(act_data, colWidths=[2*cm, 5.5*cm, 2.5*cm, 2.5*cm, 2.5*cm, 2*cm])
+        act_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#C62828')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('ALIGN', (3, 0), (-1, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#FFCDD2')),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#FFF8F8')]),
+        ]))
+        elements.append(act_table)
+    else:
+        elements.append(Paragraph('No hay actividades asignadas al proyecto.', styles['Normal']))
+
+    elements.append(Spacer(1, 24))
+
+    # Materiales Totales
+    elements.append(Paragraph('Materiales Totales Requeridos', styles['SectionRed']))
+
+    if materiales_totales:
+        mat_data = [['Material', 'Cantidad Total', 'Unidad']]
+        for mat in materiales_totales:
+            cantidad = mat.get('cantidad_total', 0)
+            if isinstance(cantidad, (int, float)):
+                cantidad_str = f"{cantidad:.2f}"
+            else:
+                cantidad_str = str(cantidad)
+
+            mat_data.append([
+                mat.get('material_nombre', ''),
+                cantidad_str,
+                mat.get('unidad', '')
+            ])
+
+        mat_table = Table(mat_data, colWidths=[9*cm, 4*cm, 3*cm])
+        mat_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#C62828')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#FFCDD2')),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#FFF8F8')]),
+        ]))
+        elements.append(mat_table)
+    else:
+        elements.append(Paragraph('No hay materiales calculados para este proyecto.', styles['Normal']))
+
+    # Footer
+    elements.append(Spacer(1, 40))
+    fecha_generacion = datetime.now().strftime('%d/%m/%Y %H:%M')
+    elements.append(Paragraph(
+        f'Electro América - Reporte generado el {fecha_generacion}',
+        styles['FooterCenter']
+    ))
+
+    # Generar PDF
+    doc.build(elements)
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+
+    return pdf_bytes
