@@ -422,27 +422,27 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
                             </span>
                           </div>
                           <div className="flex items-center gap-2 w-32">
-                            <Progress value={actividad.porcentaje_avance} className="flex-1 h-2" />
+                            <Progress value={Number(actividad.porcentaje_avance)} className="flex-1 h-2" />
                             <span
                               className={`text-sm font-medium ${getAvanceColor(
-                                actividad.porcentaje_avance
+                                Number(actividad.porcentaje_avance)
                               )}`}
                             >
-                              {actividad.porcentaje_avance.toFixed(0)}%
+                              {Number(actividad.porcentaje_avance).toFixed(0)}%
                             </span>
                           </div>
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={getAvanceBadge(actividad.porcentaje_avance) as any}>
-                        {actividad.porcentaje_avance >= 100
+                      <Badge variant={getAvanceBadge(Number(actividad.porcentaje_avance)) as any}>
+                        {Number(actividad.porcentaje_avance) >= 100
                           ? 'Completada'
-                          : actividad.porcentaje_avance > 0
+                          : Number(actividad.porcentaje_avance) > 0
                           ? 'En Progreso'
                           : 'Pendiente'}
                       </Badge>
-                      {canEdit && actividad.porcentaje_avance < 100 && (
+                      {canEdit && Number(actividad.porcentaje_avance) < 100 && (
                         <Button size="sm" onClick={() => openAvanceDialog(actividad)}>
                           <Plus className="h-4 w-4 mr-1" />
                           Registrar Avance
