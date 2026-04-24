@@ -578,7 +578,7 @@ export function ProyectoDetallePage() {
       </div>
 
       {/* Info Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -623,23 +623,6 @@ export function ProyectoDetallePage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <Receipt className="h-4 w-4" />
-              Total Gastos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
-              {formatCurrency(totalGastos + totalMateriales)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Mat: {formatCurrency(totalMateriales)} | Otros: {formatCurrency(totalGastos)}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
               <User className="h-4 w-4" />
               Cliente
             </CardTitle>
@@ -672,10 +655,9 @@ export function ProyectoDetallePage() {
             <span className="hidden sm:inline">Equipos</span>
             <Badge variant="secondary" className="ml-1">{equiposAsignados?.length || 0}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="gastos" className="flex items-center gap-2">
-            <Receipt className="h-4 w-4" />
-            <span className="hidden sm:inline">Gastos</span>
-            <Badge variant="secondary" className="ml-1">{gastosProyecto?.length || 0}</Badge>
+          <TabsTrigger value="avances" className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Avances</span>
           </TabsTrigger>
           <TabsTrigger value="fotos" className="flex items-center gap-2">
             <ImageIcon className="h-4 w-4" />
@@ -986,68 +968,150 @@ export function ProyectoDetallePage() {
           )}
         </TabsContent>
 
-        {/* Gastos Tab */}
-        <TabsContent value="gastos" className="space-y-4">
+        {/* Avances Tab */}
+        <TabsContent value="avances" className="space-y-4">
           <div className="flex justify-between items-center">
-            <div>
-              <p className="text-muted-foreground">
-                Gastos registrados en este proyecto
-              </p>
-              <p className="text-sm font-medium mt-1">
-                Total gastos: {formatCurrency(totalGastos)}
-              </p>
-            </div>
-            {canEdit && (
-              <Button onClick={() => setIsAgregarGastoOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Registrar Gasto
-              </Button>
-            )}
+            <p className="text-muted-foreground">
+              Historial de avances registrados en las tareas del proyecto
+            </p>
           </div>
 
-          {gastosProyecto?.length === 0 ? (
+          {resumenActividades && (
+            <div className="grid gap-4 md:grid-cols-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Total Tareas
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{resumenActividades.total_actividades}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    Completadas
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">
+                    {resumenActividades.actividades_completadas}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                    <Play className="h-4 w-4 text-blue-600" />
+                    En Progreso
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-blue-600">
+                    {resumenActividades.actividades_en_progreso}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-4 w-4 text-gray-600" />
+                    Pendientes
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-gray-600">
+                    {resumenActividades.actividades_pendientes}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Avance Global */}
+          {resumenActividades && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Avance Global del Proyecto</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-4">
+                  <Progress value={Number(resumenActividades.porcentaje_avance_global)} className="flex-1" />
+                  <span className="text-lg font-bold">
+                    {Number(resumenActividades.porcentaje_avance_global).toFixed(1)}%
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Lista de tareas con su avance */}
+          {actividadesProyecto?.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center">
-                <Receipt className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground mb-4">
-                  No hay gastos registrados en este proyecto
+                <CheckCircle2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">
+                  No hay tareas asignadas a este proyecto
                 </p>
-                {canEdit && (
-                  <Button onClick={() => setIsAgregarGastoOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Registrar primer gasto
-                  </Button>
-                )}
               </CardContent>
             </Card>
           ) : (
             <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Descripcion</TableHead>
-                    <TableHead>Categoria</TableHead>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead className="text-right">Monto</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {gastosProyecto?.map((gasto) => (
-                    <TableRow key={gasto.id}>
-                      <TableCell className="font-medium">{gasto.descripcion}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {gasto.categoria?.nombre || 'Sin categoria'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{formatDate(gasto.fecha)}</TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(gasto.monto)}
-                      </TableCell>
+              <CardHeader>
+                <CardTitle className="text-sm">Detalle de Avance por Tarea</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Tarea</TableHead>
+                      <TableHead>Categoría</TableHead>
+                      <TableHead>Ejecutado / Planificado</TableHead>
+                      <TableHead>Avance</TableHead>
+                      <TableHead>Estado</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {actividadesProyecto?.map((actividad) => (
+                      <TableRow key={actividad.id}>
+                        <TableCell className="font-medium">
+                          <div>
+                            <span className="font-mono text-xs text-muted-foreground mr-2">
+                              {actividad.actividad_codigo}
+                            </span>
+                            {actividad.actividad_nombre}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{actividad.actividad_categoria}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {actividad.cantidad_ejecutada} / {actividad.cantidad_planificada} {actividad.unidad_trabajo}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2 w-24">
+                            <Progress value={Number(actividad.porcentaje_avance)} className="flex-1 h-2" />
+                            <span className="text-sm font-medium">
+                              {Number(actividad.porcentaje_avance).toFixed(0)}%
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            Number(actividad.porcentaje_avance) >= 100 ? 'default' :
+                            Number(actividad.porcentaje_avance) > 0 ? 'secondary' : 'outline'
+                          }>
+                            {Number(actividad.porcentaje_avance) >= 100 ? 'Completada' :
+                             Number(actividad.porcentaje_avance) > 0 ? 'En Progreso' : 'Pendiente'}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
             </Card>
           )}
         </TabsContent>

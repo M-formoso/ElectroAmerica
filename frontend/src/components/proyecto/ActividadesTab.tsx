@@ -564,37 +564,6 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
         </div>
       )}
 
-      {/* Resumen de Materiales Totales */}
-      {resumen?.materiales_totales && resumen.materiales_totales.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              Materiales Totales del Proyecto
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Material</TableHead>
-                  <TableHead className="text-right">Cantidad Total</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {resumen.materiales_totales.map((mat) => (
-                  <TableRow key={mat.material_id}>
-                    <TableCell>{mat.material_nombre}</TableCell>
-                    <TableCell className="text-right font-medium">
-                      {Number(mat.cantidad_total).toFixed(2)} {mat.unidad}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Dialog para registrar avance */}
       <Dialog open={isAvanceDialogOpen} onOpenChange={setIsAvanceDialogOpen}>
