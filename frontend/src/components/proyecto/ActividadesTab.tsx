@@ -10,6 +10,7 @@ import {
   ChevronUp,
   Package,
   Download,
+  Search,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,12 +35,15 @@ import {
 } from '@/components/ui/table'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   proyectoActividadesService,
   type ProyectoActividadList,
   type AvanceActividad,
   type MaterialCalculado,
 } from '@/services/proyectoActividades'
+import { actividadesTipoService, type ActividadTipoList } from '@/services/actividadesTipo'
 import { formatDate } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 
@@ -55,6 +59,11 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
 
   // Estado para descarga
   const [isDownloading, setIsDownloading] = useState(false)
+
+  // Estados para dialog de agregar tareas
+  const [isAddTareaDialogOpen, setIsAddTareaDialogOpen] = useState(false)
+  const [selectedTareas, setSelectedTareas] = useState<string[]>([])
+  const [searchTarea, setSearchTarea] = useState('')
 
   // Estados para dialogs
   const [isAvanceDialogOpen, setIsAvanceDialogOpen] = useState(false)
@@ -99,6 +108,13 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
     enabled: !!expandedActividad,
   })
 
+  // Query para obtener tareas disponibles (actividades tipo)
+  const { data: tareasDisponibles } = useQuery({
+    queryKey: ['actividades-tipo'],
+    queryFn: () => actividadesTipoService.getActividadesTipo(),
+    enabled: isAddTareaDialogOpen,
+  })
+
   // Mutation para registrar avance
   const registrarAvanceMutation = useMutation({
     mutationFn: (data: { actividadId: string; fecha: string; cantidad: number; observaciones?: string }) =>
@@ -135,6 +151,59 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
     onError: () => {
       toast({ variant: 'destructive', title: 'Error al actualizar cantidad' })
     },
+  })
+
+  // Mutation para agregar tareas al proyecto
+  const agregarTareasMutation = useMutation({
+    mutationFn: (tareasIds: string[]) =>
+      proyectoActividadesService.createActividadesBulk(
+        proyectoId,
+        tareasIds.map((id) => ({ actividad_tipo_id: id, cantidad_planificada: 1 }))
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['proyecto-actividades', proyectoId] })
+      queryClient.invalidateQueries({ queryKey: ['proyecto-actividades-resumen', proyectoId] })
+      queryClient.invalidateQueries({ queryKey: ['proyecto', proyectoId] })
+      toast({ title: 'Tareas agregadas exitosamente' })
+      closeAddTareaDialog()
+    },
+    onError: () => {
+      toast({ variant: 'destructive', title: 'Error al agregar tareas' })
+    },
+  })
+
+  const openAddTareaDialog = () => {
+    setSelectedTareas([])
+    setSearchTarea('')
+    setIsAddTareaDialogOpen(true)
+  }
+
+  const closeAddTareaDialog = () => {
+    setIsAddTareaDialogOpen(false)
+    setSelectedTareas([])
+    setSearchTarea('')
+  }
+
+  const handleAgregarTareas = () => {
+    if (selectedTareas.length === 0) return
+    agregarTareasMutation.mutate(selectedTareas)
+  }
+
+  const toggleTareaSelection = (tareaId: string) => {
+    setSelectedTareas((prev) =>
+      prev.includes(tareaId) ? prev.filter((id) => id !== tareaId) : [...prev, tareaId]
+    )
+  }
+
+  // Filtrar tareas ya asignadas y por búsqueda
+  const tareasNoAsignadas = tareasDisponibles?.filter((tarea) => {
+    const yaAsignada = actividades?.some((a) => a.actividad_tipo_id === tarea.id)
+    const coincideBusqueda =
+      searchTarea === '' ||
+      tarea.nombre.toLowerCase().includes(searchTarea.toLowerCase()) ||
+      tarea.codigo.toLowerCase().includes(searchTarea.toLowerCase()) ||
+      tarea.categoria.toLowerCase().includes(searchTarea.toLowerCase())
+    return !yaAsignada && coincideBusqueda
   })
 
   const openAvanceDialog = (actividad: ProyectoActividadList) => {
@@ -285,6 +354,17 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
         </Card>
       )}
 
+      {/* Header de Tareas con botón agregar */}
+      {canEdit && (
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Tareas del Proyecto</h3>
+          <Button onClick={openAddTareaDialog}>
+            <Plus className="h-4 w-4 mr-2" />
+            Agregar Tarea
+          </Button>
+        </div>
+      )}
+
       {/* Lista de Tareas */}
       {actividades?.length === 0 ? (
         <Card>
@@ -293,9 +373,12 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
             <p className="text-muted-foreground">
               No hay tareas asignadas a este proyecto
             </p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Las tareas se asignan al crear el proyecto
-            </p>
+            {canEdit && (
+              <Button className="mt-4" onClick={openAddTareaDialog}>
+                <Plus className="h-4 w-4 mr-2" />
+                Agregar Tarea
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -587,6 +670,108 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para agregar tareas */}
+      <Dialog open={isAddTareaDialogOpen} onOpenChange={setIsAddTareaDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Agregar Tareas al Proyecto</DialogTitle>
+            <DialogDescription>
+              Selecciona las tareas que deseas agregar a este proyecto
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Buscador */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nombre, código o categoría..."
+                value={searchTarea}
+                onChange={(e) => setSearchTarea(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* Lista de tareas */}
+            <ScrollArea className="h-[400px] border rounded-md">
+              {tareasNoAsignadas && tareasNoAsignadas.length > 0 ? (
+                <div className="p-4 space-y-2">
+                  {tareasNoAsignadas.map((tarea) => (
+                    <div
+                      key={tarea.id}
+                      className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                        selectedTareas.includes(tarea.id)
+                          ? 'bg-primary/10 border-primary'
+                          : 'hover:bg-muted'
+                      }`}
+                      onClick={() => toggleTareaSelection(tarea.id)}
+                    >
+                      <Checkbox
+                        checked={selectedTareas.includes(tarea.id)}
+                        onCheckedChange={() => toggleTareaSelection(tarea.id)}
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm text-muted-foreground">
+                            {tarea.codigo}
+                          </span>
+                          <span className="font-medium">{tarea.nombre}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-xs">
+                            {tarea.categoria}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            Unidad: {tarea.unidad_trabajo}
+                          </span>
+                          {tarea.cantidad_materiales > 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              • {tarea.cantidad_materiales} materiales
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : tareasDisponibles ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  {searchTarea
+                    ? 'No se encontraron tareas con ese criterio'
+                    : 'Todas las tareas ya están asignadas al proyecto'}
+                </div>
+              ) : (
+                <div className="p-8 text-center">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                </div>
+              )}
+            </ScrollArea>
+
+            {/* Contador de selección */}
+            {selectedTareas.length > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {selectedTareas.length} tarea(s) seleccionada(s)
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closeAddTareaDialog}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleAgregarTareas}
+              disabled={selectedTareas.length === 0 || agregarTareasMutation.isPending}
+            >
+              {agregarTareasMutation.isPending && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              Agregar {selectedTareas.length > 0 ? `(${selectedTareas.length})` : ''}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
