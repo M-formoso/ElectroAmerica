@@ -58,6 +58,7 @@ import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle'
 import { proyectosService } from '@/services/proyectos'
 import { actividadesTipoService, type ActividadTipoList } from '@/services/actividadesTipo'
 import { herramientasService, type Herramienta } from '@/services/herramientas'
+import { clientesService, type Cliente } from '@/services/clientes'
 import { formatDate } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useIsAdmin } from '@/store/auth'
@@ -72,6 +73,7 @@ interface ProyectoForm {
   fecha_inicio: string
   fecha_fin_estimada: string
   monto_contratado: string
+  cliente_id: string
   actividades_tipo_ids: string[]
   herramientas_ids: string[]
 }
@@ -104,9 +106,11 @@ export function ProyectosPage() {
     fecha_inicio: '',
     fecha_fin_estimada: '',
     monto_contratado: '',
+    cliente_id: '',
     actividades_tipo_ids: [],
     herramientas_ids: [],
   })
+  const [clienteFilter, setClienteFilter] = useState<string>('todos')
 
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -132,6 +136,11 @@ export function ProyectosPage() {
     enabled: isCreateOpen,
   })
 
+  const { data: clientes = [] } = useQuery({
+    queryKey: ['clientes'],
+    queryFn: () => clientesService.getClientes(),
+  })
+
   const createMutation = useMutation({
     mutationFn: proyectosService.createProyecto,
     onSuccess: () => {
@@ -145,6 +154,7 @@ export function ProyectosPage() {
         fecha_inicio: '',
         fecha_fin_estimada: '',
         monto_contratado: '',
+        cliente_id: '',
         actividades_tipo_ids: [],
         herramientas_ids: [],
       })
@@ -169,7 +179,6 @@ export function ProyectosPage() {
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // TODO: Cuando el backend tenga las tablas de relacion, descomentar actividades_tipo_ids y herramientas_ids
     createMutation.mutate({
       nombre: formData.nombre,
       descripcion: formData.descripcion || undefined,
@@ -177,8 +186,7 @@ export function ProyectosPage() {
       fecha_inicio: formData.fecha_inicio || undefined,
       fecha_fin_estimada: formData.fecha_fin_estimada || undefined,
       monto_contratado: formData.monto_contratado ? parseFloat(formData.monto_contratado) : undefined,
-      // actividades_tipo_ids: formData.actividades_tipo_ids.length > 0 ? formData.actividades_tipo_ids : undefined,
-      // herramientas_ids: formData.herramientas_ids.length > 0 ? formData.herramientas_ids : undefined,
+      cliente_id: formData.cliente_id || undefined,
     })
   }
 
@@ -201,10 +209,14 @@ export function ProyectosPage() {
     }))
   }
 
-  const filteredProyectos = proyectos?.filter((p) =>
-    p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-    p.ubicacion?.toLowerCase().includes(search.toLowerCase())
-  )
+  const filteredProyectos = proyectos?.filter((p) => {
+    const matchesSearch = p.nombre.toLowerCase().includes(search.toLowerCase()) ||
+      p.ubicacion?.toLowerCase().includes(search.toLowerCase())
+    const matchesCliente = clienteFilter === 'todos' ||
+      (clienteFilter === 'sin_cliente' && !p.cliente) ||
+      p.cliente?.id === clienteFilter
+    return matchesSearch && matchesCliente
+  })
 
   const renderCardView = () => (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -213,6 +225,16 @@ export function ProyectosPage() {
           <CardHeader className="pb-2">
             <div className="flex items-start justify-between">
               <div className="space-y-1 flex-1 min-w-0">
+                {proyecto.cliente ? (
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                      <User className="h-3 w-3 mr-1" />
+                      {proyecto.cliente.nombre} {proyecto.cliente.apellido}
+                    </Badge>
+                  </div>
+                ) : (
+                  <Badge variant="outline" className="text-xs mb-1">Sin cliente</Badge>
+                )}
                 <CardTitle className="text-lg truncate">
                   {proyecto.nombre}
                 </CardTitle>
@@ -223,42 +245,34 @@ export function ProyectosPage() {
                   </p>
                 )}
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem asChild>
-                    <Link to={`/proyectos/${proyecto.id}`}>
-                      <Eye className="h-4 w-4 mr-2" />
-                      Ver detalles
-                    </Link>
-                  </DropdownMenuItem>
-                  {isAdmin && (
-                    <>
-                      <DropdownMenuItem asChild>
-                        <Link to={`/proyectos/${proyecto.id}/editar`}>
-                          <Edit className="h-4 w-4 mr-2" />
-                          Editar
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={() => {
-                          setSelectedProyecto(proyecto)
-                          setIsDeleteOpen(true)
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Eliminar
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {isAdmin && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem asChild>
+                      <Link to={`/proyectos/${proyecto.id}/editar`}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Editar
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onClick={() => {
+                        setSelectedProyecto(proyecto)
+                        setIsDeleteOpen(true)
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Eliminar
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -284,14 +298,12 @@ export function ProyectosPage() {
               )}
             </div>
 
-            {proyecto.cliente && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground pt-2 border-t">
-                <User className="h-3 w-3" />
-                <span className="truncate">
-                  {proyecto.cliente.nombre} {proyecto.cliente.apellido}
-                </span>
-              </div>
-            )}
+            <Button asChild className="w-full" variant="default">
+              <Link to={`/proyectos/${proyecto.id}`}>
+                <Eye className="h-4 w-4 mr-2" />
+                Ver Detalle
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       ))}
@@ -420,7 +432,22 @@ export function ProyectosPage() {
             className="pl-9"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Select value={clienteFilter} onValueChange={setClienteFilter}>
+            <SelectTrigger className="w-full sm:w-[200px]">
+              <User className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Cliente" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos los clientes</SelectItem>
+              <SelectItem value="sin_cliente">Sin cliente</SelectItem>
+              {clientes.map((cliente) => (
+                <SelectItem key={cliente.id} value={cliente.id}>
+                  {cliente.nombre} {cliente.apellido}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={estadoFilter} onValueChange={setEstadoFilter}>
             <SelectTrigger className="w-full sm:w-[180px]">
               <Filter className="h-4 w-4 mr-2" />
@@ -526,17 +553,37 @@ export function ProyectosPage() {
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="monto_contratado">Monto Contratado ($)</Label>
-                <Input
-                  id="monto_contratado"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.monto_contratado}
-                  onChange={(e) => setFormData({ ...formData, monto_contratado: e.target.value })}
-                  placeholder="0.00"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="monto_contratado">Monto Contratado ($)</Label>
+                  <Input
+                    id="monto_contratado"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.monto_contratado}
+                    onChange={(e) => setFormData({ ...formData, monto_contratado: e.target.value })}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Cliente</Label>
+                  <Select
+                    value={formData.cliente_id}
+                    onValueChange={(v) => setFormData({ ...formData, cliente_id: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientes.map((cliente) => (
+                        <SelectItem key={cliente.id} value={cliente.id}>
+                          {cliente.nombre} {cliente.apellido}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* Seccion de Actividades Tipo */}
