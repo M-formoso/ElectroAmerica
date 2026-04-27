@@ -65,7 +65,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { proyectosService } from '@/services/proyectos'
 import { etapasService, type EtapaCreate, type EtapaUpdate } from '@/services/etapas'
