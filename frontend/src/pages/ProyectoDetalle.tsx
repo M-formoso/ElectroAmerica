@@ -688,7 +688,7 @@ export function ProyectoDetallePage() {
           </TabsTrigger>
           <TabsTrigger value="herramientas" className="flex items-center gap-2">
             <Wrench className="h-4 w-4" />
-            <span className="hidden sm:inline">Herramientas</span>
+            <span className="hidden sm:inline">Inventario</span>
             <Badge variant="secondary" className="ml-1">{herramientasProyecto?.length || 0}</Badge>
           </TabsTrigger>
           <TabsTrigger value="avances" className="flex items-center gap-2">
@@ -926,16 +926,16 @@ export function ProyectoDetallePage() {
           )}
         </TabsContent>
 
-        {/* Herramientas Tab */}
+        {/* Inventario Tab */}
         <TabsContent value="herramientas" className="space-y-4">
           <div className="flex justify-between items-center">
             <p className="text-muted-foreground">
-              Herramientas asignadas a este proyecto
+              Herramientas del inventario asignadas a este proyecto
             </p>
             {canEdit && (
               <Button onClick={() => setIsAsignarHerramientaOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
-                Asignar Herramientas
+                Asignar del Inventario
               </Button>
             )}
           </div>
@@ -945,12 +945,12 @@ export function ProyectoDetallePage() {
               <CardContent className="py-8 text-center">
                 <Wrench className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <p className="text-muted-foreground mb-4">
-                  No hay herramientas asignadas a este proyecto
+                  No hay herramientas del inventario asignadas a este proyecto
                 </p>
                 {canEdit && (
                   <Button onClick={() => setIsAsignarHerramientaOpen(true)}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Asignar primera herramienta
+                    Asignar del inventario
                   </Button>
                 )}
               </CardContent>
@@ -1642,28 +1642,29 @@ export function ProyectoDetallePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Asignar Herramientas Dialog */}
+      {/* Asignar del Inventario Dialog */}
       <Dialog open={isAsignarHerramientaOpen} onOpenChange={setIsAsignarHerramientaOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Asignar Herramientas</DialogTitle>
+            <DialogTitle>Asignar del Inventario</DialogTitle>
             <DialogDescription>
-              Selecciona las herramientas que deseas asignar a este proyecto
+              Selecciona las herramientas del inventario que deseas asignar a este proyecto
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <div className="space-y-4 max-h-[400px] overflow-y-auto">
-              {herramientasDisponibles?.filter(h => h.estado === 'disponible')?.length === 0 ? (
+              {!herramientasDisponibles || herramientasDisponibles.length === 0 ? (
                 <div className="flex items-center gap-2 text-amber-600 bg-amber-50 p-3 rounded-md">
                   <AlertTriangle className="h-4 w-4" />
-                  <p className="text-sm">No hay herramientas disponibles en este momento</p>
+                  <p className="text-sm">No hay herramientas en el inventario</p>
                 </div>
               ) : (
                 herramientasDisponibles
-                  ?.filter(h => h.estado === 'disponible')
                   ?.filter(h => !herramientasProyecto?.some((hp: any) => hp.herramienta_id === h.id))
                   ?.map((herramienta) => {
                     const isSelected = selectedHerramientas.includes(herramienta.id)
+                    const estadoLabel = herramienta.estado_prestamo === 'disponible' ? 'Disponible' : 'En uso'
+                    const estadoColor = herramienta.estado_prestamo === 'disponible' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
                     return (
                       <div
                         key={herramienta.id}
@@ -1680,11 +1681,17 @@ export function ProyectoDetallePage() {
                       >
                         <Checkbox checked={isSelected} />
                         <div className="flex-1">
-                          <div className="font-medium">{herramienta.nombre}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {herramienta.codigo && <span className="mr-2">{herramienta.codigo}</span>}
-                            {herramienta.categoria && <Badge variant="outline" className="text-xs">{herramienta.categoria}</Badge>}
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{herramienta.nombre}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${estadoColor}`}>
+                              {estadoLabel}
+                            </span>
                           </div>
+                          {herramienta.descripcion && (
+                            <div className="text-sm text-muted-foreground">
+                              {herramienta.descripcion}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )
