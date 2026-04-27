@@ -58,7 +58,7 @@ import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle'
 import { proyectosService } from '@/services/proyectos'
 import { actividadesTipoService, type ActividadTipoList } from '@/services/actividadesTipo'
 import { herramientasService, type Herramienta } from '@/services/herramientas'
-import { clientesService, type Cliente } from '@/services/clientes'
+import { getClientes, type ClienteListItem } from '@/services/clientes'
 import { formatDate } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useIsAdmin } from '@/store/auth'
@@ -138,7 +138,7 @@ export function ProyectosPage() {
 
   const { data: clientes = [] } = useQuery({
     queryKey: ['clientes'],
-    queryFn: () => clientesService.getClientes(),
+    queryFn: () => getClientes(),
   })
 
   const createMutation = useMutation({
@@ -441,9 +441,9 @@ export function ProyectosPage() {
             <SelectContent>
               <SelectItem value="todos">Todos los clientes</SelectItem>
               <SelectItem value="sin_cliente">Sin cliente</SelectItem>
-              {clientes.map((cliente) => (
+              {clientes.map((cliente: ClienteListItem) => (
                 <SelectItem key={cliente.id} value={cliente.id}>
-                  {cliente.nombre} {cliente.apellido}
+                  {cliente.nombre_fantasia || cliente.razon_social}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -576,9 +576,9 @@ export function ProyectosPage() {
                       <SelectValue placeholder="Seleccionar cliente" />
                     </SelectTrigger>
                     <SelectContent>
-                      {clientes.map((cliente) => (
+                      {clientes.map((cliente: ClienteListItem) => (
                         <SelectItem key={cliente.id} value={cliente.id}>
-                          {cliente.nombre} {cliente.apellido}
+                          {cliente.nombre_fantasia || cliente.razon_social}
                         </SelectItem>
                       ))}
                     </SelectContent>
