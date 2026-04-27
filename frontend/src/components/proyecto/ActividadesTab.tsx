@@ -442,12 +442,6 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
                           ? 'En Progreso'
                           : 'Pendiente'}
                       </Badge>
-                      {canEdit && Number(actividad.porcentaje_avance) < 100 && (
-                        <Button size="sm" onClick={() => openAvanceDialog(actividad)}>
-                          <Plus className="h-4 w-4 mr-1" />
-                          Registrar Avance
-                        </Button>
-                      )}
                     </div>
                   </div>
                 </CardHeader>

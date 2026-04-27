@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
@@ -168,6 +169,15 @@ export function ProyectoDetallePage() {
   // Estados para asignar herramientas
   const [isAsignarHerramientaOpen, setIsAsignarHerramientaOpen] = useState(false)
   const [selectedHerramientas, setSelectedHerramientas] = useState<string[]>([])
+
+  // Estados para registrar avance
+  const [isRegistrarAvanceOpen, setIsRegistrarAvanceOpen] = useState(false)
+  const [selectedActividadAvance, setSelectedActividadAvance] = useState<any>(null)
+  const [avanceForm, setAvanceForm] = useState({
+    fecha: new Date().toISOString().split('T')[0],
+    cantidad: '',
+    observaciones: '',
+  })
 
   // Estados para agregar gasto
   const [isAgregarGastoOpen, setIsAgregarGastoOpen] = useState(false)
@@ -364,6 +374,32 @@ export function ProyectoDetallePage() {
     },
   })
 
+  // Mutation para registrar avance
+  const registrarAvanceMutation = useMutation({
+    mutationFn: (data: { actividadId: string; fecha: string; cantidad: number; observaciones?: string }) =>
+      proyectoActividadesService.createAvance(proyectoId!, data.actividadId, {
+        fecha: data.fecha,
+        cantidad: data.cantidad,
+        observaciones: data.observaciones,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['proyecto-actividades', proyectoId] })
+      queryClient.invalidateQueries({ queryKey: ['proyecto-actividades-resumen', proyectoId] })
+      queryClient.invalidateQueries({ queryKey: ['proyecto', proyectoId] })
+      toast({ title: 'Avance registrado exitosamente' })
+      setIsRegistrarAvanceOpen(false)
+      setSelectedActividadAvance(null)
+      setAvanceForm({
+        fecha: new Date().toISOString().split('T')[0],
+        cantidad: '',
+        observaciones: '',
+      })
+    },
+    onError: () => {
+      toast({ variant: 'destructive', title: 'Error al registrar avance' })
+    },
+  })
+
   // Mutation para crear gasto
   const crearGastoMutation = useMutation({
     mutationFn: (data: Partial<Gasto>) => gastosService.createGasto(data),
@@ -498,6 +534,28 @@ export function ProyectoDetallePage() {
       monto: parseFloat(gastoForm.monto),
       categoria_id: gastoForm.categoria_id || undefined,
       fecha: gastoForm.fecha,
+    })
+  }
+
+  const openAvanceDialog = (actividad: any) => {
+    setSelectedActividadAvance(actividad)
+    setAvanceForm({
+      fecha: new Date().toISOString().split('T')[0],
+      cantidad: '',
+      observaciones: '',
+    })
+    setIsRegistrarAvanceOpen(true)
+  }
+
+  const handleRegistrarAvance = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedActividadAvance || !avanceForm.cantidad) return
+
+    registrarAvanceMutation.mutate({
+      actividadId: selectedActividadAvance.id,
+      fecha: avanceForm.fecha,
+      cantidad: parseFloat(avanceForm.cantidad),
+      observaciones: avanceForm.observaciones || undefined,
     })
   }
 
@@ -1047,6 +1105,7 @@ export function ProyectoDetallePage() {
                       <TableHead>Ejecutado / Planificado</TableHead>
                       <TableHead>Avance</TableHead>
                       <TableHead>Estado</TableHead>
+                      {canEdit && <TableHead className="text-right">Acciones</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1083,6 +1142,19 @@ export function ProyectoDetallePage() {
                              Number(actividad.porcentaje_avance) > 0 ? 'En Progreso' : 'Pendiente'}
                           </Badge>
                         </TableCell>
+                        {canEdit && (
+                          <TableCell className="text-right">
+                            {Number(actividad.porcentaje_avance) < 100 && (
+                              <Button
+                                size="sm"
+                                onClick={() => openAvanceDialog(actividad)}
+                              >
+                                <Plus className="h-4 w-4 mr-1" />
+                                Registrar Avance
+                              </Button>
+                            )}
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1722,6 +1794,81 @@ export function ProyectoDetallePage() {
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Registrar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Registrar Avance Dialog */}
+      <Dialog open={isRegistrarAvanceOpen} onOpenChange={setIsRegistrarAvanceOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registrar Avance</DialogTitle>
+            <DialogDescription>
+              {selectedActividadAvance && (
+                <span>
+                  {selectedActividadAvance.actividad_nombre} - Pendiente:{' '}
+                  {(Number(selectedActividadAvance.cantidad_planificada) - Number(selectedActividadAvance.cantidad_ejecutada)).toFixed(2)}{' '}
+                  {selectedActividadAvance.unidad_trabajo}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleRegistrarAvance} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Fecha</Label>
+              <Input
+                type="date"
+                value={avanceForm.fecha}
+                onChange={(e) => setAvanceForm({ ...avanceForm, fecha: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>
+                Cantidad ({selectedActividadAvance?.unidad_trabajo})
+              </Label>
+              <Input
+                type="number"
+                value={avanceForm.cantidad}
+                onChange={(e) => setAvanceForm({ ...avanceForm, cantidad: e.target.value })}
+                min={0.01}
+                step={0.01}
+                max={
+                  selectedActividadAvance
+                    ? selectedActividadAvance.cantidad_planificada - selectedActividadAvance.cantidad_ejecutada
+                    : undefined
+                }
+                required
+              />
+              {selectedActividadAvance && (
+                <p className="text-xs text-muted-foreground">
+                  Máximo: {(Number(selectedActividadAvance.cantidad_planificada) - Number(selectedActividadAvance.cantidad_ejecutada)).toFixed(2)}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Observaciones (opcional)</Label>
+              <Textarea
+                value={avanceForm.observaciones}
+                onChange={(e) => setAvanceForm({ ...avanceForm, observaciones: e.target.value })}
+                placeholder="Notas sobre el trabajo realizado..."
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsRegistrarAvanceOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={registrarAvanceMutation.isPending}>
+                {registrarAvanceMutation.isPending && (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                )}
+                Registrar Avance
               </Button>
             </DialogFooter>
           </form>
