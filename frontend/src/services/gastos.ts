@@ -34,18 +34,18 @@ export const gastosService = {
   },
 
   async getGastosPorProyecto(proyectoId: string): Promise<Gasto[]> {
-    const response = await api.get<Gasto[]>(`/gastos/proyecto/${proyectoId}`)
+    const response = await api.get<Gasto[]>(`/gastos/por-proyecto/${proyectoId}`)
     return response.data
   },
 
   // Categorías
   async getCategorias(): Promise<CategoriaGasto[]> {
-    const response = await api.get<CategoriaGasto[]>('/gastos/categorias/')
+    const response = await api.get<CategoriaGasto[]>('/gastos/categorias')
     return response.data
   },
 
   async createCategoria(data: Partial<CategoriaGasto>): Promise<CategoriaGasto> {
-    const response = await api.post<CategoriaGasto>('/gastos/categorias/', data)
+    const response = await api.post<CategoriaGasto>('/gastos/categorias', data)
     return response.data
   },
 }

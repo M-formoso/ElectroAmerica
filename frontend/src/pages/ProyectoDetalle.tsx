@@ -579,7 +579,7 @@ export function ProyectoDetallePage() {
 
   const fotosGenerales = fotos?.filter((f) => !f.etapa_id) || []
   const totalGastos = gastosProyecto?.reduce((sum, g) => sum + Number(g.monto), 0) || 0
-  const totalMateriales = materialesAsignados?.reduce((sum, m) => sum + (m.cantidad * (m.material?.precio_unitario || 0)), 0) || 0
+  const totalMateriales = materialesAsignados?.reduce((sum, m) => sum + (Number(m.cantidad) * Number(m.precio_unitario || m.material?.precio_unitario || 0)), 0) || 0
 
   return (
     <div className="space-y-6">

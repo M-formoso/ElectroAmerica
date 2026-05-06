@@ -8,6 +8,8 @@ from app.models.proyecto import EstadoProyecto
 from app.schemas.proyecto import ProyectoCreate, ProyectoUpdate, ProyectoResponse, ProyectoDetailResponse
 from app.schemas.etapa import EtapaResponse
 from app.schemas.gasto import GastoResponse
+from app.schemas.material import AsignacionMaterialResponse
+from app.models.asignacion_material import AsignacionMaterial
 from app.services import proyecto_service, etapa_service, gasto_service
 
 router = APIRouter()
@@ -125,6 +127,43 @@ def listar_etapas_proyecto(
         raise HTTPException(status_code=403, detail="No tiene acceso a este proyecto")
 
     return etapa_service.obtener_etapas(db, proyecto_id)
+
+
+@router.get("/{proyecto_id}/materiales", response_model=List[AsignacionMaterialResponse])
+def listar_materiales_proyecto(
+    proyecto_id: UUID,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_usuario_actual)
+):
+    """Lista los materiales asignados a un proyecto."""
+    if not proyecto_service.verificar_acceso_proyecto(db, proyecto_id, usuario.id, usuario.rol):
+        raise HTTPException(status_code=403, detail="No tiene acceso a este proyecto")
+
+    asignaciones = (
+        db.query(AsignacionMaterial)
+        .filter(
+            AsignacionMaterial.proyecto_id == proyecto_id,
+            AsignacionMaterial.activo == True
+        )
+        .order_by(AsignacionMaterial.fecha_asignacion.desc())
+        .all()
+    )
+
+    return [
+        AsignacionMaterialResponse(
+            id=a.id,
+            material_id=a.material_id,
+            proyecto_id=a.proyecto_id,
+            etapa_id=a.etapa_id,
+            cantidad=a.cantidad,
+            precio_unitario=a.material.precio_unitario if a.material else None,
+            fecha=a.fecha_asignacion,
+            observaciones=a.notas,
+            material_nombre=a.material.nombre if a.material else None,
+            created_at=a.created_at
+        )
+        for a in asignaciones
+    ]
 
 
 @router.get("/{proyecto_id}/gastos", response_model=List[GastoResponse])
