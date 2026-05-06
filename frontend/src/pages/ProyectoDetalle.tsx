@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -172,10 +172,23 @@ export function ProyectoDetallePage() {
   // Estados para registrar avance
   const [isRegistrarAvanceOpen, setIsRegistrarAvanceOpen] = useState(false)
   const [selectedActividadAvance, setSelectedActividadAvance] = useState<any>(null)
-  const [avanceForm, setAvanceForm] = useState({
+  const [avanceForm, setAvanceForm] = useState<{
+    fecha: string
+    cantidad: string
+    observaciones: string
+    materiales: Array<{
+      material_id: string
+      material_nombre: string
+      cantidad_por_unidad: number
+      cantidad: string
+      unidad: string
+      stock_actual: number
+    }>
+  }>({
     fecha: new Date().toISOString().split('T')[0],
     cantidad: '',
     observaciones: '',
+    materiales: [],
   })
 
   // Estados para agregar gasto
@@ -235,6 +248,14 @@ export function ProyectoDetallePage() {
     queryKey: ['proyecto-actividades-resumen', proyectoId],
     queryFn: () => proyectoActividadesService.getResumen(proyectoId!),
     enabled: !!proyectoId,
+  })
+
+  // Detalle de la actividad que se va a avanzar (para traer materiales calculados)
+  const { data: actividadDetalleAvance } = useQuery({
+    queryKey: ['proyecto-actividad-detalle', proyectoId, selectedActividadAvance?.id],
+    queryFn: () =>
+      proyectoActividadesService.getActividad(proyectoId!, selectedActividadAvance.id),
+    enabled: !!proyectoId && !!selectedActividadAvance?.id && isRegistrarAvanceOpen,
   })
 
   // Queries para listas de seleccion
@@ -375,16 +396,32 @@ export function ProyectoDetallePage() {
 
   // Mutation para registrar avance
   const registrarAvanceMutation = useMutation({
-    mutationFn: (data: { actividadId: string; fecha: string; cantidad: number; observaciones?: string }) =>
+    mutationFn: (data: {
+      actividadId: string
+      fecha: string
+      cantidad: number
+      observaciones?: string
+      materiales_consumidos?: Array<{
+        material_id: string
+        material_nombre: string
+        cantidad: number
+        unidad: string
+      }>
+    }) =>
       proyectoActividadesService.createAvance(proyectoId!, data.actividadId, {
         fecha: data.fecha,
         cantidad: data.cantidad,
         observaciones: data.observaciones,
+        materiales_consumidos: data.materiales_consumidos,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['proyecto-actividades', proyectoId] })
       queryClient.invalidateQueries({ queryKey: ['proyecto-actividades-resumen', proyectoId] })
       queryClient.invalidateQueries({ queryKey: ['proyecto', proyectoId] })
+      queryClient.invalidateQueries({ queryKey: ['proyecto-actividad-detalle', proyectoId] })
+      queryClient.invalidateQueries({ queryKey: ['proyecto-actividad-avances', proyectoId] })
+      queryClient.invalidateQueries({ queryKey: ['materiales'] })
+      queryClient.invalidateQueries({ queryKey: ['proyecto-materiales', proyectoId] })
       toast({ title: 'Avance registrado exitosamente' })
       setIsRegistrarAvanceOpen(false)
       setSelectedActividadAvance(null)
@@ -392,10 +429,14 @@ export function ProyectoDetallePage() {
         fecha: new Date().toISOString().split('T')[0],
         cantidad: '',
         observaciones: '',
+        materiales: [],
       })
     },
-    onError: () => {
-      toast({ variant: 'destructive', title: 'Error al registrar avance' })
+    onError: (error: any) => {
+      toast({
+        variant: 'destructive',
+        title: error?.response?.data?.detail || 'Error al registrar avance'
+      })
     },
   })
 
@@ -542,19 +583,81 @@ export function ProyectoDetallePage() {
       fecha: new Date().toISOString().split('T')[0],
       cantidad: '',
       observaciones: '',
+      materiales: [],
     })
     setIsRegistrarAvanceOpen(true)
+  }
+
+  // Cuando se carga el detalle de la actividad, inicializar la lista de
+  // materiales del form usando la "cantidad por unidad" derivada del total / planificada.
+  useEffect(() => {
+    if (
+      !isRegistrarAvanceOpen ||
+      !selectedActividadAvance ||
+      !actividadDetalleAvance?.materiales_calculados
+    ) {
+      return
+    }
+    const planificada = Number(selectedActividadAvance.cantidad_planificada) || 1
+    setAvanceForm((prev) => ({
+      ...prev,
+      materiales: actividadDetalleAvance.materiales_calculados!.map((m) => ({
+        material_id: m.material_id,
+        material_nombre: m.material_nombre,
+        cantidad_por_unidad: Number(m.cantidad_total) / planificada,
+        cantidad: '',
+        unidad: m.unidad,
+        stock_actual: Number(m.stock_actual ?? 0),
+      })),
+    }))
+  }, [actividadDetalleAvance, isRegistrarAvanceOpen, selectedActividadAvance])
+
+  // Cuando cambia la cantidad de avance, recalcular el consumo proporcional
+  // de cada material (si el usuario aun no lo edito manualmente).
+  const handleAvanceCantidadChange = (val: string) => {
+    setAvanceForm((prev) => {
+      const cantidadNum = parseFloat(val) || 0
+      return {
+        ...prev,
+        cantidad: val,
+        materiales: prev.materiales.map((m) => ({
+          ...m,
+          cantidad: cantidadNum > 0
+            ? (m.cantidad_por_unidad * cantidadNum).toFixed(2)
+            : '',
+        })),
+      }
+    })
+  }
+
+  const handleAvanceMaterialChange = (materialId: string, val: string) => {
+    setAvanceForm((prev) => ({
+      ...prev,
+      materiales: prev.materiales.map((m) =>
+        m.material_id === materialId ? { ...m, cantidad: val } : m
+      ),
+    }))
   }
 
   const handleRegistrarAvance = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedActividadAvance || !avanceForm.cantidad) return
 
+    const materialesConsumidos = avanceForm.materiales
+      .filter((m) => parseFloat(m.cantidad) > 0)
+      .map((m) => ({
+        material_id: m.material_id,
+        material_nombre: m.material_nombre,
+        cantidad: parseFloat(m.cantidad),
+        unidad: m.unidad,
+      }))
+
     registrarAvanceMutation.mutate({
       actividadId: selectedActividadAvance.id,
       fecha: avanceForm.fecha,
       cantidad: parseFloat(avanceForm.cantidad),
       observaciones: avanceForm.observaciones || undefined,
+      materiales_consumidos: materialesConsumidos.length > 0 ? materialesConsumidos : undefined,
     })
   }
 
@@ -1806,13 +1909,13 @@ export function ProyectoDetallePage() {
 
       {/* Registrar Avance Dialog */}
       <Dialog open={isRegistrarAvanceOpen} onOpenChange={setIsRegistrarAvanceOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Registrar Avance</DialogTitle>
             <DialogDescription>
               {selectedActividadAvance && (
                 <span>
-                  {selectedActividadAvance.actividad_nombre} - Pendiente:{' '}
+                  {selectedActividadAvance.actividad_nombre} — Pendiente:{' '}
                   {(Number(selectedActividadAvance.cantidad_planificada) - Number(selectedActividadAvance.cantidad_ejecutada)).toFixed(2)}{' '}
                   {selectedActividadAvance.unidad_trabajo}
                 </span>
@@ -1821,39 +1924,98 @@ export function ProyectoDetallePage() {
           </DialogHeader>
 
           <form onSubmit={handleRegistrarAvance} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Fecha</Label>
-              <Input
-                type="date"
-                value={avanceForm.fecha}
-                onChange={(e) => setAvanceForm({ ...avanceForm, fecha: e.target.value })}
-                required
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Fecha</Label>
+                <Input
+                  type="date"
+                  value={avanceForm.fecha}
+                  onChange={(e) => setAvanceForm({ ...avanceForm, fecha: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>
+                  Cantidad ejecutada ({selectedActividadAvance?.unidad_trabajo})
+                </Label>
+                <Input
+                  type="number"
+                  value={avanceForm.cantidad}
+                  onChange={(e) => handleAvanceCantidadChange(e.target.value)}
+                  min={0.01}
+                  step={0.01}
+                  max={
+                    selectedActividadAvance
+                      ? selectedActividadAvance.cantidad_planificada - selectedActividadAvance.cantidad_ejecutada
+                      : undefined
+                  }
+                  required
+                />
+                {selectedActividadAvance && (
+                  <p className="text-xs text-muted-foreground">
+                    Máximo: {(Number(selectedActividadAvance.cantidad_planificada) - Number(selectedActividadAvance.cantidad_ejecutada)).toFixed(2)}
+                  </p>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>
-                Cantidad ({selectedActividadAvance?.unidad_trabajo})
-              </Label>
-              <Input
-                type="number"
-                value={avanceForm.cantidad}
-                onChange={(e) => setAvanceForm({ ...avanceForm, cantidad: e.target.value })}
-                min={0.01}
-                step={0.01}
-                max={
-                  selectedActividadAvance
-                    ? selectedActividadAvance.cantidad_planificada - selectedActividadAvance.cantidad_ejecutada
-                    : undefined
-                }
-                required
-              />
-              {selectedActividadAvance && (
+            {/* Materiales consumidos */}
+            {avanceForm.materiales.length > 0 && (
+              <div className="space-y-2 pt-2 border-t">
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-primary" />
+                  <Label className="text-base font-semibold">Materiales consumidos</Label>
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  Máximo: {(Number(selectedActividadAvance.cantidad_planificada) - Number(selectedActividadAvance.cantidad_ejecutada)).toFixed(2)}
+                  Se prellena segun la cantidad ingresada. Ajustá si consumiste mas o menos.
+                  El stock se descuenta automáticamente al guardar.
                 </p>
-              )}
-            </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Material</TableHead>
+                      <TableHead className="text-right">Stock</TableHead>
+                      <TableHead className="text-right w-32">Cantidad</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {avanceForm.materiales.map((mat) => {
+                      const cantidadNum = parseFloat(mat.cantidad) || 0
+                      const insuficiente = cantidadNum > mat.stock_actual
+                      return (
+                        <TableRow key={mat.material_id}>
+                          <TableCell className="py-2">
+                            <div className="font-medium text-sm">{mat.material_nombre}</div>
+                            <div className="text-xs text-muted-foreground">{mat.unidad}</div>
+                          </TableCell>
+                          <TableCell className={`py-2 text-right text-sm ${insuficiente ? 'text-destructive font-semibold' : 'text-muted-foreground'}`}>
+                            {Number(mat.stock_actual).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="py-2">
+                            <Input
+                              type="number"
+                              min={0}
+                              step={0.01}
+                              value={mat.cantidad}
+                              onChange={(e) => handleAvanceMaterialChange(mat.material_id, e.target.value)}
+                              className={`text-right ${insuficiente ? 'border-destructive' : ''}`}
+                              placeholder="0"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+                {avanceForm.materiales.some((m) => parseFloat(m.cantidad) > m.stock_actual) && (
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Hay materiales con cantidad mayor al stock disponible.
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Observaciones (opcional)</Label>
@@ -1868,7 +2030,13 @@ export function ProyectoDetallePage() {
               <Button type="button" variant="outline" onClick={() => setIsRegistrarAvanceOpen(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={registrarAvanceMutation.isPending}>
+              <Button
+                type="submit"
+                disabled={
+                  registrarAvanceMutation.isPending ||
+                  avanceForm.materiales.some((m) => parseFloat(m.cantidad) > m.stock_actual)
+                }
+              >
                 {registrarAvanceMutation.isPending && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 )}

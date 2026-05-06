@@ -497,24 +497,34 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
                             {avances.map((avance: AvanceActividad) => (
                               <div
                                 key={avance.id}
-                                className="flex items-center justify-between border rounded p-2 text-sm"
+                                className="border rounded p-2 text-sm space-y-1"
                               >
-                                <div>
-                                  <span className="font-medium">{formatDate(avance.fecha)}</span>
-                                  {avance.registrado_por_nombre && (
-                                    <span className="text-muted-foreground ml-2">
-                                      por {avance.registrado_por_nombre}
-                                    </span>
-                                  )}
-                                  {avance.observaciones && (
-                                    <p className="text-muted-foreground text-xs mt-1">
-                                      {avance.observaciones}
-                                    </p>
-                                  )}
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <span className="font-medium">{formatDate(avance.fecha)}</span>
+                                    {avance.registrado_por_nombre && (
+                                      <span className="text-muted-foreground ml-2">
+                                        por {avance.registrado_por_nombre}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <Badge variant="outline">
+                                    +{avance.cantidad} {actividad.unidad_trabajo}
+                                  </Badge>
                                 </div>
-                                <Badge variant="outline">
-                                  +{avance.cantidad} {actividad.unidad_trabajo}
-                                </Badge>
+                                {avance.observaciones && (
+                                  <p className="text-muted-foreground text-xs">
+                                    {avance.observaciones}
+                                  </p>
+                                )}
+                                {avance.materiales_consumidos && avance.materiales_consumidos.length > 0 && (
+                                  <div className="text-xs text-muted-foreground border-t pt-1 mt-1">
+                                    <span className="font-medium">Materiales:</span>{' '}
+                                    {avance.materiales_consumidos
+                                      .map((m) => `${m.material_nombre} ${m.cantidad}${m.unidad}`)
+                                      .join(', ')}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>

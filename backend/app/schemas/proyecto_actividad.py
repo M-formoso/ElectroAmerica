@@ -17,6 +17,7 @@ class MaterialCalculado(BaseModel):
     material_codigo: Optional[str] = None
     cantidad_total: Decimal
     unidad: str
+    stock_actual: Optional[Decimal] = None
 
 
 class MaterialConsumido(BaseModel):

@@ -7,12 +7,14 @@ from uuid import UUID
 from typing import List, Optional
 from decimal import Decimal
 from datetime import date
+from fastapi import HTTPException
 
 from app.models.proyecto_actividad import ProyectoActividad, AvanceActividad, ProyectoHerramienta
 from app.models.actividad_tipo import ActividadTipo, MaterialActividadTipo
 from app.models.proyecto import Proyecto
 from app.models.herramienta import Herramienta
 from app.models.material import Material
+from app.models.movimiento_stock import MovimientoStock, TipoMovimiento
 from app.schemas.proyecto_actividad import (
     ProyectoActividadCreate,
     ProyectoActividadUpdate,
@@ -58,7 +60,8 @@ class ProyectoActividadService:
                     material_nombre=material.nombre,
                     material_codigo=material.codigo,
                     cantidad_total=cantidad_total,
-                    unidad=material.unidad
+                    unidad=material.unidad,
+                    stock_actual=material.stock_actual
                 ))
 
         return materiales_calculados
@@ -191,11 +194,35 @@ class ProyectoActividadService:
     ) -> AvanceActividad:
         """
         Registra un avance en una actividad de proyecto.
-        Actualiza automáticamente la cantidad ejecutada.
+        Actualiza la cantidad ejecutada y descuenta del stock los materiales
+        consumidos (registrando movimientos).
         """
         actividad = self.obtener_actividad(actividad_id)
         if not actividad:
             raise ValueError(f"Actividad {actividad_id} no encontrada")
+
+        # Validar stock antes de descontar nada
+        if avance_data.materiales_consumidos:
+            for consumo in avance_data.materiales_consumidos:
+                if consumo.cantidad <= 0:
+                    continue
+                material = self.db.query(Material).filter(
+                    Material.id == consumo.material_id
+                ).first()
+                if not material:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Material {consumo.material_id} no encontrado"
+                    )
+                if material.stock_actual < consumo.cantidad:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"Stock insuficiente de '{material.nombre}'. "
+                            f"Disponible: {material.stock_actual} {material.unidad}, "
+                            f"requerido: {consumo.cantidad}"
+                        )
+                    )
 
         # Crear el registro de avance
         avance = AvanceActividad(
@@ -206,11 +233,31 @@ class ProyectoActividadService:
             registrado_por_id=registrado_por_id,
             materiales_consumidos=[m.model_dump(mode='json') for m in avance_data.materiales_consumidos] if avance_data.materiales_consumidos else None
         )
-
         self.db.add(avance)
 
         # Actualizar cantidad ejecutada de la actividad
         actividad.cantidad_ejecutada = actividad.cantidad_ejecutada + avance_data.cantidad
+
+        # Descontar stock y registrar movimientos
+        if avance_data.materiales_consumidos:
+            for consumo in avance_data.materiales_consumidos:
+                if consumo.cantidad <= 0:
+                    continue
+                material = self.db.query(Material).filter(
+                    Material.id == consumo.material_id
+                ).first()
+                stock_anterior = material.stock_actual
+                material.stock_actual = stock_anterior - consumo.cantidad
+                self.db.add(MovimientoStock(
+                    material_id=material.id,
+                    tipo=TipoMovimiento.salida,
+                    cantidad=consumo.cantidad,
+                    stock_anterior=stock_anterior,
+                    stock_nuevo=material.stock_actual,
+                    motivo=f"Consumo en avance de tarea {actividad.actividad_tipo.nombre if actividad.actividad_tipo else ''}".strip(),
+                    proyecto_id=actividad.proyecto_id,
+                    usuario_id=registrado_por_id
+                ))
 
         self.db.commit()
         self.db.refresh(avance)

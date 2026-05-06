@@ -8,6 +8,7 @@ export interface MaterialCalculado {
   material_codigo?: string
   cantidad_total: number
   unidad: string
+  stock_actual?: number
 }
 
 export interface MaterialConsumido {
