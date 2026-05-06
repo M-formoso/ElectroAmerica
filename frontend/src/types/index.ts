@@ -41,8 +41,8 @@ export interface Proyecto {
   porcentaje_avance: number
   monto_contratado?: number
   cliente_id?: string
+  cliente_nombre?: string
   supervisor_id?: string
-  cliente?: Usuario
   supervisor?: Usuario
   activo: boolean
   created_at: string

@@ -43,6 +43,7 @@ class ProyectoResponse(ProyectoBase):
     """Schema de respuesta de proyecto."""
     id: UUID
     cliente_id: Optional[UUID] = None
+    cliente_nombre: Optional[str] = None
     fecha_fin_real: Optional[date] = None
     porcentaje_avance: Decimal
     activo: bool

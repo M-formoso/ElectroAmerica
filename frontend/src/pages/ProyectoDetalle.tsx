@@ -664,9 +664,7 @@ export function ProyectoDetallePage() {
           </CardHeader>
           <CardContent>
             <div className="text-lg font-medium">
-              {proyecto.cliente
-                ? `${proyecto.cliente.nombre} ${proyecto.cliente.apellido}`
-                : 'Sin asignar'}
+              {proyecto.cliente_nombre || 'Sin asignar'}
             </div>
           </CardContent>
         </Card>

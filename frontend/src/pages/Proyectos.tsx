@@ -213,8 +213,8 @@ export function ProyectosPage() {
     const matchesSearch = p.nombre.toLowerCase().includes(search.toLowerCase()) ||
       p.ubicacion?.toLowerCase().includes(search.toLowerCase())
     const matchesCliente = clienteFilter === 'todos' ||
-      (clienteFilter === 'sin_cliente' && !p.cliente) ||
-      p.cliente?.id === clienteFilter
+      (clienteFilter === 'sin_cliente' && !p.cliente_id) ||
+      p.cliente_id === clienteFilter
     return matchesSearch && matchesCliente
   })
 
@@ -225,11 +225,11 @@ export function ProyectosPage() {
           <CardHeader className="pb-2">
             <div className="flex items-start justify-between">
               <div className="space-y-1 flex-1 min-w-0">
-                {proyecto.cliente ? (
+                {proyecto.cliente_nombre ? (
                   <div className="flex items-center gap-2 mb-1">
                     <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
                       <User className="h-3 w-3 mr-1" />
-                      {proyecto.cliente.nombre} {proyecto.cliente.apellido}
+                      {proyecto.cliente_nombre}
                     </Badge>
                   </div>
                 ) : (
@@ -353,10 +353,7 @@ export function ProyectosPage() {
                 {proyecto.fecha_fin_estimada ? formatDate(proyecto.fecha_fin_estimada) : '-'}
               </TableCell>
               <TableCell className="text-muted-foreground">
-                {proyecto.cliente
-                  ? `${proyecto.cliente.nombre} ${proyecto.cliente.apellido}`
-                  : '-'
-                }
+                {proyecto.cliente_nombre || '-'}
               </TableCell>
               <TableCell>
                 <DropdownMenu>
@@ -608,20 +605,15 @@ export function ProyectosPage() {
                       actividadesTipo.map((actividad) => {
                         const checked = formData.actividades_tipo_ids.includes(actividad.id)
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={actividad.id}
-                            role="button"
-                            tabIndex={0}
-                            className={`flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors ${
+                            className={`w-full flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors text-left ${
                               checked ? 'bg-primary/10' : ''
                             }`}
                             onClick={() => toggleActividadTipo(actividad.id)}
                           >
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={() => toggleActividadTipo(actividad.id)}
-                              onClick={(e) => e.stopPropagation()}
-                            />
+                            <Checkbox checked={checked} className="pointer-events-none" />
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">{actividad.nombre}</p>
                               <p className="text-xs text-muted-foreground">
@@ -629,7 +621,7 @@ export function ProyectosPage() {
                               </p>
                             </div>
                             {checked && <Check className="h-4 w-4 text-primary" />}
-                          </div>
+                          </button>
                         )
                       })
                     )}
@@ -659,20 +651,15 @@ export function ProyectosPage() {
                       herramientas.map((herramienta) => {
                         const checked = formData.herramientas_ids.includes(herramienta.id)
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={herramienta.id}
-                            role="button"
-                            tabIndex={0}
-                            className={`flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors ${
+                            className={`w-full flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors text-left ${
                               checked ? 'bg-primary/10' : ''
                             }`}
                             onClick={() => toggleHerramienta(herramienta.id)}
                           >
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={() => toggleHerramienta(herramienta.id)}
-                              onClick={(e) => e.stopPropagation()}
-                            />
+                            <Checkbox checked={checked} className="pointer-events-none" />
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">{herramienta.nombre}</p>
                               {herramienta.descripcion && (
@@ -688,7 +675,7 @@ export function ProyectosPage() {
                               {herramienta.estado_prestamo === 'disponible' ? 'Disponible' : 'En uso'}
                             </Badge>
                             {checked && <Check className="h-4 w-4 text-primary" />}
-                          </div>
+                          </button>
                         )
                       })
                     )}

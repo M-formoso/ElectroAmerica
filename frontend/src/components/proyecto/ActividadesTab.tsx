@@ -665,20 +665,15 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
                   {tareasNoAsignadas.map((tarea) => {
                     const checked = selectedTareas.includes(tarea.id)
                     return (
-                    <div
+                    <button
+                      type="button"
                       key={tarea.id}
-                      role="button"
-                      tabIndex={0}
-                      className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                      className={`w-full flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors text-left ${
                         checked ? 'bg-primary/10 border-primary' : 'hover:bg-muted'
                       }`}
                       onClick={() => toggleTareaSelection(tarea.id)}
                     >
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={() => toggleTareaSelection(tarea.id)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
+                      <Checkbox checked={checked} className="pointer-events-none" />
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-sm text-muted-foreground">
@@ -700,7 +695,7 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
                           )}
                         </div>
                       </div>
-                    </div>
+                    </button>
                     )
                   })}
                 </div>

@@ -68,5 +68,10 @@ class Proyecto(Base, BaseModel):
         cascade="all, delete-orphan"
     )
 
+    @property
+    def cliente_nombre(self):
+        """Nombre del cliente para mostrar (razon_social/nombre_fantasia)."""
+        return self.cliente.nombre_display if self.cliente else None
+
     def __repr__(self):
         return f"<Proyecto {self.nombre}>"
