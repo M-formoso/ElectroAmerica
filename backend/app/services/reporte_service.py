@@ -173,7 +173,7 @@ def obtener_datos_reporte(
     cliente_data = None
     if proyecto.cliente:
         cliente_data = {
-            "nombre": f"{proyecto.cliente.nombre} {proyecto.cliente.apellido}",
+            "nombre": proyecto.cliente.nombre_display,
             "email": proyecto.cliente.email,
             "telefono": proyecto.cliente.telefono,
         }

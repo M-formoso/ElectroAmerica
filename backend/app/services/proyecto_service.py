@@ -6,6 +6,7 @@ from decimal import Decimal
 from app.models.proyecto import Proyecto, EstadoProyecto
 from app.models.etapa import Etapa
 from app.models.usuario import RolUsuario
+from app.models.cliente import Cliente
 from app.models.proyecto_actividad import ProyectoActividad, ProyectoHerramienta
 from app.schemas.proyecto import ProyectoCreate, ProyectoUpdate
 from app.schemas.proyecto_actividad import ProyectoActividadCreate
@@ -161,8 +162,12 @@ def verificar_acceso_proyecto(
     if rol in [RolUsuario.administrador, RolUsuario.supervisor, RolUsuario.operario]:
         return True
 
-    # Cliente solo a sus proyectos
+    # Cliente solo a sus proyectos: cliente_id en proyectos es FK a clientes,
+    # asi que tenemos que buscar el Cliente asociado al usuario.
     if rol == RolUsuario.cliente:
-        return proyecto.cliente_id == usuario_id
+        cliente = db.query(Cliente).filter(Cliente.usuario_id == usuario_id).first()
+        if not cliente:
+            return False
+        return proyecto.cliente_id == cliente.id
 
     return False

@@ -50,12 +50,5 @@ class Usuario(Base, BaseModel):
     # Flag para superadmin que ve todo
     es_superadmin = Column(Boolean, nullable=False, default=False)
 
-    # Relaciones
-    proyectos_asignados = relationship(
-        "Proyecto",
-        back_populates="cliente",
-        foreign_keys="Proyecto.cliente_id"
-    )
-
     def __repr__(self):
         return f"<Usuario {self.email}>"

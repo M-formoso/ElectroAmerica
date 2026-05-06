@@ -29,9 +29,14 @@ def listar_proyectos(
     - Admin/Supervisor/Operario: ven todos los proyectos
     - Cliente: solo ve sus proyectos asignados
     """
-    # Cliente solo ve sus proyectos
+    # Cliente solo ve sus proyectos. cliente_id en proyectos es FK a clientes,
+    # asi que tenemos que buscar el Cliente asociado al usuario.
     if usuario.rol == RolUsuario.cliente:
-        cliente_id = usuario.id
+        from app.models.cliente import Cliente
+        cliente_empresa = db.query(Cliente).filter(Cliente.usuario_id == usuario.id).first()
+        if not cliente_empresa:
+            return []
+        cliente_id = cliente_empresa.id
 
     return proyecto_service.obtener_proyectos(db, skip, limit, estado, cliente_id)
 
@@ -81,7 +86,7 @@ def obtener_proyecto(
         supervisor_id=proyecto.supervisor_id,
         total_etapas=stats.get("total_etapas", 0),
         etapas_completadas=stats.get("etapas_completadas", 0),
-        cliente_nombre=proyecto.cliente.nombre if proyecto.cliente else None
+        cliente_nombre=proyecto.cliente.nombre_display if proyecto.cliente else None
     )
 
     # Solo admin/supervisor ven monto contratado

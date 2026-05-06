@@ -19,7 +19,7 @@ class Proyecto(Base, BaseModel):
 
     nombre = Column(String(255), nullable=False)
     descripcion = Column(Text, nullable=True)
-    cliente_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    cliente_id = Column(UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=True)
     ubicacion = Column(String(255), nullable=True)
     fecha_inicio = Column(Date, nullable=True)
     fecha_fin_estimada = Column(Date, nullable=True)
@@ -31,9 +31,9 @@ class Proyecto(Base, BaseModel):
 
     # Relaciones
     cliente = relationship(
-        "Usuario",
+        "Cliente",
         foreign_keys=[cliente_id],
-        back_populates="proyectos_asignados"
+        backref="proyectos"
     )
     supervisor = relationship(
         "Usuario",

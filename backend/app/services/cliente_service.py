@@ -165,7 +165,7 @@ def get_cliente_response(db: Session, cliente: Cliente) -> ClienteResponse:
     """Convierte un cliente a response con datos adicionales."""
     # Contar proyectos
     cantidad_proyectos = db.query(func.count(Proyecto.id)).filter(
-        Proyecto.cliente_id == cliente.usuario_id,
+        Proyecto.cliente_id == cliente.id,
         Proyecto.activo == True
     ).scalar() or 0
 
@@ -241,7 +241,7 @@ def get_estado_cuenta(db: Session, cliente_id: UUID) -> Optional[EstadoCuentaCli
 
     # Proyectos activos del cliente
     proyectos_activos = db.query(func.count(Proyecto.id)).filter(
-        Proyecto.cliente_id == cliente.usuario_id,
+        Proyecto.cliente_id == cliente.id,
         Proyecto.activo == True,
         Proyecto.estado.in_(["planificacion", "en_ejecucion"])
     ).scalar() or 0
@@ -462,7 +462,7 @@ def get_proyectos_cliente(db: Session, cliente_id: UUID) -> List[ProyectoCliente
         return []
 
     proyectos = db.query(Proyecto).filter(
-        Proyecto.cliente_id == cliente.usuario_id,
+        Proyecto.cliente_id == cliente.id,
         Proyecto.activo == True
     ).order_by(Proyecto.created_at.desc()).all()
 

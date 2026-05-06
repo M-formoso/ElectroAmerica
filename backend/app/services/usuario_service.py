@@ -114,17 +114,23 @@ def asignar_proyectos_a_cliente(
     cliente_id: UUID,
     proyecto_ids: List[UUID]
 ) -> bool:
-    """Asigna proyectos a un cliente."""
+    """Asigna proyectos a un cliente. cliente_id es el id del Usuario con rol=cliente."""
     from app.models.proyecto import Proyecto
+    from app.models.cliente import Cliente
 
-    cliente = obtener_usuario(db, cliente_id)
-    if not cliente or cliente.rol != RolUsuario.cliente:
+    usuario_cliente = obtener_usuario(db, cliente_id)
+    if not usuario_cliente or usuario_cliente.rol != RolUsuario.cliente:
+        return False
+
+    # Buscar el Cliente asociado a este usuario (Proyecto.cliente_id es FK a clientes)
+    cliente_empresa = db.query(Cliente).filter(Cliente.usuario_id == cliente_id).first()
+    if not cliente_empresa:
         return False
 
     # Actualizar proyectos
     db.query(Proyecto).filter(
         Proyecto.id.in_(proyecto_ids)
-    ).update({Proyecto.cliente_id: cliente_id}, synchronize_session=False)
+    ).update({Proyecto.cliente_id: cliente_empresa.id}, synchronize_session=False)
 
     db.commit()
     return True

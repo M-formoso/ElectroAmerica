@@ -4,6 +4,7 @@ from typing import List
 from uuid import UUID
 from app.core.deps import get_db, get_usuario_actual
 from app.models.usuario import Usuario, RolUsuario
+from app.models.cliente import Cliente
 from app.models.proyecto import Proyecto
 from app.models.etapa import Etapa
 from app.models.foto import Foto
@@ -23,6 +24,17 @@ def verificar_cliente(usuario: Usuario):
             detail="Acceso restringido solo para clientes"
         )
     return usuario
+
+
+def _obtener_cliente_id_de_usuario(db: Session, usuario_id: UUID) -> UUID:
+    """Obtiene el id del Cliente asociado al usuario del portal."""
+    cliente = db.query(Cliente).filter(Cliente.usuario_id == usuario_id).first()
+    if not cliente:
+        raise HTTPException(
+            status_code=404,
+            detail="No hay un cliente asociado a este usuario"
+        )
+    return cliente.id
 
 
 def verificar_proyecto_cliente(db: Session, proyecto_id: UUID, cliente_id: UUID) -> Proyecto:
@@ -51,9 +63,10 @@ def mis_proyectos(
     NO incluye información financiera.
     """
     verificar_cliente(usuario)
+    cliente_id = _obtener_cliente_id_de_usuario(db, usuario.id)
 
     proyectos = db.query(Proyecto).filter(
-        Proyecto.cliente_id == usuario.id,
+        Proyecto.cliente_id == cliente_id,
         Proyecto.activo == True
     ).order_by(Proyecto.fecha_inicio.desc()).all()
 
@@ -71,7 +84,8 @@ def detalle_proyecto(
     NO incluye información financiera.
     """
     verificar_cliente(usuario)
-    proyecto = verificar_proyecto_cliente(db, proyecto_id, usuario.id)
+    cliente_id = _obtener_cliente_id_de_usuario(db, usuario.id)
+    proyecto = verificar_proyecto_cliente(db, proyecto_id, cliente_id)
     return proyecto
 
 
@@ -86,7 +100,8 @@ def etapas_proyecto(
     NO incluye costos ni precios.
     """
     verificar_cliente(usuario)
-    verificar_proyecto_cliente(db, proyecto_id, usuario.id)
+    cliente_id = _obtener_cliente_id_de_usuario(db, usuario.id)
+    verificar_proyecto_cliente(db, proyecto_id, cliente_id)
 
     etapas = db.query(Etapa).filter(
         Etapa.proyecto_id == proyecto_id,
@@ -107,7 +122,8 @@ def fotos_proyecto(
     Solo muestra fotos con visible_cliente=True.
     """
     verificar_cliente(usuario)
-    verificar_proyecto_cliente(db, proyecto_id, usuario.id)
+    cliente_id = _obtener_cliente_id_de_usuario(db, usuario.id)
+    verificar_proyecto_cliente(db, proyecto_id, cliente_id)
 
     fotos = db.query(Foto).filter(
         Foto.proyecto_id == proyecto_id,
@@ -129,7 +145,8 @@ def ultimo_reporte(
     Solo reportes marcados como compartido_cliente=True.
     """
     verificar_cliente(usuario)
-    verificar_proyecto_cliente(db, proyecto_id, usuario.id)
+    cliente_id = _obtener_cliente_id_de_usuario(db, usuario.id)
+    verificar_proyecto_cliente(db, proyecto_id, cliente_id)
 
     reporte = db.query(Reporte).filter(
         Reporte.proyecto_id == proyecto_id,

@@ -393,7 +393,7 @@ def descargar_resumen_pdf(
             'nombre': proyecto.nombre,
             'ubicacion': proyecto.ubicacion,
             'fecha_inicio': proyecto.fecha_inicio.strftime('%d/%m/%Y') if proyecto.fecha_inicio else None,
-            'cliente_nombre': proyecto.cliente.nombre if proyecto.cliente else None,
+            'cliente_nombre': proyecto.cliente.nombre_display if proyecto.cliente else None,
         },
         'actividades': [
             {
