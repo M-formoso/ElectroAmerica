@@ -605,29 +605,33 @@ export function ProyectosPage() {
                         No hay actividades tipo disponibles
                       </p>
                     ) : (
-                      actividadesTipo.map((actividad) => (
-                        <div
-                          key={actividad.id}
-                          className={`flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors ${
-                            formData.actividades_tipo_ids.includes(actividad.id) ? 'bg-primary/10' : ''
-                          }`}
-                          onClick={() => toggleActividadTipo(actividad.id)}
-                        >
-                          <Checkbox
-                            checked={formData.actividades_tipo_ids.includes(actividad.id)}
-                            onCheckedChange={() => toggleActividadTipo(actividad.id)}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{actividad.nombre}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {actividad.categoria} • {actividad.cantidad_materiales} materiales
-                            </p>
+                      actividadesTipo.map((actividad) => {
+                        const checked = formData.actividades_tipo_ids.includes(actividad.id)
+                        return (
+                          <div
+                            key={actividad.id}
+                            role="button"
+                            tabIndex={0}
+                            className={`flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors ${
+                              checked ? 'bg-primary/10' : ''
+                            }`}
+                            onClick={() => toggleActividadTipo(actividad.id)}
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={() => toggleActividadTipo(actividad.id)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{actividad.nombre}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {actividad.categoria} • {actividad.cantidad_materiales} materiales
+                              </p>
+                            </div>
+                            {checked && <Check className="h-4 w-4 text-primary" />}
                           </div>
-                          {formData.actividades_tipo_ids.includes(actividad.id) && (
-                            <Check className="h-4 w-4 text-primary" />
-                          )}
-                        </div>
-                      ))
+                        )
+                      })
                     )}
                   </div>
                 </ScrollArea>
@@ -652,37 +656,41 @@ export function ProyectosPage() {
                         No hay herramientas disponibles
                       </p>
                     ) : (
-                      herramientas.map((herramienta) => (
-                        <div
-                          key={herramienta.id}
-                          className={`flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors ${
-                            formData.herramientas_ids.includes(herramienta.id) ? 'bg-primary/10' : ''
-                          }`}
-                          onClick={() => toggleHerramienta(herramienta.id)}
-                        >
-                          <Checkbox
-                            checked={formData.herramientas_ids.includes(herramienta.id)}
-                            onCheckedChange={() => toggleHerramienta(herramienta.id)}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{herramienta.nombre}</p>
-                            {herramienta.descripcion && (
-                              <p className="text-xs text-muted-foreground truncate">
-                                {herramienta.descripcion}
-                              </p>
-                            )}
-                          </div>
-                          <Badge
-                            variant={herramienta.estado_prestamo === 'disponible' ? 'secondary' : 'outline'}
-                            className="text-xs"
+                      herramientas.map((herramienta) => {
+                        const checked = formData.herramientas_ids.includes(herramienta.id)
+                        return (
+                          <div
+                            key={herramienta.id}
+                            role="button"
+                            tabIndex={0}
+                            className={`flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors ${
+                              checked ? 'bg-primary/10' : ''
+                            }`}
+                            onClick={() => toggleHerramienta(herramienta.id)}
                           >
-                            {herramienta.estado_prestamo === 'disponible' ? 'Disponible' : 'En uso'}
-                          </Badge>
-                          {formData.herramientas_ids.includes(herramienta.id) && (
-                            <Check className="h-4 w-4 text-primary" />
-                          )}
-                        </div>
-                      ))
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={() => toggleHerramienta(herramienta.id)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{herramienta.nombre}</p>
+                              {herramienta.descripcion && (
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {herramienta.descripcion}
+                                </p>
+                              )}
+                            </div>
+                            <Badge
+                              variant={herramienta.estado_prestamo === 'disponible' ? 'secondary' : 'outline'}
+                              className="text-xs"
+                            >
+                              {herramienta.estado_prestamo === 'disponible' ? 'Disponible' : 'En uso'}
+                            </Badge>
+                            {checked && <Check className="h-4 w-4 text-primary" />}
+                          </div>
+                        )
+                      })
                     )}
                   </div>
                 </ScrollArea>

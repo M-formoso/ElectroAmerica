@@ -662,19 +662,22 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
             <ScrollArea className="h-[400px] border rounded-md">
               {tareasNoAsignadas && tareasNoAsignadas.length > 0 ? (
                 <div className="p-4 space-y-2">
-                  {tareasNoAsignadas.map((tarea) => (
+                  {tareasNoAsignadas.map((tarea) => {
+                    const checked = selectedTareas.includes(tarea.id)
+                    return (
                     <div
                       key={tarea.id}
+                      role="button"
+                      tabIndex={0}
                       className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-                        selectedTareas.includes(tarea.id)
-                          ? 'bg-primary/10 border-primary'
-                          : 'hover:bg-muted'
+                        checked ? 'bg-primary/10 border-primary' : 'hover:bg-muted'
                       }`}
                       onClick={() => toggleTareaSelection(tarea.id)}
                     >
                       <Checkbox
-                        checked={selectedTareas.includes(tarea.id)}
+                        checked={checked}
                         onCheckedChange={() => toggleTareaSelection(tarea.id)}
+                        onClick={(e) => e.stopPropagation()}
                       />
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
@@ -698,7 +701,8 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
                         </div>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : tareasDisponibles ? (
                 <div className="p-8 text-center text-muted-foreground">
