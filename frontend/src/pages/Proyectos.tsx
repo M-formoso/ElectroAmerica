@@ -63,8 +63,6 @@ import { formatDate } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useIsAdmin } from '@/store/auth'
 import type { Proyecto, EstadoProyecto } from '@/types'
-import { Checkbox } from '@/components/ui/checkbox'
-import { ScrollArea } from '@/components/ui/scroll-area'
 
 interface ProyectoForm {
   nombre: string
@@ -595,7 +593,7 @@ export function ProyectosPage() {
                 <p className="text-sm text-muted-foreground">
                   Selecciona las actividades que se realizaran en este proyecto
                 </p>
-                <ScrollArea className="h-[150px] border rounded-md p-3">
+                <div className="h-[150px] overflow-y-auto border rounded-md p-3">
                   <div className="space-y-2">
                     {actividadesTipo.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-4">
@@ -620,7 +618,14 @@ export function ProyectosPage() {
                               }
                             }}
                           >
-                            <Checkbox checked={checked} className="pointer-events-none" />
+                            <span
+                              aria-hidden
+                              className={`h-4 w-4 shrink-0 rounded-sm border flex items-center justify-center ${
+                                checked ? 'bg-primary border-primary' : 'border-primary'
+                              }`}
+                            >
+                              {checked && <Check className="h-3 w-3 text-primary-foreground" />}
+                            </span>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">{actividad.nombre}</p>
                               <p className="text-xs text-muted-foreground">
@@ -633,7 +638,7 @@ export function ProyectosPage() {
                       })
                     )}
                   </div>
-                </ScrollArea>
+                </div>
               </div>
 
               {/* Seccion de Herramientas */}
@@ -648,7 +653,7 @@ export function ProyectosPage() {
                 <p className="text-sm text-muted-foreground">
                   Selecciona las herramientas necesarias para este proyecto
                 </p>
-                <ScrollArea className="h-[150px] border rounded-md p-3">
+                <div className="h-[150px] overflow-y-auto border rounded-md p-3">
                   <div className="space-y-2">
                     {herramientas.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-4">
@@ -673,7 +678,14 @@ export function ProyectosPage() {
                               }
                             }}
                           >
-                            <Checkbox checked={checked} className="pointer-events-none" />
+                            <span
+                              aria-hidden
+                              className={`h-4 w-4 shrink-0 rounded-sm border flex items-center justify-center ${
+                                checked ? 'bg-primary border-primary' : 'border-primary'
+                              }`}
+                            >
+                              {checked && <Check className="h-3 w-3 text-primary-foreground" />}
+                            </span>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">{herramienta.nombre}</p>
                               {herramienta.descripcion && (
@@ -694,7 +706,7 @@ export function ProyectosPage() {
                       })
                     )}
                   </div>
-                </ScrollArea>
+                </div>
               </div>
             </div>
             <DialogFooter>
