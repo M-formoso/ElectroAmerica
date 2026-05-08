@@ -57,12 +57,18 @@ import { Textarea } from '@/components/ui/textarea'
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle'
 import { proyectosService } from '@/services/proyectos'
 import { actividadesTipoService, type ActividadTipoList } from '@/services/actividadesTipo'
+import { proyectoActividadesService } from '@/services/proyectoActividades'
 import { herramientasService, type Herramienta } from '@/services/herramientas'
 import { getClientes, type ClienteListItem } from '@/services/clientes'
 import { formatDate } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useIsAdmin } from '@/store/auth'
 import type { Proyecto, EstadoProyecto } from '@/types'
+
+interface ActividadSeleccionada {
+  actividad_tipo_id: string
+  cantidad_planificada: string
+}
 
 interface ProyectoForm {
   nombre: string
@@ -72,8 +78,20 @@ interface ProyectoForm {
   fecha_fin_estimada: string
   monto_contratado: string
   cliente_id: string
-  actividades_tipo_ids: string[]
+  actividades: ActividadSeleccionada[]
   herramientas_ids: string[]
+}
+
+const formInicial: ProyectoForm = {
+  nombre: '',
+  descripcion: '',
+  ubicacion: '',
+  fecha_inicio: '',
+  fecha_fin_estimada: '',
+  monto_contratado: '',
+  cliente_id: '',
+  actividades: [],
+  herramientas_ids: [],
 }
 
 const estadoColors: Record<EstadoProyecto, string> = {
@@ -97,17 +115,7 @@ export function ProyectosPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [selectedProyecto, setSelectedProyecto] = useState<Proyecto | null>(null)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
-  const [formData, setFormData] = useState<ProyectoForm>({
-    nombre: '',
-    descripcion: '',
-    ubicacion: '',
-    fecha_inicio: '',
-    fecha_fin_estimada: '',
-    monto_contratado: '',
-    cliente_id: '',
-    actividades_tipo_ids: [],
-    herramientas_ids: [],
-  })
+  const [formData, setFormData] = useState<ProyectoForm>(formInicial)
   const [clienteFilter, setClienteFilter] = useState<string>('todos')
 
   const { toast } = useToast()
@@ -140,22 +148,27 @@ export function ProyectosPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: proyectosService.createProyecto,
+    mutationFn: async (payload: {
+      proyecto: Parameters<typeof proyectosService.createProyecto>[0]
+      actividades: ActividadSeleccionada[]
+    }) => {
+      const proyecto = await proyectosService.createProyecto(payload.proyecto)
+      if (payload.actividades.length > 0) {
+        await proyectoActividadesService.createActividadesBulk(
+          proyecto.id,
+          payload.actividades.map((a) => ({
+            actividad_tipo_id: a.actividad_tipo_id,
+            cantidad_planificada: parseFloat(a.cantidad_planificada) || 1,
+          }))
+        )
+      }
+      return proyecto
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['proyectos'] })
       toast({ title: 'Proyecto creado exitosamente' })
       setIsCreateOpen(false)
-      setFormData({
-        nombre: '',
-        descripcion: '',
-        ubicacion: '',
-        fecha_inicio: '',
-        fecha_fin_estimada: '',
-        monto_contratado: '',
-        cliente_id: '',
-        actividades_tipo_ids: [],
-        herramientas_ids: [],
-      })
+      setFormData(formInicial)
     },
     onError: () => {
       toast({ variant: 'destructive', title: 'Error al crear proyecto' })
@@ -178,23 +191,38 @@ export function ProyectosPage() {
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     createMutation.mutate({
-      nombre: formData.nombre,
-      descripcion: formData.descripcion || undefined,
-      ubicacion: formData.ubicacion || undefined,
-      fecha_inicio: formData.fecha_inicio || undefined,
-      fecha_fin_estimada: formData.fecha_fin_estimada || undefined,
-      monto_contratado: formData.monto_contratado ? parseFloat(formData.monto_contratado) : undefined,
-      cliente_id: formData.cliente_id || undefined,
+      proyecto: {
+        nombre: formData.nombre,
+        descripcion: formData.descripcion || undefined,
+        ubicacion: formData.ubicacion || undefined,
+        fecha_inicio: formData.fecha_inicio || undefined,
+        fecha_fin_estimada: formData.fecha_fin_estimada || undefined,
+        monto_contratado: formData.monto_contratado ? parseFloat(formData.monto_contratado) : undefined,
+        cliente_id: formData.cliente_id || undefined,
+      },
+      actividades: formData.actividades,
     })
   }
 
   // Funciones para manejar seleccion de actividades y herramientas
   const toggleActividadTipo = (id: string) => {
+    setFormData(prev => {
+      const yaSeleccionada = prev.actividades.some(a => a.actividad_tipo_id === id)
+      return {
+        ...prev,
+        actividades: yaSeleccionada
+          ? prev.actividades.filter(a => a.actividad_tipo_id !== id)
+          : [...prev.actividades, { actividad_tipo_id: id, cantidad_planificada: '1' }],
+      }
+    })
+  }
+
+  const setCantidadActividad = (id: string, cantidad: string) => {
     setFormData(prev => ({
       ...prev,
-      actividades_tipo_ids: prev.actividades_tipo_ids.includes(id)
-        ? prev.actividades_tipo_ids.filter(a => a !== id)
-        : [...prev.actividades_tipo_ids, id]
+      actividades: prev.actividades.map(a =>
+        a.actividad_tipo_id === id ? { ...a, cantidad_planificada: cantidad } : a
+      ),
     }))
   }
 
@@ -586,14 +614,14 @@ export function ProyectosPage() {
                 <div className="flex items-center gap-2">
                   <ClipboardList className="h-4 w-4 text-primary" />
                   <Label className="text-base font-semibold">Actividades del Proyecto</Label>
-                  {formData.actividades_tipo_ids.length > 0 && (
-                    <Badge variant="secondary">{formData.actividades_tipo_ids.length} seleccionadas</Badge>
+                  {formData.actividades.length > 0 && (
+                    <Badge variant="secondary">{formData.actividades.length} seleccionadas</Badge>
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Selecciona las actividades que se realizaran en este proyecto
+                  Selecciona las actividades y la cantidad planificada para cada una
                 </p>
-                <div className="h-[150px] overflow-y-auto border rounded-md p-3">
+                <div className="max-h-[260px] overflow-y-auto border rounded-md p-3">
                   <div className="space-y-2">
                     {actividadesTipo.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-4">
@@ -601,38 +629,68 @@ export function ProyectosPage() {
                       </p>
                     ) : (
                       actividadesTipo.map((actividad) => {
-                        const checked = formData.actividades_tipo_ids.includes(actividad.id)
+                        const seleccionada = formData.actividades.find(
+                          (a) => a.actividad_tipo_id === actividad.id
+                        )
+                        const checked = !!seleccionada
                         return (
                           <div
                             key={actividad.id}
-                            role="button"
-                            tabIndex={0}
-                            className={`w-full flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors text-left ${
-                              checked ? 'bg-primary/10' : ''
+                            className={`w-full rounded-md transition-colors ${
+                              checked ? 'bg-primary/10' : 'hover:bg-muted/50'
                             }`}
-                            onClick={() => toggleActividadTipo(actividad.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault()
-                                toggleActividadTipo(actividad.id)
-                              }
-                            }}
                           >
-                            <span
-                              aria-hidden
-                              className={`h-4 w-4 shrink-0 rounded-sm border flex items-center justify-center ${
-                                checked ? 'bg-primary border-primary' : 'border-primary'
-                              }`}
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              className="flex items-center gap-3 p-2 cursor-pointer text-left"
+                              onClick={() => toggleActividadTipo(actividad.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault()
+                                  toggleActividadTipo(actividad.id)
+                                }
+                              }}
                             >
-                              {checked && <Check className="h-3 w-3 text-primary-foreground" />}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{actividad.nombre}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {actividad.categoria} • {actividad.cantidad_materiales} materiales
-                              </p>
+                              <span
+                                aria-hidden
+                                className={`h-4 w-4 shrink-0 rounded-sm border flex items-center justify-center ${
+                                  checked ? 'bg-primary border-primary' : 'border-primary'
+                                }`}
+                              >
+                                {checked && <Check className="h-3 w-3 text-primary-foreground" />}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{actividad.nombre}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {actividad.categoria} • {actividad.cantidad_materiales} materiales
+                                </p>
+                              </div>
                             </div>
-                            {checked && <Check className="h-4 w-4 text-primary" />}
+                            {checked && (
+                              <div
+                                className="flex items-center gap-2 px-2 pb-2 pl-9"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Label className="text-xs text-muted-foreground shrink-0">
+                                  Cantidad planificada:
+                                </Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={seleccionada.cantidad_planificada}
+                                  onChange={(e) =>
+                                    setCantidadActividad(actividad.id, e.target.value)
+                                  }
+                                  className="h-8 w-28"
+                                  placeholder="1"
+                                />
+                                <span className="text-xs text-muted-foreground">
+                                  {actividad.unidad_trabajo}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         )
                       })
