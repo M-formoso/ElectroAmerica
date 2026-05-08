@@ -605,13 +605,20 @@ export function ProyectosPage() {
                       actividadesTipo.map((actividad) => {
                         const checked = formData.actividades_tipo_ids.includes(actividad.id)
                         return (
-                          <button
-                            type="button"
+                          <div
                             key={actividad.id}
+                            role="button"
+                            tabIndex={0}
                             className={`w-full flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors text-left ${
                               checked ? 'bg-primary/10' : ''
                             }`}
                             onClick={() => toggleActividadTipo(actividad.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                toggleActividadTipo(actividad.id)
+                              }
+                            }}
                           >
                             <Checkbox checked={checked} className="pointer-events-none" />
                             <div className="flex-1 min-w-0">
@@ -621,7 +628,7 @@ export function ProyectosPage() {
                               </p>
                             </div>
                             {checked && <Check className="h-4 w-4 text-primary" />}
-                          </button>
+                          </div>
                         )
                       })
                     )}
@@ -651,13 +658,20 @@ export function ProyectosPage() {
                       herramientas.map((herramienta) => {
                         const checked = formData.herramientas_ids.includes(herramienta.id)
                         return (
-                          <button
-                            type="button"
+                          <div
                             key={herramienta.id}
+                            role="button"
+                            tabIndex={0}
                             className={`w-full flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors text-left ${
                               checked ? 'bg-primary/10' : ''
                             }`}
                             onClick={() => toggleHerramienta(herramienta.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                toggleHerramienta(herramienta.id)
+                              }
+                            }}
                           >
                             <Checkbox checked={checked} className="pointer-events-none" />
                             <div className="flex-1 min-w-0">
@@ -675,7 +689,7 @@ export function ProyectosPage() {
                               {herramienta.estado_prestamo === 'disponible' ? 'Disponible' : 'En uso'}
                             </Badge>
                             {checked && <Check className="h-4 w-4 text-primary" />}
-                          </button>
+                          </div>
                         )
                       })
                     )}
