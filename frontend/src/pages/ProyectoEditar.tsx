@@ -27,6 +27,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { proyectosService } from '@/services/proyectos'
 import { usuariosService } from '@/services/usuarios'
+import { getClientes, type ClienteListItem } from '@/services/clientes'
 import { useToast } from '@/hooks/use-toast'
 import type { EstadoProyecto } from '@/types'
 
@@ -73,7 +74,11 @@ export function ProyectoEditarPage() {
     queryFn: () => usuariosService.getUsuarios(),
   })
 
-  const clientes = usuarios?.filter((u) => u.rol === 'cliente') || []
+  const { data: clientes = [] } = useQuery({
+    queryKey: ['clientes'],
+    queryFn: () => getClientes(),
+  })
+
   const supervisores = usuarios?.filter((u) => u.rol === 'supervisor' || u.rol === 'administrador') || []
 
   useEffect(() => {
@@ -302,9 +307,9 @@ export function ProyectoEditarPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Sin cliente asignado</SelectItem>
-                    {clientes.map((cliente) => (
+                    {clientes.map((cliente: ClienteListItem) => (
                       <SelectItem key={cliente.id} value={cliente.id}>
-                        {cliente.nombre} {cliente.apellido}
+                        {cliente.nombre_fantasia || cliente.razon_social}
                       </SelectItem>
                     ))}
                   </SelectContent>
