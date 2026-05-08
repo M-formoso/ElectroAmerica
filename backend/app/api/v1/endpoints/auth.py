@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.core.deps import get_db, get_usuario_actual
 from app.core.security import crear_access_token, crear_refresh_token, verificar_token
-from app.schemas.usuario import Token, UsuarioResponse
+from app.schemas.usuario import Token, UsuarioResponse, RefreshTokenRequest
 from app.services import usuario_service
 from app.models.usuario import Usuario
 
@@ -47,13 +47,14 @@ def get_current_user(usuario: Usuario = Depends(get_usuario_actual)):
 
 @router.post("/refresh", response_model=Token)
 def refresh_token(
-    refresh_token: str,
+    body: RefreshTokenRequest,
     db: Session = Depends(get_db)
 ):
     """
     Refresca el token de acceso usando el refresh token.
+    Recibe el refresh_token en el body JSON.
     """
-    payload = verificar_token(refresh_token)
+    payload = verificar_token(body.refresh_token)
 
     if not payload or payload.get("type") != "refresh":
         raise HTTPException(

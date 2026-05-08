@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     # JWT
     SECRET_KEY: str = "your-super-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 horas
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
     # Redis/Celery - Railway Redis provides REDIS_URL
     REDIS_URL: Optional[str] = None

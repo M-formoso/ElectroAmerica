@@ -59,6 +59,11 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+class RefreshTokenRequest(BaseModel):
+    """Schema de request para refrescar el token."""
+    refresh_token: str
+
+
 class TokenPayload(BaseModel):
     """Schema del payload del token."""
     sub: str
