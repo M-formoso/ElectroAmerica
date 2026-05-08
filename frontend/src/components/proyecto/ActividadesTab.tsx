@@ -11,6 +11,7 @@ import {
   Package,
   Download,
   Search,
+  Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,8 +36,6 @@ import {
 } from '@/components/ui/table'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   proyectoActividadesService,
   type ProyectoActividadList,
@@ -62,7 +61,9 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
 
   // Estados para dialog de agregar tareas
   const [isAddTareaDialogOpen, setIsAddTareaDialogOpen] = useState(false)
-  const [selectedTareas, setSelectedTareas] = useState<string[]>([])
+  const [selectedTareas, setSelectedTareas] = useState<
+    Array<{ actividad_tipo_id: string; cantidad_planificada: string }>
+  >([])
   const [searchTarea, setSearchTarea] = useState('')
 
   // Estados para dialogs
@@ -155,10 +156,13 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
 
   // Mutation para agregar tareas al proyecto
   const agregarTareasMutation = useMutation({
-    mutationFn: (tareasIds: string[]) =>
+    mutationFn: (tareas: Array<{ actividad_tipo_id: string; cantidad_planificada: string }>) =>
       proyectoActividadesService.createActividadesBulk(
         proyectoId,
-        tareasIds.map((id) => ({ actividad_tipo_id: id, cantidad_planificada: 1 }))
+        tareas.map((t) => ({
+          actividad_tipo_id: t.actividad_tipo_id,
+          cantidad_planificada: parseFloat(t.cantidad_planificada) || 1,
+        }))
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['proyecto-actividades', proyectoId] })
@@ -190,8 +194,19 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
   }
 
   const toggleTareaSelection = (tareaId: string) => {
+    setSelectedTareas((prev) => {
+      const yaSeleccionada = prev.some((t) => t.actividad_tipo_id === tareaId)
+      return yaSeleccionada
+        ? prev.filter((t) => t.actividad_tipo_id !== tareaId)
+        : [...prev, { actividad_tipo_id: tareaId, cantidad_planificada: '1' }]
+    })
+  }
+
+  const setCantidadTarea = (tareaId: string, cantidad: string) => {
     setSelectedTareas((prev) =>
-      prev.includes(tareaId) ? prev.filter((id) => id !== tareaId) : [...prev, tareaId]
+      prev.map((t) =>
+        t.actividad_tipo_id === tareaId ? { ...t, cantidad_planificada: cantidad } : t
+      )
     )
   }
 
@@ -669,43 +684,86 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
             </div>
 
             {/* Lista de tareas */}
-            <ScrollArea className="h-[400px] border rounded-md">
+            <div className="max-h-[400px] overflow-y-auto border rounded-md">
               {tareasNoAsignadas && tareasNoAsignadas.length > 0 ? (
                 <div className="p-4 space-y-2">
                   {tareasNoAsignadas.map((tarea) => {
-                    const checked = selectedTareas.includes(tarea.id)
+                    const seleccionada = selectedTareas.find(
+                      (t) => t.actividad_tipo_id === tarea.id
+                    )
+                    const checked = !!seleccionada
                     return (
-                    <button
-                      type="button"
-                      key={tarea.id}
-                      className={`w-full flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors text-left ${
-                        checked ? 'bg-primary/10 border-primary' : 'hover:bg-muted'
-                      }`}
-                      onClick={() => toggleTareaSelection(tarea.id)}
-                    >
-                      <Checkbox checked={checked} className="pointer-events-none" />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm text-muted-foreground">
-                            {tarea.codigo}
+                      <div
+                        key={tarea.id}
+                        className={`w-full border rounded-lg transition-colors ${
+                          checked ? 'bg-primary/10 border-primary' : 'hover:bg-muted'
+                        }`}
+                      >
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          className="flex items-center gap-3 p-3 cursor-pointer text-left"
+                          onClick={() => toggleTareaSelection(tarea.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              toggleTareaSelection(tarea.id)
+                            }
+                          }}
+                        >
+                          <span
+                            aria-hidden
+                            className={`h-4 w-4 shrink-0 rounded-sm border flex items-center justify-center ${
+                              checked ? 'bg-primary border-primary' : 'border-primary'
+                            }`}
+                          >
+                            {checked && <Check className="h-3 w-3 text-primary-foreground" />}
                           </span>
-                          <span className="font-medium">{tarea.nombre}</span>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm text-muted-foreground">
+                                {tarea.codigo}
+                              </span>
+                              <span className="font-medium">{tarea.nombre}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="outline" className="text-xs">
+                                {tarea.categoria}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                Unidad: {tarea.unidad_trabajo}
+                              </span>
+                              {tarea.cantidad_materiales > 0 && (
+                                <span className="text-xs text-muted-foreground">
+                                  • {tarea.cantidad_materiales} materiales
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge variant="outline" className="text-xs">
-                            {tarea.categoria}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            Unidad: {tarea.unidad_trabajo}
-                          </span>
-                          {tarea.cantidad_materiales > 0 && (
+                        {checked && (
+                          <div
+                            className="flex items-center gap-2 px-3 pb-3 pl-10"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Label className="text-xs text-muted-foreground shrink-0">
+                              Cantidad planificada:
+                            </Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={seleccionada.cantidad_planificada}
+                              onChange={(e) => setCantidadTarea(tarea.id, e.target.value)}
+                              className="h-8 w-28"
+                              placeholder="1"
+                            />
                             <span className="text-xs text-muted-foreground">
-                              • {tarea.cantidad_materiales} materiales
+                              {tarea.unidad_trabajo}
                             </span>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
-                    </button>
                     )
                   })}
                 </div>
@@ -720,7 +778,7 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
                   <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                 </div>
               )}
-            </ScrollArea>
+            </div>
 
             {/* Contador de selección */}
             {selectedTareas.length > 0 && (
