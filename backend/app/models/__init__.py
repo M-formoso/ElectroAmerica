@@ -5,6 +5,7 @@ from app.models.proyecto import Proyecto, EstadoProyecto
 from app.models.etapa import Etapa, EstadoEtapa
 from app.models.item_trabajo import ItemTrabajo, EstadoItem, PrioridadItem
 from app.models.material import Material
+from app.models.deposito import Deposito, DepositoMaterial
 from app.models.movimiento_stock import MovimientoStock, TipoMovimiento
 from app.models.asignacion_material import AsignacionMaterial
 from app.models.equipo import Equipo, TipoEquipo, EstadoEquipo

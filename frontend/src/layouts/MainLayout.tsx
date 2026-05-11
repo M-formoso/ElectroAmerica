@@ -27,6 +27,7 @@ import {
   Hammer,
   HandCoins,
   ClipboardCheck,
+  Warehouse,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -108,6 +109,7 @@ const navigationSections: NavSection[] = [
     roles: ['administrador', 'supervisor', 'operario'],
     items: [
       { name: 'Materiales', href: '/materiales', icon: Package, roles: ['administrador', 'supervisor', 'operario'], modulo: 'materiales' },
+      { name: 'Depositos', href: '/depositos', icon: Warehouse, roles: ['administrador', 'supervisor'], modulo: 'materiales' },
       { name: 'Equipos', href: '/equipos', icon: Wrench, roles: ['administrador', 'supervisor', 'operario'], modulo: 'equipos' },
     ],
   },
