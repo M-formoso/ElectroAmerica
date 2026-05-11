@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -79,6 +79,25 @@ export default function ActividadesTipo() {
     queryKey: ['materiales-lista'],
     queryFn: () => materialesService.getMateriales(),
   })
+
+  // Cargar actividad completa con materiales cuando se esta editando
+  const { data: actividadCompleta } = useQuery({
+    queryKey: ['actividad-tipo', actividadEditar?.id],
+    queryFn: () => actividadesTipoService.getActividadTipo(actividadEditar!.id),
+    enabled: !!actividadEditar?.id && dialogOpen,
+  })
+
+  // Cuando llega la actividad completa, pre-cargar sus materiales
+  useEffect(() => {
+    if (actividadCompleta?.materiales) {
+      setMaterialesSeleccionados(
+        actividadCompleta.materiales.map((m) => ({
+          material_id: m.material_id,
+          cantidad_por_unidad: m.cantidad_por_unidad,
+        }))
+      )
+    }
+  }, [actividadCompleta])
 
   // Mutation crear
   const crearMutation = useMutation({
