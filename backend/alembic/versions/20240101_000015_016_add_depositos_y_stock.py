@@ -19,6 +19,7 @@ depends_on = None
 
 
 def upgrade():
+    # Los indices se crean automaticamente por index=True en cada columna.
     op.create_table(
         'depositos',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
@@ -34,7 +35,6 @@ def upgrade():
         sa.Column('updated_at', sa.DateTime(timezone=True),
                   server_default=sa.func.now(), nullable=False),
     )
-    op.create_index('ix_depositos_cliente_id', 'depositos', ['cliente_id'])
 
     op.create_table(
         'deposito_materiales',
@@ -54,13 +54,9 @@ def upgrade():
                   server_default=sa.func.now(), nullable=False),
         sa.UniqueConstraint('deposito_id', 'material_id', name='uq_deposito_material'),
     )
-    op.create_index('ix_deposito_materiales_deposito_id', 'deposito_materiales', ['deposito_id'])
-    op.create_index('ix_deposito_materiales_material_id', 'deposito_materiales', ['material_id'])
 
 
 def downgrade():
-    op.drop_index('ix_deposito_materiales_material_id', table_name='deposito_materiales')
-    op.drop_index('ix_deposito_materiales_deposito_id', table_name='deposito_materiales')
+    # Los indices se eliminan con la tabla.
     op.drop_table('deposito_materiales')
-    op.drop_index('ix_depositos_cliente_id', table_name='depositos')
     op.drop_table('depositos')
