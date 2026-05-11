@@ -28,6 +28,8 @@ import { Separator } from '@/components/ui/separator'
 import { proyectosService } from '@/services/proyectos'
 import { usuariosService } from '@/services/usuarios'
 import { getClientes, type ClienteListItem } from '@/services/clientes'
+import { depositosService } from '@/services/depositos'
+import { proyectoActividadesService } from '@/services/proyectoActividades'
 import { useToast } from '@/hooks/use-toast'
 import type { EstadoProyecto } from '@/types'
 
@@ -42,6 +44,8 @@ interface ProyectoForm {
   monto_contratado: string
   cliente_id: string
   supervisor_id: string
+  fuente_materiales: 'global' | 'deposito'
+  deposito_id: string
 }
 
 export function ProyectoEditarPage() {
@@ -61,6 +65,8 @@ export function ProyectoEditarPage() {
     monto_contratado: '',
     cliente_id: '',
     supervisor_id: '',
+    fuente_materiales: 'global',
+    deposito_id: '',
   })
 
   const { data: proyecto, isLoading: loadingProyecto } = useQuery({
@@ -94,9 +100,25 @@ export function ProyectoEditarPage() {
         monto_contratado: proyecto.monto_contratado?.toString() || '',
         cliente_id: proyecto.cliente_id || '',
         supervisor_id: proyecto.supervisor_id || '',
+        fuente_materiales: proyecto.deposito_id ? 'deposito' : 'global',
+        deposito_id: proyecto.deposito_id || '',
       })
     }
   }, [proyecto])
+
+  // Depositos del cliente seleccionado
+  const { data: depositosCliente = [] } = useQuery({
+    queryKey: ['depositos', formData.cliente_id],
+    queryFn: () => depositosService.list(formData.cliente_id),
+    enabled: !!formData.cliente_id,
+  })
+
+  // Actividades existentes del proyecto (para validar stock al cambiar deposito)
+  const { data: actividadesProyecto = [] } = useQuery({
+    queryKey: ['proyecto-actividades', proyectoId],
+    queryFn: () => proyectoActividadesService.getActividades(proyectoId!),
+    enabled: !!proyectoId,
+  })
 
   const updateMutation = useMutation({
     mutationFn: (data: typeof formData) =>
@@ -111,6 +133,10 @@ export function ProyectoEditarPage() {
         monto_contratado: data.monto_contratado ? parseFloat(data.monto_contratado) : undefined,
         cliente_id: data.cliente_id || undefined,
         supervisor_id: data.supervisor_id || undefined,
+        deposito_id:
+          data.fuente_materiales === 'deposito' && data.deposito_id
+            ? data.deposito_id
+            : null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['proyecto', proyectoId] })
@@ -129,8 +155,47 @@ export function ProyectoEditarPage() {
     },
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const cambioDeposito =
+      formData.fuente_materiales === 'deposito' &&
+      formData.deposito_id &&
+      formData.deposito_id !== (proyecto?.deposito_id || '')
+
+    if (cambioDeposito && actividadesProyecto.length > 0) {
+      try {
+        const verif = await proyectosService.verificarStockDeposito(
+          formData.deposito_id,
+          actividadesProyecto.map((a) => ({
+            actividad_tipo_id: a.actividad_tipo_id,
+            cantidad_planificada: Number(a.cantidad_planificada) || 1,
+          }))
+        )
+        if (!verif.ok) {
+          const lista = verif.faltantes
+            .map(
+              (f) =>
+                `${f.material_nombre}: faltan ${Number(f.faltante).toFixed(2)} ${f.unidad || ''}`
+            )
+            .join(' | ')
+          toast({
+            variant: 'destructive',
+            title: 'Stock insuficiente en el deposito elegido',
+            description: lista,
+          })
+          return
+        }
+      } catch (err: any) {
+        toast({
+          variant: 'destructive',
+          title: 'No se pudo verificar el stock',
+          description: err?.response?.data?.detail || '',
+        })
+        return
+      }
+    }
+
     updateMutation.mutate(formData)
   }
 
@@ -312,7 +377,15 @@ export function ProyectoEditarPage() {
                 </Label>
                 <Select
                   value={formData.cliente_id || 'none'}
-                  onValueChange={(v) => setFormData({ ...formData, cliente_id: v === 'none' ? '' : v })}
+                  onValueChange={(v) =>
+                    setFormData({
+                      ...formData,
+                      cliente_id: v === 'none' ? '' : v,
+                      // Al cambiar el cliente, resetear deposito
+                      deposito_id: '',
+                      fuente_materiales: 'global',
+                    })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar cliente" />
@@ -351,6 +424,106 @@ export function ProyectoEditarPage() {
                 </Select>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Fuente de materiales */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Fuente de materiales
+            </CardTitle>
+            <CardDescription>
+              Donde se descuenta el stock al consumir materiales en este proyecto.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-2">
+              <label className="flex items-center gap-3 p-2 rounded-md border cursor-pointer hover:bg-muted/50">
+                <input
+                  type="radio"
+                  name="fuente_materiales_edit"
+                  checked={formData.fuente_materiales === 'global'}
+                  onChange={() =>
+                    setFormData({
+                      ...formData,
+                      fuente_materiales: 'global',
+                      deposito_id: '',
+                    })
+                  }
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Stock global</p>
+                  <p className="text-xs text-muted-foreground">
+                    Usa el inventario general de la seccion Materiales.
+                  </p>
+                </div>
+              </label>
+              <label
+                className={`flex items-center gap-3 p-2 rounded-md border ${
+                  formData.cliente_id
+                    ? 'cursor-pointer hover:bg-muted/50'
+                    : 'opacity-50 cursor-not-allowed'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="fuente_materiales_edit"
+                  disabled={!formData.cliente_id}
+                  checked={formData.fuente_materiales === 'deposito'}
+                  onChange={() =>
+                    setFormData({ ...formData, fuente_materiales: 'deposito' })
+                  }
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-medium">
+                    Deposito del cliente
+                    {!formData.cliente_id && (
+                      <span className="text-xs text-muted-foreground ml-2">
+                        (asigna un cliente primero)
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Usa el stock de un deposito especifico del cliente.
+                  </p>
+                </div>
+              </label>
+            </div>
+            {formData.fuente_materiales === 'deposito' && (
+              <div className="space-y-2 pl-4">
+                <Label>Deposito *</Label>
+                <Select
+                  value={formData.deposito_id}
+                  onValueChange={(v) =>
+                    setFormData({ ...formData, deposito_id: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar deposito del cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {depositosCliente.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground text-center">
+                        El cliente no tiene depositos. Crealos en Recursos &gt; Depositos.
+                      </div>
+                    ) : (
+                      depositosCliente.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.nombre}
+                          {d.cantidad_materiales > 0 && (
+                            <span className="text-xs text-muted-foreground ml-2">
+                              ({d.cantidad_materiales} materiales)
+                            </span>
+                          )}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </CardContent>
         </Card>
 

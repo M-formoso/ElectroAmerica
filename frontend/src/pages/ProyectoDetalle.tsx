@@ -752,10 +752,24 @@ export function ProyectoDetallePage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold">{proyecto.nombre}</h1>
             <Badge variant={estadoProyectoColors[proyecto.estado] as any}>
               {estadoProyectoLabels[proyecto.estado]}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={
+                proyecto.deposito_id
+                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                  : 'bg-gray-50 text-gray-700'
+              }
+            >
+              <Package className="h-3 w-3 mr-1" />
+              Materiales:{' '}
+              {proyecto.deposito_id
+                ? proyecto.deposito_nombre || 'Deposito'
+                : 'Stock global'}
             </Badge>
           </div>
           {proyecto.ubicacion && (
@@ -1043,7 +1057,10 @@ export function ProyectoDetallePage() {
                 Materiales necesarios según las tareas del proyecto
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                Calculados automáticamente en base a las tareas asignadas
+                Calculados automáticamente. Stock mostrado:{' '}
+                {proyecto.deposito_id
+                  ? `Deposito "${proyecto.deposito_nombre || ''}"`
+                  : 'Stock global'}
               </p>
             </div>
             {resumenActividades?.materiales_totales && resumenActividades.materiales_totales.length > 0 && (

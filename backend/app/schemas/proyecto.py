@@ -72,6 +72,35 @@ class ProyectoDetailResponse(ProyectoResponse):
         from_attributes = True
 
 
+class VerificarStockActividadItem(BaseModel):
+    """Una actividad a verificar contra el stock del deposito."""
+    actividad_tipo_id: UUID
+    cantidad_planificada: Decimal = Field(..., gt=0)
+
+
+class VerificarStockRequest(BaseModel):
+    """Request para verificar si un deposito tiene stock para una lista de actividades."""
+    deposito_id: UUID
+    actividades: List[VerificarStockActividadItem]
+
+
+class MaterialFaltante(BaseModel):
+    """Detalle de un material que no tiene stock suficiente."""
+    material_id: UUID
+    material_nombre: str
+    material_codigo: Optional[str] = None
+    unidad: Optional[str] = None
+    necesario: Decimal
+    disponible: Decimal
+    faltante: Decimal
+
+
+class VerificarStockResponse(BaseModel):
+    """Resultado de verificar stock de un deposito para un set de actividades."""
+    ok: bool
+    faltantes: List[MaterialFaltante] = []
+
+
 class ProyectoClienteResponse(BaseModel):
     """Schema de respuesta de proyecto para cliente (sin datos financieros)."""
     id: UUID

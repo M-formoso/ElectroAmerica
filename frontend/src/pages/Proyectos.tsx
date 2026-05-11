@@ -200,8 +200,48 @@ export function ProyectosPage() {
     },
   })
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Validacion de stock si se eligio deposito
+    if (
+      formData.fuente_materiales === 'deposito' &&
+      formData.deposito_id &&
+      formData.actividades.length > 0
+    ) {
+      try {
+        const verif = await proyectosService.verificarStockDeposito(
+          formData.deposito_id,
+          formData.actividades.map((a) => ({
+            actividad_tipo_id: a.actividad_tipo_id,
+            cantidad_planificada: parseFloat(a.cantidad_planificada) || 1,
+          }))
+        )
+        if (!verif.ok) {
+          const lista = verif.faltantes
+            .map(
+              (f) =>
+                `${f.material_nombre}: faltan ${Number(f.faltante).toFixed(2)} ${f.unidad || ''} ` +
+                `(necesario ${Number(f.necesario).toFixed(2)}, hay ${Number(f.disponible).toFixed(2)})`
+            )
+            .join(' | ')
+          toast({
+            variant: 'destructive',
+            title: 'Stock insuficiente en el deposito',
+            description: lista,
+          })
+          return
+        }
+      } catch (err: any) {
+        toast({
+          variant: 'destructive',
+          title: 'No se pudo verificar el stock',
+          description: err?.response?.data?.detail || '',
+        })
+        return
+      }
+    }
+
     createMutation.mutate({
       proyecto: {
         nombre: formData.nombre,

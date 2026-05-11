@@ -5,7 +5,15 @@ from uuid import UUID
 from app.core.deps import get_db, get_usuario_actual, require_staff, require_admin_or_supervisor
 from app.models.usuario import Usuario, RolUsuario
 from app.models.proyecto import EstadoProyecto
-from app.schemas.proyecto import ProyectoCreate, ProyectoUpdate, ProyectoResponse, ProyectoDetailResponse
+from app.schemas.proyecto import (
+    ProyectoCreate, ProyectoUpdate, ProyectoResponse, ProyectoDetailResponse,
+    VerificarStockRequest, VerificarStockResponse, MaterialFaltante,
+)
+from decimal import Decimal
+from collections import defaultdict
+from app.models.actividad_tipo import MaterialActividadTipo
+from app.models.material import Material
+from app.models.deposito import Deposito, DepositoMaterial
 from app.schemas.etapa import EtapaResponse
 from app.schemas.gasto import GastoResponse
 from app.schemas.material import AsignacionMaterialResponse
@@ -198,3 +206,73 @@ def recalcular_avance(
 
     nuevo_avance = proyecto_service.recalcular_avance_proyecto(db, proyecto_id)
     return {"porcentaje_avance": float(nuevo_avance)}
+
+
+@router.post("/verificar-stock-deposito", response_model=VerificarStockResponse)
+def verificar_stock_deposito(
+    body: VerificarStockRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Verifica si un deposito tiene stock suficiente para realizar
+    el conjunto de actividades indicado (cada una con su cantidad
+    planificada). Retorna lista de materiales faltantes si los hay.
+    """
+    deposito = db.query(Deposito).filter(
+        Deposito.id == body.deposito_id, Deposito.activo == True
+    ).first()
+    if not deposito:
+        raise HTTPException(status_code=404, detail="Deposito no encontrado")
+
+    if not body.actividades:
+        return VerificarStockResponse(ok=True, faltantes=[])
+
+    # Calcular total necesario por material (sumando todas las actividades)
+    necesario_por_material: dict = defaultdict(Decimal)
+    actividad_ids = [a.actividad_tipo_id for a in body.actividades]
+    materiales_act = db.query(MaterialActividadTipo).filter(
+        MaterialActividadTipo.actividad_tipo_id.in_(actividad_ids),
+        MaterialActividadTipo.activo == True,
+    ).all()
+    # Mapa actividad_tipo_id -> [(material_id, cantidad_por_unidad)]
+    by_actividad = defaultdict(list)
+    for m in materiales_act:
+        by_actividad[m.actividad_tipo_id].append((m.material_id, Decimal(str(m.cantidad_por_unidad))))
+
+    for item in body.actividades:
+        for material_id, cantidad_por_unidad in by_actividad.get(item.actividad_tipo_id, []):
+            necesario_por_material[material_id] += cantidad_por_unidad * item.cantidad_planificada
+
+    if not necesario_por_material:
+        return VerificarStockResponse(ok=True, faltantes=[])
+
+    # Traer stock del deposito para esos materiales
+    material_ids = list(necesario_por_material.keys())
+    rows_dm = db.query(DepositoMaterial).filter(
+        DepositoMaterial.deposito_id == body.deposito_id,
+        DepositoMaterial.material_id.in_(material_ids),
+        DepositoMaterial.activo == True,
+    ).all()
+    stock_por_material = {dm.material_id: Decimal(str(dm.stock_actual)) for dm in rows_dm}
+
+    # Info de cada material para devolver
+    materiales = {
+        m.id: m for m in db.query(Material).filter(Material.id.in_(material_ids)).all()
+    }
+
+    faltantes = []
+    for material_id, necesario in necesario_por_material.items():
+        disponible = stock_por_material.get(material_id, Decimal("0"))
+        if disponible < necesario:
+            mat = materiales.get(material_id)
+            faltantes.append(MaterialFaltante(
+                material_id=material_id,
+                material_nombre=mat.nombre if mat else "(desconocido)",
+                material_codigo=mat.codigo if mat else None,
+                unidad=mat.unidad if mat else None,
+                necesario=necesario,
+                disponible=disponible,
+                faltante=necesario - disponible,
+            ))
+
+    return VerificarStockResponse(ok=len(faltantes) == 0, faltantes=faltantes)

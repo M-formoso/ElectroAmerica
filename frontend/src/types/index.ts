@@ -44,7 +44,7 @@ export interface Proyecto {
   cliente_nombre?: string
   supervisor_id?: string
   supervisor?: Usuario
-  deposito_id?: string
+  deposito_id?: string | null
   deposito_nombre?: string
   activo: boolean
   created_at: string

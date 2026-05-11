@@ -22,6 +22,28 @@ export const proyectosService = {
     return response.data
   },
 
+  async verificarStockDeposito(
+    deposito_id: string,
+    actividades: { actividad_tipo_id: string; cantidad_planificada: number }[]
+  ): Promise<{
+    ok: boolean
+    faltantes: {
+      material_id: string
+      material_nombre: string
+      material_codigo?: string
+      unidad?: string
+      necesario: number
+      disponible: number
+      faltante: number
+    }[]
+  }> {
+    const response = await api.post('/proyectos/verificar-stock-deposito', {
+      deposito_id,
+      actividades,
+    })
+    return response.data
+  },
+
   async updateProyecto(id: string, data: Partial<Proyecto>): Promise<Proyecto> {
     const response = await api.put<Proyecto>(`/proyectos/${id}`, data)
     return response.data
