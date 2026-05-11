@@ -356,7 +356,12 @@ class ProyectoActividadService:
             self.db.commit()
 
     def obtener_resumen_proyecto(self, proyecto_id: UUID) -> ResumenActividadesProyecto:
-        """Obtiene un resumen de todas las actividades del proyecto."""
+        """Obtiene un resumen de todas las actividades del proyecto.
+
+        Los materiales totales se recalculan en vivo a partir de la
+        cantidad_por_unidad actual en actividades-tipo, asi cualquier
+        cambio en el catalogo se refleja inmediatamente en el proyecto.
+        """
         actividades = self.obtener_actividades_proyecto(proyecto_id)
 
         total = len(actividades)
@@ -369,22 +374,25 @@ class ProyectoActividadService:
         total_ejecutado = sum(a.cantidad_ejecutada for a in actividades)
         porcentaje_global = (total_ejecutado / total_planificado * 100) if total_planificado > 0 else Decimal("0")
 
-        # Consolidar materiales totales
+        # Consolidar materiales totales (recalculo en vivo)
         materiales_dict = {}
         for actividad in actividades:
-            if actividad.materiales_calculados:
-                for mat in actividad.materiales_calculados:
-                    mat_id = str(mat.get('material_id'))
-                    if mat_id in materiales_dict:
-                        materiales_dict[mat_id]['cantidad_total'] += Decimal(str(mat.get('cantidad_total', 0)))
-                    else:
-                        materiales_dict[mat_id] = {
-                            'material_id': mat.get('material_id'),
-                            'material_nombre': mat.get('material_nombre'),
-                            'material_codigo': mat.get('material_codigo'),
-                            'cantidad_total': Decimal(str(mat.get('cantidad_total', 0))),
-                            'unidad': mat.get('unidad')
-                        }
+            materiales_live = self.calcular_materiales_actividad(
+                actividad.actividad_tipo_id,
+                actividad.cantidad_planificada
+            )
+            for mat in materiales_live:
+                mat_id = str(mat.material_id)
+                if mat_id in materiales_dict:
+                    materiales_dict[mat_id]['cantidad_total'] += Decimal(str(mat.cantidad_total))
+                else:
+                    materiales_dict[mat_id] = {
+                        'material_id': mat.material_id,
+                        'material_nombre': mat.material_nombre,
+                        'material_codigo': mat.material_codigo,
+                        'cantidad_total': Decimal(str(mat.cantidad_total)),
+                        'unidad': mat.unidad,
+                    }
 
         materiales_totales = [MaterialCalculado(**m) for m in materiales_dict.values()]
 

@@ -155,6 +155,14 @@ def obtener_actividad_proyecto(
     if not actividad or actividad.proyecto_id != proyecto_id:
         raise HTTPException(status_code=404, detail="Actividad no encontrada")
 
+    # Recalculo en vivo de materiales para reflejar cambios en
+    # cantidad_por_unidad del catalogo de actividades-tipo.
+    materiales_live = service.calcular_materiales_actividad(
+        actividad.actividad_tipo_id,
+        actividad.cantidad_planificada
+    )
+    materiales_calculados_dump = [m.model_dump(mode='json') for m in materiales_live]
+
     return ProyectoActividadResponse(
         id=actividad.id,
         proyecto_id=actividad.proyecto_id,
@@ -163,7 +171,7 @@ def obtener_actividad_proyecto(
         cantidad_ejecutada=actividad.cantidad_ejecutada,
         orden=actividad.orden,
         observaciones=actividad.observaciones,
-        materiales_calculados=actividad.materiales_calculados,
+        materiales_calculados=materiales_calculados_dump,
         porcentaje_avance=actividad.porcentaje_avance,
         cantidad_pendiente=actividad.cantidad_pendiente,
         activo=actividad.activo,

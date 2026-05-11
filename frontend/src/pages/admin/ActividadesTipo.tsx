@@ -114,6 +114,10 @@ export default function ActividadesTipo() {
       actividadesTipoService.actualizarActividadTipo(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['actividades-tipo'] })
+      // Refrescar materiales calculados de cualquier proyecto que use esta actividad
+      queryClient.invalidateQueries({ queryKey: ['proyecto-actividades'] })
+      queryClient.invalidateQueries({ queryKey: ['proyecto-actividades-resumen'] })
+      queryClient.invalidateQueries({ queryKey: ['proyecto-actividad-detalle'] })
       handleCloseDialog()
     },
   })

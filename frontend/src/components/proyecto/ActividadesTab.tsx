@@ -12,6 +12,7 @@ import {
   Download,
   Search,
   Check,
+  Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -77,6 +78,9 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
 
   // Estado para expandir detalles
   const [expandedActividad, setExpandedActividad] = useState<string | null>(null)
+
+  // Estado para confirmacion de eliminacion
+  const [actividadAEliminar, setActividadAEliminar] = useState<ProyectoActividadList | null>(null)
 
   // Queries
   const { data: actividades, isLoading } = useQuery({
@@ -151,6 +155,22 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
     },
     onError: () => {
       toast({ variant: 'destructive', title: 'Error al actualizar cantidad' })
+    },
+  })
+
+  // Mutation para eliminar una actividad del proyecto
+  const eliminarActividadMutation = useMutation({
+    mutationFn: (actividadId: string) =>
+      proyectoActividadesService.deleteActividad(proyectoId, actividadId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['proyecto-actividades', proyectoId] })
+      queryClient.invalidateQueries({ queryKey: ['proyecto-actividades-resumen', proyectoId] })
+      queryClient.invalidateQueries({ queryKey: ['proyecto', proyectoId] })
+      toast({ title: 'Tarea eliminada del proyecto' })
+      setActividadAEliminar(null)
+    },
+    onError: () => {
+      toast({ variant: 'destructive', title: 'Error al eliminar la tarea' })
     },
   })
 
@@ -457,6 +477,20 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
                           ? 'En Progreso'
                           : 'Pendiente'}
                       </Badge>
+                      {canEdit && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setActividadAEliminar(actividad)
+                          }}
+                          title="Eliminar tarea del proyecto"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -800,6 +834,47 @@ export function ActividadesTab({ proyectoId, proyectoNombre, canEdit }: Activida
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
               Agregar {selectedTareas.length > 0 ? `(${selectedTareas.length})` : ''}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog confirmacion eliminar actividad */}
+      <Dialog
+        open={!!actividadAEliminar}
+        onOpenChange={(open) => !open && setActividadAEliminar(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar tarea del proyecto</DialogTitle>
+            <DialogDescription>
+              {actividadAEliminar && (
+                <>
+                  Vas a eliminar <strong>{actividadAEliminar.actividad_nombre}</strong> del proyecto.
+                  {Number(actividadAEliminar.cantidad_ejecutada) > 0 && (
+                    <span className="block mt-2 text-destructive">
+                      Atencion: esta tarea ya tiene {actividadAEliminar.cantidad_ejecutada} {actividadAEliminar.unidad_trabajo} ejecutados.
+                    </span>
+                  )}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setActividadAEliminar(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() =>
+                actividadAEliminar && eliminarActividadMutation.mutate(actividadAEliminar.id)
+              }
+              disabled={eliminarActividadMutation.isPending}
+            >
+              {eliminarActividadMutation.isPending && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              Eliminar
             </Button>
           </DialogFooter>
         </DialogContent>
