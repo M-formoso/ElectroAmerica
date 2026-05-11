@@ -41,6 +41,7 @@ class DepositoBase(BaseModel):
 
 class DepositoCreate(DepositoBase):
     cliente_id: UUID
+    parent_id: Optional[UUID] = None  # Si es subdeposito, id del padre
 
 
 class DepositoUpdate(BaseModel):
@@ -53,13 +54,27 @@ class DepositoResponse(DepositoBase):
     id: UUID
     cliente_id: UUID
     cliente_nombre: Optional[str] = None
+    parent_id: Optional[UUID] = None
     activo: bool
     created_at: datetime
     cantidad_materiales: int = 0
+    cantidad_subdepositos: int = 0
 
     class Config:
         from_attributes = True
 
 
+class MaterialAgregado(BaseModel):
+    """Material agregado (suma de stock en deposito + subdepositos)."""
+    material_id: UUID
+    material_codigo: Optional[str] = None
+    material_nombre: Optional[str] = None
+    material_unidad: Optional[str] = None
+    stock_total: Decimal = Decimal("0")
+
+
 class DepositoDetailResponse(DepositoResponse):
     materiales: List[DepositoMaterialResponse] = []
+    subdepositos: List[DepositoResponse] = []
+    # Suma agregada: stock del deposito + stock de todos los subdepositos
+    materiales_totales: List[MaterialAgregado] = []

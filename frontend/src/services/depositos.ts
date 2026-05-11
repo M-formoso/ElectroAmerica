@@ -4,12 +4,22 @@ export interface Deposito {
   id: string
   cliente_id: string
   cliente_nombre?: string
+  parent_id?: string | null
   nombre: string
   direccion?: string
   descripcion?: string
   activo: boolean
   created_at: string
   cantidad_materiales: number
+  cantidad_subdepositos: number
+}
+
+export interface MaterialAgregado {
+  material_id: string
+  material_codigo?: string
+  material_nombre?: string
+  material_unidad?: string
+  stock_total: number
 }
 
 export interface DepositoMaterial {
@@ -26,6 +36,8 @@ export interface DepositoMaterial {
 
 export interface DepositoDetail extends Deposito {
   materiales: DepositoMaterial[]
+  subdepositos: Deposito[]
+  materiales_totales: MaterialAgregado[]
 }
 
 export interface DepositoCreate {
@@ -33,6 +45,7 @@ export interface DepositoCreate {
   nombre: string
   direccion?: string
   descripcion?: string
+  parent_id?: string
 }
 
 export interface DepositoUpdate {
@@ -53,8 +66,13 @@ export interface DepositoMaterialUpdate {
 }
 
 export const depositosService = {
-  async list(clienteId?: string): Promise<Deposito[]> {
-    const params = clienteId ? { cliente_id: clienteId } : undefined
+  async list(clienteId?: string, parentId?: string): Promise<Deposito[]> {
+    const params: Record<string, string | boolean> = {}
+    if (clienteId) params.cliente_id = clienteId
+    if (parentId) {
+      params.parent_id = parentId
+      params.only_roots = false
+    }
     const response = await api.get<Deposito[]>('/depositos', { params })
     return response.data
   },

@@ -10,6 +10,9 @@ class Deposito(Base, BaseModel):
     Un cliente puede tener uno o varios depositos (deposito central,
     obra X, sucursal Y, etc.). Cada deposito tiene su propio stock
     de materiales.
+
+    Un deposito puede tener subdepositos (parent_id). El stock vive en
+    cada subdeposito y se agrega en el padre para totales.
     """
     __tablename__ = "depositos"
 
@@ -17,6 +20,12 @@ class Deposito(Base, BaseModel):
         UUID(as_uuid=True),
         ForeignKey("clientes.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
+    )
+    parent_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("depositos.id", ondelete="CASCADE"),
+        nullable=True,
         index=True,
     )
     nombre = Column(String(200), nullable=False)
@@ -29,9 +38,19 @@ class Deposito(Base, BaseModel):
         back_populates="deposito",
         cascade="all, delete-orphan",
     )
+    parent = relationship(
+        "Deposito",
+        remote_side="Deposito.id",
+        back_populates="subdepositos",
+    )
+    subdepositos = relationship(
+        "Deposito",
+        back_populates="parent",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self):
-        return f"<Deposito {self.nombre} (cliente={self.cliente_id})>"
+        return f"<Deposito {self.nombre} (cliente={self.cliente_id}, parent={self.parent_id})>"
 
 
 class DepositoMaterial(Base, BaseModel):

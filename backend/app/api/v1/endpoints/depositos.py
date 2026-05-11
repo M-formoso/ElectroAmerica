@@ -13,22 +13,31 @@ from app.models.material import Material
 from app.schemas.deposito import (
     DepositoCreate, DepositoUpdate, DepositoResponse, DepositoDetailResponse,
     DepositoMaterialCreate, DepositoMaterialUpdate, DepositoMaterialResponse,
+    MaterialAgregado,
 )
+from decimal import Decimal
+from collections import defaultdict
 
 router = APIRouter()
 
 
-def _serializar_deposito(d: Deposito, cantidad_materiales: int = 0) -> DepositoResponse:
+def _serializar_deposito(
+    d: Deposito,
+    cantidad_materiales: int = 0,
+    cantidad_subdepositos: int = 0,
+) -> DepositoResponse:
     return DepositoResponse(
         id=d.id,
         cliente_id=d.cliente_id,
         cliente_nombre=d.cliente.nombre_display if d.cliente else None,
+        parent_id=d.parent_id,
         nombre=d.nombre,
         direccion=d.direccion,
         descripcion=d.descripcion,
         activo=d.activo,
         created_at=d.created_at,
         cantidad_materiales=cantidad_materiales,
+        cantidad_subdepositos=cantidad_subdepositos,
     )
 
 
@@ -51,24 +60,43 @@ def _serializar_deposito_material(dm: DepositoMaterial) -> DepositoMaterialRespo
 @router.get("", response_model=List[DepositoResponse])
 def listar_depositos(
     cliente_id: Optional[UUID] = Query(None),
+    parent_id: Optional[UUID] = Query(None, description="UUID del padre para filtrar subdepositos"),
+    only_roots: bool = Query(True, description="Si True, solo depositos sin padre"),
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_usuario_actual),
 ):
-    """Lista depositos, opcionalmente filtrados por cliente."""
+    """Lista depositos, filtrados por cliente y por jerarquia.
+
+    Por default solo devuelve depositos raiz (sin parent). Para
+    obtener los subdepositos de un padre puntual pasar parent_id.
+    """
     query = db.query(Deposito).filter(Deposito.activo == True)
     if cliente_id:
         query = query.filter(Deposito.cliente_id == cliente_id)
+    if parent_id is not None:
+        query = query.filter(Deposito.parent_id == parent_id)
+    elif only_roots:
+        query = query.filter(Deposito.parent_id.is_(None))
     depositos = query.order_by(Deposito.nombre).all()
 
-    # Contar materiales por deposito
-    counts = dict(
+    counts_mat = dict(
         db.query(DepositoMaterial.deposito_id, func.count(DepositoMaterial.id))
         .filter(DepositoMaterial.activo == True)
         .group_by(DepositoMaterial.deposito_id)
         .all()
     )
+    counts_sub = dict(
+        db.query(Deposito.parent_id, func.count(Deposito.id))
+        .filter(Deposito.activo == True, Deposito.parent_id.isnot(None))
+        .group_by(Deposito.parent_id)
+        .all()
+    )
     return [
-        _serializar_deposito(d, cantidad_materiales=counts.get(d.id, 0))
+        _serializar_deposito(
+            d,
+            cantidad_materiales=counts_mat.get(d.id, 0),
+            cantidad_subdepositos=counts_sub.get(d.id, 0),
+        )
         for d in depositos
     ]
 
@@ -79,13 +107,31 @@ def crear_deposito(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(require_admin_or_supervisor),
 ):
-    """Crea un nuevo deposito para un cliente."""
+    """Crea un nuevo deposito o subdeposito (si se pasa parent_id)."""
     cliente = db.query(Cliente).filter(Cliente.id == data.cliente_id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
+    if data.parent_id:
+        parent = db.query(Deposito).filter(
+            Deposito.id == data.parent_id, Deposito.activo == True
+        ).first()
+        if not parent:
+            raise HTTPException(status_code=404, detail="Deposito padre no encontrado")
+        if parent.cliente_id != data.cliente_id:
+            raise HTTPException(
+                status_code=400,
+                detail="El subdeposito debe ser del mismo cliente que su padre.",
+            )
+        if parent.parent_id:
+            raise HTTPException(
+                status_code=400,
+                detail="No se permite anidar mas de un nivel (subdeposito de subdeposito).",
+            )
+
     deposito = Deposito(
         cliente_id=data.cliente_id,
+        parent_id=data.parent_id,
         nombre=data.nombre,
         direccion=data.direccion,
         descripcion=data.descripcion,
@@ -93,7 +139,7 @@ def crear_deposito(
     db.add(deposito)
     db.commit()
     db.refresh(deposito)
-    return _serializar_deposito(deposito, 0)
+    return _serializar_deposito(deposito, 0, 0)
 
 
 @router.get("/{deposito_id}", response_model=DepositoDetailResponse)
@@ -102,20 +148,81 @@ def obtener_deposito(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_usuario_actual),
 ):
-    """Obtiene un deposito con sus materiales y stock."""
+    """Obtiene un deposito con sus materiales, subdepositos y totales agregados."""
     deposito = db.query(Deposito).filter(
         Deposito.id == deposito_id, Deposito.activo == True
     ).first()
     if not deposito:
         raise HTTPException(status_code=404, detail="Deposito no encontrado")
 
+    # Materiales directos
     materiales = [
         _serializar_deposito_material(dm)
         for dm in deposito.materiales
         if dm.activo
     ]
-    base = _serializar_deposito(deposito, len(materiales))
-    return DepositoDetailResponse(**base.model_dump(), materiales=materiales)
+
+    # Subdepositos
+    subdep_objs = [s for s in deposito.subdepositos if s.activo]
+    counts_mat_sub = dict(
+        db.query(DepositoMaterial.deposito_id, func.count(DepositoMaterial.id))
+        .filter(
+            DepositoMaterial.activo == True,
+            DepositoMaterial.deposito_id.in_([s.id for s in subdep_objs]) if subdep_objs else False,
+        )
+        .group_by(DepositoMaterial.deposito_id)
+        .all()
+    ) if subdep_objs else {}
+    subdepositos_resp = [
+        _serializar_deposito(
+            s,
+            cantidad_materiales=counts_mat_sub.get(s.id, 0),
+            cantidad_subdepositos=0,
+        )
+        for s in subdep_objs
+    ]
+
+    # Agregar stocks: materiales directos + materiales de subdepositos
+    agg: dict = defaultdict(lambda: {"stock": Decimal("0"), "mat": None})
+    for dm in deposito.materiales:
+        if not dm.activo:
+            continue
+        agg[dm.material_id]["stock"] += Decimal(str(dm.stock_actual or 0))
+        agg[dm.material_id]["mat"] = dm.material
+
+    if subdep_objs:
+        sub_ids = [s.id for s in subdep_objs]
+        rows_sub = db.query(DepositoMaterial).filter(
+            DepositoMaterial.deposito_id.in_(sub_ids),
+            DepositoMaterial.activo == True,
+        ).all()
+        for dm in rows_sub:
+            agg[dm.material_id]["stock"] += Decimal(str(dm.stock_actual or 0))
+            if agg[dm.material_id]["mat"] is None:
+                agg[dm.material_id]["mat"] = dm.material
+
+    materiales_totales = [
+        MaterialAgregado(
+            material_id=mid,
+            material_codigo=info["mat"].codigo if info["mat"] else None,
+            material_nombre=info["mat"].nombre if info["mat"] else None,
+            material_unidad=info["mat"].unidad if info["mat"] else None,
+            stock_total=info["stock"],
+        )
+        for mid, info in agg.items()
+    ]
+
+    base = _serializar_deposito(
+        deposito,
+        cantidad_materiales=len(materiales),
+        cantidad_subdepositos=len(subdep_objs),
+    )
+    return DepositoDetailResponse(
+        **base.model_dump(),
+        materiales=materiales,
+        subdepositos=subdepositos_resp,
+        materiales_totales=materiales_totales,
+    )
 
 
 @router.put("/{deposito_id}", response_model=DepositoResponse)

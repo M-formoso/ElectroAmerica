@@ -11,6 +11,7 @@ import {
   Search,
   Check,
   X,
+  ArrowLeft,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -75,6 +76,8 @@ export function DepositosPage() {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingDeposito, setEditingDeposito] = useState<Deposito | null>(null)
   const [formData, setFormData] = useState<DepositoFormData>(formInicialDeposito)
+  // Si se esta creando un subdeposito, el id del padre.
+  const [parentForNewSubdeposito, setParentForNewSubdeposito] = useState<string | null>(null)
 
   // Eliminar deposito
   const [depositoToDelete, setDepositoToDelete] = useState<Deposito | null>(null)
@@ -120,9 +123,13 @@ export function DepositosPage() {
 
   const createMutation = useMutation({
     mutationFn: depositosService.create,
-    onSuccess: () => {
+    onSuccess: (creado) => {
       qc.invalidateQueries({ queryKey: ['depositos'] })
-      toast({ title: 'Deposito creado' })
+      // Si era un subdeposito, refrescar el padre
+      if (creado.parent_id) {
+        qc.invalidateQueries({ queryKey: ['deposito', creado.parent_id] })
+      }
+      toast({ title: creado.parent_id ? 'Subdeposito creado' : 'Deposito creado' })
       closeForm()
     },
     onError: (e: any) => {
@@ -227,6 +234,7 @@ export function DepositosPage() {
   const closeForm = () => {
     setIsFormOpen(false)
     setEditingDeposito(null)
+    setParentForNewSubdeposito(null)
     setFormData(formInicialDeposito)
   }
 
@@ -248,6 +256,7 @@ export function DepositosPage() {
         nombre: formData.nombre,
         direccion: formData.direccion || undefined,
         descripcion: formData.descripcion || undefined,
+        parent_id: parentForNewSubdeposito || undefined,
       })
     }
   }
@@ -368,11 +377,19 @@ export function DepositosPage() {
                 {d.direccion && (
                   <p className="text-sm text-muted-foreground truncate">{d.direccion}</p>
                 )}
-                <div className="flex items-center justify-between">
-                  <Badge variant="secondary" className="flex items-center gap-1">
-                    <Package className="h-3 w-3" />
-                    {d.cantidad_materiales} materiales
-                  </Badge>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      <Package className="h-3 w-3" />
+                      {d.cantidad_materiales} materiales
+                    </Badge>
+                    {d.cantidad_subdepositos > 0 && (
+                      <Badge variant="outline" className="flex items-center gap-1">
+                        <Warehouse className="h-3 w-3" />
+                        {d.cantidad_subdepositos} subdep.
+                      </Badge>
+                    )}
+                  </div>
                   <Button
                     variant="outline"
                     size="sm"
@@ -392,12 +409,18 @@ export function DepositosPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {editingDeposito ? 'Editar Deposito' : 'Nuevo Deposito'}
+              {editingDeposito
+                ? 'Editar Deposito'
+                : parentForNewSubdeposito
+                  ? 'Nuevo Subdeposito'
+                  : 'Nuevo Deposito'}
             </DialogTitle>
             <DialogDescription>
               {editingDeposito
                 ? 'Modifica los datos del deposito'
-                : 'Cargar un nuevo deposito asociado a un cliente'}
+                : parentForNewSubdeposito
+                  ? 'Cargar un subdeposito dentro del deposito principal'
+                  : 'Cargar un nuevo deposito asociado a un cliente'}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -406,7 +429,7 @@ export function DepositosPage() {
               <Select
                 value={formData.cliente_id}
                 onValueChange={(v) => setFormData({ ...formData, cliente_id: v })}
-                disabled={!!editingDeposito}
+                disabled={!!editingDeposito || !!parentForNewSubdeposito}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar cliente" />
@@ -510,10 +533,12 @@ export function DepositosPage() {
       >
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {depositoDetail
-                ? `Materiales en ${depositoDetail.nombre}`
-                : 'Cargando...'}
+            <DialogTitle className="flex items-center gap-2">
+              <Warehouse className="h-5 w-5 text-primary" />
+              {depositoDetail ? depositoDetail.nombre : 'Cargando...'}
+              {depositoDetail?.parent_id && (
+                <Badge variant="outline" className="text-xs">subdeposito</Badge>
+              )}
             </DialogTitle>
             <DialogDescription>
               {depositoDetail?.cliente_nombre && (
@@ -525,7 +550,146 @@ export function DepositosPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex justify-end">
+          {/* Resumen total agregado (deposito + subdepositos) */}
+          {depositoDetail && depositoDetail.subdepositos.length > 0 && (
+            <div className="border rounded-md p-3 bg-muted/30 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">
+                  Resumen total (deposito + subdepositos)
+                </p>
+                <Badge variant="secondary">
+                  {depositoDetail.materiales_totales.length} materiales
+                </Badge>
+              </div>
+              {depositoDetail.materiales_totales.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Material</TableHead>
+                      <TableHead className="text-right">Stock total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {depositoDetail.materiales_totales.map((m) => (
+                      <TableRow key={m.material_id}>
+                        <TableCell>
+                          <div className="font-medium">{m.material_nombre}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {m.material_codigo}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {Number(m.stock_total).toFixed(2)} {m.material_unidad}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Aun no hay materiales cargados.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Subdepositos */}
+          {depositoDetail && !depositoDetail.parent_id && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">
+                  Subdepositos
+                  {depositoDetail.subdepositos.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {depositoDetail.subdepositos.length}
+                    </Badge>
+                  )}
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEditingDeposito(null)
+                    setFormData({
+                      cliente_id: depositoDetail.cliente_id,
+                      nombre: '',
+                      direccion: '',
+                      descripcion: '',
+                    })
+                    setParentForNewSubdeposito(depositoDetail.id)
+                    setIsFormOpen(true)
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nuevo subdeposito
+                </Button>
+              </div>
+              {depositoDetail.subdepositos.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2">
+                  Sin subdepositos cargados.
+                </p>
+              ) : (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {depositoDetail.subdepositos.map((sub) => (
+                    <div
+                      key={sub.id}
+                      className="flex items-center justify-between p-3 border rounded-md hover:bg-muted/50"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{sub.nombre}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {sub.cantidad_materiales} materiales
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => setOpenDepositoId(sub.id)}
+                          title="Ver stock del subdeposito"
+                        >
+                          <Package className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive"
+                          onClick={() => setDepositoToDelete(sub)}
+                          title="Eliminar subdeposito"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Si es subdeposito, mostrar boton para volver al padre */}
+          {depositoDetail?.parent_id && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="self-start"
+              onClick={() => setOpenDepositoId(depositoDetail.parent_id!)}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Volver al deposito principal
+            </Button>
+          )}
+
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">
+              Materiales directos
+              {depositoDetail && (
+                <span className="text-xs text-muted-foreground ml-2">
+                  ({depositoDetail.materiales.length})
+                </span>
+              )}
+            </p>
             <Button
               size="sm"
               onClick={() => {
