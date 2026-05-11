@@ -18,7 +18,7 @@ router = APIRouter()
 @router.get("/", response_model=List[MaterialResponse])
 def listar_materiales(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, le=100),
+    limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(require_staff)
 ):

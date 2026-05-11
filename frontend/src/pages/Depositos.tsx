@@ -111,10 +111,11 @@ export function DepositosPage() {
     enabled: !!openDepositoId,
   })
 
-  const { data: materialesCatalogo = [] } = useQuery({
+  const { data: materialesCatalogo = [], error: materialesError } = useQuery({
     queryKey: ['materiales-catalogo'],
-    queryFn: () => materialesService.getMateriales({ limit: 500 }),
+    queryFn: () => materialesService.getMateriales({ limit: 1000 }),
     enabled: addMaterialOpen,
+    retry: false,
   })
 
   const createMutation = useMutation({
@@ -657,9 +658,18 @@ export function DepositosPage() {
                   <SelectValue placeholder="Seleccionar material" />
                 </SelectTrigger>
                 <SelectContent>
-                  {materialesDisponibles.length === 0 ? (
+                  {materialesError ? (
+                    <div className="p-2 text-sm text-destructive text-center">
+                      Error al cargar el catalogo
+                    </div>
+                  ) : materialesCatalogo.length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground text-center">
-                      No hay materiales nuevos para agregar
+                      No hay materiales en el catalogo. Crealos primero en
+                      Recursos &gt; Materiales.
+                    </div>
+                  ) : materialesDisponibles.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      Todos los materiales del catalogo ya estan en este deposito
                     </div>
                   ) : (
                     materialesDisponibles.map((m) => (
