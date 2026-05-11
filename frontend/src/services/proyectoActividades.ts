@@ -216,6 +216,25 @@ export const proyectoActividadesService = {
     window.URL.revokeObjectURL(url)
   },
 
+  // Descargar Excel de materiales totales
+  async descargarMaterialesExcel(proyectoId: string, nombreProyecto: string): Promise<void> {
+    const response = await api.get(`/proyectos/${proyectoId}/materiales-totales/excel`, {
+      responseType: 'blob',
+    })
+
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `materiales_${nombreProyecto.replace(/\s+/g, '_').substring(0, 30)}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  },
+
   // Herramientas
   async getHerramientas(proyectoId: string): Promise<ProyectoHerramienta[]> {
     const response = await api.get<ProyectoHerramienta[]>(`/proyectos/${proyectoId}/herramientas`)

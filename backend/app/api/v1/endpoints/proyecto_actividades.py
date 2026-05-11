@@ -440,6 +440,77 @@ def descargar_resumen_pdf(
     )
 
 
+@router.get("/{proyecto_id}/materiales-totales/excel")
+def descargar_materiales_excel(
+    proyecto_id: UUID,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_usuario_actual)
+):
+    """Descarga la lista de materiales totales del proyecto en Excel."""
+    from io import BytesIO
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill
+
+    if not proyecto_service.verificar_acceso_proyecto(db, proyecto_id, usuario.id, usuario.rol):
+        raise HTTPException(status_code=403, detail="No tiene acceso a este proyecto")
+
+    proyecto = proyecto_service.obtener_proyecto(db, proyecto_id)
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    service = ProyectoActividadService(db)
+    resumen = service.obtener_resumen_proyecto(proyecto_id)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Materiales"
+
+    # Encabezado del proyecto
+    ws["A1"] = "Proyecto:"
+    ws["B1"] = proyecto.nombre
+    ws["A1"].font = Font(bold=True)
+    if proyecto.ubicacion:
+        ws["A2"] = "Ubicacion:"
+        ws["B2"] = proyecto.ubicacion
+        ws["A2"].font = Font(bold=True)
+
+    # Headers de la tabla
+    header_row = 4
+    ws.cell(row=header_row, column=1, value="Material").font = Font(bold=True, color="FFFFFF")
+    ws.cell(row=header_row, column=2, value="Cantidad Total").font = Font(bold=True, color="FFFFFF")
+    ws.cell(row=header_row, column=3, value="Unidad").font = Font(bold=True, color="FFFFFF")
+    for col in range(1, 4):
+        cell = ws.cell(row=header_row, column=col)
+        cell.fill = PatternFill(start_color="E53935", end_color="E53935", fill_type="solid")
+        cell.alignment = Alignment(horizontal="center")
+
+    # Datos
+    for i, mat in enumerate(resumen.materiales_totales, start=header_row + 1):
+        ws.cell(row=i, column=1, value=mat.material_nombre)
+        ws.cell(row=i, column=2, value=float(mat.cantidad_total)).alignment = Alignment(horizontal="right")
+        ws.cell(row=i, column=3, value=mat.unidad)
+
+    # Ajustar ancho de columnas
+    ws.column_dimensions["A"].width = 40
+    ws.column_dimensions["B"].width = 18
+    ws.column_dimensions["C"].width = 12
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    nombre_limpio = proyecto.nombre.replace(' ', '_').replace('/', '-')[:30]
+    filename = f"materiales_{nombre_limpio}.xlsx"
+
+    return Response(
+        content=output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
+
+
 # ============ Herramientas ============
 
 @router.get("/{proyecto_id}/herramientas", response_model=List[ProyectoHerramientaResponse])

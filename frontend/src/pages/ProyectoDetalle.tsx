@@ -25,6 +25,8 @@ import {
   Package,
   Wrench,
   AlertTriangle,
+  FileSpreadsheet,
+  Printer,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -168,6 +170,9 @@ export function ProyectoDetallePage() {
   // Estados para asignar herramientas
   const [isAsignarHerramientaOpen, setIsAsignarHerramientaOpen] = useState(false)
   const [selectedHerramientas, setSelectedHerramientas] = useState<string[]>([])
+
+  // Estado para descarga de materiales
+  const [isDownloadingMaterialesExcel, setIsDownloadingMaterialesExcel] = useState(false)
 
   // Estados para registrar avance
   const [isRegistrarAvanceOpen, setIsRegistrarAvanceOpen] = useState(false)
@@ -639,6 +644,61 @@ export function ProyectoDetallePage() {
     }))
   }
 
+  const handleDescargarMaterialesExcel = async () => {
+    if (!proyecto) return
+    setIsDownloadingMaterialesExcel(true)
+    try {
+      await proyectoActividadesService.descargarMaterialesExcel(proyectoId!, proyecto.nombre)
+      toast({ title: 'Excel descargado exitosamente' })
+    } catch {
+      toast({ variant: 'destructive', title: 'Error al descargar Excel' })
+    } finally {
+      setIsDownloadingMaterialesExcel(false)
+    }
+  }
+
+  const handleImprimirMateriales = () => {
+    if (!proyecto || !resumenActividades?.materiales_totales) return
+    const filas = resumenActividades.materiales_totales
+      .map(
+        (m) => `
+        <tr>
+          <td>${m.material_nombre}</td>
+          <td class="num">${Number(m.cantidad_total).toFixed(2)} ${m.unidad}</td>
+        </tr>`
+      )
+      .join('')
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8" />
+      <title>Materiales - ${proyecto.nombre}</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 24px; color: #1A1A1A; }
+        h1 { color: #E53935; margin: 0 0 4px; font-size: 22px; }
+        .sub { color: #666; font-size: 13px; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #E53935; color: #fff; text-align: left; padding: 8px 12px; font-size: 13px; }
+        th.num, td.num { text-align: right; }
+        td { padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; }
+        tr:nth-child(even) td { background: #fafafa; }
+        .footer { margin-top: 24px; color: #999; font-size: 11px; }
+      </style></head><body>
+      <h1>${proyecto.nombre}</h1>
+      <div class="sub">${proyecto.ubicacion || ''}</div>
+      <table>
+        <thead><tr><th>Material</th><th class="num">Cantidad Total</th></tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+      <div class="footer">Generado el ${new Date().toLocaleString('es-AR')}</div>
+      <script>window.onload = () => { window.print(); }</script>
+      </body></html>`
+    const w = window.open('', '_blank', 'width=900,height=700')
+    if (w) {
+      w.document.write(html)
+      w.document.close()
+    } else {
+      toast({ variant: 'destructive', title: 'El navegador bloqueo la ventana de impresion' })
+    }
+  }
+
   const handleRegistrarAvance = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedActividadAvance || !avanceForm.cantidad) return
@@ -977,7 +1037,7 @@ export function ProyectoDetallePage() {
 
         {/* Materiales Tab */}
         <TabsContent value="materiales" className="space-y-4">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center gap-4 flex-wrap">
             <div>
               <p className="text-muted-foreground">
                 Materiales necesarios según las tareas del proyecto
@@ -986,6 +1046,27 @@ export function ProyectoDetallePage() {
                 Calculados automáticamente en base a las tareas asignadas
               </p>
             </div>
+            {resumenActividades?.materiales_totales && resumenActividades.materiales_totales.length > 0 && (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDescargarMaterialesExcel}
+                  disabled={isDownloadingMaterialesExcel}
+                >
+                  {isDownloadingMaterialesExcel ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  )}
+                  Descargar Excel
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleImprimirMateriales}>
+                  <Printer className="h-4 w-4 mr-2" />
+                  Imprimir
+                </Button>
+              </div>
+            )}
           </div>
 
           {!resumenActividades?.materiales_totales || resumenActividades.materiales_totales.length === 0 ? (
