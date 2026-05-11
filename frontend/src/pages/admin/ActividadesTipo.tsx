@@ -48,7 +48,7 @@ import { materialesService } from '@/services/materiales'
 
 interface MaterialSeleccionado {
   material_id: string
-  cantidad_default: number
+  cantidad_por_unidad: number
 }
 
 export default function ActividadesTipo() {
@@ -119,7 +119,7 @@ export default function ActividadesTipo() {
       setMaterialesSeleccionados(
         actividad.materiales?.map(m => ({
           material_id: m.material_id,
-          cantidad_default: m.cantidad_default,
+          cantidad_por_unidad: m.cantidad_por_unidad,
         })) || []
       )
       setActividadEditar(actividad)
@@ -140,7 +140,7 @@ export default function ActividadesTipo() {
 
   const handleToggleMaterial = (materialId: string, checked: boolean) => {
     if (checked) {
-      setMaterialesSeleccionados(prev => [...prev, { material_id: materialId, cantidad_default: 1 }])
+      setMaterialesSeleccionados(prev => [...prev, { material_id: materialId, cantidad_por_unidad: 1 }])
     } else {
       setMaterialesSeleccionados(prev => prev.filter(m => m.material_id !== materialId))
     }
@@ -148,7 +148,7 @@ export default function ActividadesTipo() {
 
   const handleCantidadMaterial = (materialId: string, cantidad: number) => {
     setMaterialesSeleccionados(prev =>
-      prev.map(m => (m.material_id === materialId ? { ...m, cantidad_default: cantidad } : m))
+      prev.map(m => (m.material_id === materialId ? { ...m, cantidad_por_unidad: cantidad } : m))
     )
   }
 
@@ -160,7 +160,7 @@ export default function ActividadesTipo() {
       nombre: formData.nombre.trim(),
       descripcion: formData.descripcion.trim() || undefined,
       categoria: formData.categoria.trim() || undefined,
-      materiales: materialesSeleccionados.filter(m => m.cantidad_default > 0),
+      materiales: materialesSeleccionados.filter(m => m.cantidad_por_unidad > 0),
     }
 
     if (actividadEditar) {
@@ -298,7 +298,7 @@ export default function ActividadesTipo() {
                             <div className="flex flex-wrap gap-1">
                               {actividad.materiales.slice(0, 3).map(mat => (
                                 <Badge key={mat.material_id} variant="outline" className="text-xs">
-                                  {mat.material_nombre} ({mat.cantidad_default})
+                                  {mat.material_nombre} ({mat.cantidad_por_unidad})
                                 </Badge>
                               ))}
                               {actividad.materiales.length > 3 && (
@@ -466,7 +466,7 @@ export default function ActividadesTipo() {
                           <Input
                             type="number"
                             className="w-20 h-8"
-                            value={seleccionado.cantidad_default || ''}
+                            value={seleccionado.cantidad_por_unidad || ''}
                             onChange={e =>
                               handleCantidadMaterial(mat.id, parseFloat(e.target.value) || 0)
                             }

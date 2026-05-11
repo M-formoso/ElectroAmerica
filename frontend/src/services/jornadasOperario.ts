@@ -323,7 +323,7 @@ export const asignacionesDiariasService = {
 
 export interface MaterialActividadTipo {
   material_id: string
-  cantidad_default: number
+  cantidad_por_unidad: number
   material_nombre?: string
   material_unidad?: string
 }
@@ -342,7 +342,7 @@ export interface ActividadTipoCreate {
   nombre: string
   descripcion?: string
   categoria?: string
-  materiales?: { material_id: string; cantidad_default: number }[]
+  materiales?: { material_id: string; cantidad_por_unidad: number }[]
 }
 
 export interface AsignacionDiariaCreate {
