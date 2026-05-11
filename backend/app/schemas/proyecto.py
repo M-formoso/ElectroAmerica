@@ -31,6 +31,7 @@ class ProyectoUpdate(BaseModel):
     nombre: Optional[str] = Field(None, min_length=2, max_length=255)
     descripcion: Optional[str] = None
     cliente_id: Optional[UUID] = None
+    supervisor_id: Optional[UUID] = None
     ubicacion: Optional[str] = Field(None, max_length=255)
     fecha_inicio: Optional[date] = None
     fecha_fin_estimada: Optional[date] = None

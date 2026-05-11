@@ -99,10 +99,16 @@ export function ProyectoEditarPage() {
   }, [proyecto])
 
   const updateMutation = useMutation({
-    mutationFn: (data: Partial<typeof formData>) =>
+    mutationFn: (data: typeof formData) =>
       proyectosService.updateProyecto(proyectoId!, {
-        ...data,
-        monto_contratado: data.monto_contratado ? parseFloat(data.monto_contratado as string) : undefined,
+        nombre: data.nombre,
+        descripcion: data.descripcion || undefined,
+        ubicacion: data.ubicacion || undefined,
+        estado: data.estado,
+        fecha_inicio: data.fecha_inicio || undefined,
+        fecha_fin_estimada: data.fecha_fin_estimada || undefined,
+        fecha_fin_real: data.fecha_fin_real || undefined,
+        monto_contratado: data.monto_contratado ? parseFloat(data.monto_contratado) : undefined,
         cliente_id: data.cliente_id || undefined,
         supervisor_id: data.supervisor_id || undefined,
       }),
@@ -112,8 +118,14 @@ export function ProyectoEditarPage() {
       toast({ title: 'Proyecto actualizado exitosamente' })
       navigate(`/proyectos/${proyectoId}`)
     },
-    onError: () => {
-      toast({ variant: 'destructive', title: 'Error al actualizar proyecto' })
+    onError: (error: any) => {
+      const detail = error?.response?.data?.detail
+      const msg = Array.isArray(detail)
+        ? detail.map((d: any) => `${d.loc?.join('.')}: ${d.msg}`).join(' | ')
+        : typeof detail === 'string'
+          ? detail
+          : 'Error al actualizar proyecto'
+      toast({ variant: 'destructive', title: 'Error al actualizar proyecto', description: msg })
     },
   })
 
