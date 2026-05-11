@@ -780,41 +780,6 @@ export function ClientesPage() {
 
             <Separator />
 
-            {/* Comercial */}
-            <div className="space-y-4">
-              <h4 className="font-medium">Datos Comerciales</h4>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Descuento General (%)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    {...createForm.register('descuento_general', { valueAsNumber: true })}
-                    defaultValue={0}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Límite de Crédito</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    {...createForm.register('limite_credito', { valueAsNumber: true })}
-                    placeholder="Sin límite"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Días de Crédito</Label>
-                  <Input
-                    type="number"
-                    {...createForm.register('dias_credito', { valueAsNumber: true })}
-                    defaultValue={0}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <Separator />
-
             {/* Notas */}
             <div className="space-y-4">
               <h4 className="font-medium">Notas</h4>
