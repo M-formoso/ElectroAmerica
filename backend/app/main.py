@@ -1,10 +1,15 @@
-from fastapi import FastAPI
+import logging
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.api.v1.api import api_router
 from app.db.session import engine
 from app.db.base import Base
+
+logger = logging.getLogger("uvicorn.error")
 
 
 @asynccontextmanager
@@ -32,6 +37,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Loguea los errores 422 con el payload recibido para facilitar debug."""
+    try:
+        body = await request.body()
+        body_text = body.decode("utf-8", errors="replace")
+    except Exception:
+        body_text = "<no se pudo leer el body>"
+    logger.error(
+        "422 Validation error en %s %s | errors=%s | body=%s",
+        request.method,
+        request.url.path,
+        exc.errors(),
+        body_text,
+    )
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors()},
+    )
+
 
 # Routers
 app.include_router(api_router, prefix=settings.API_V1_STR)
