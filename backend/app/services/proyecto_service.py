@@ -56,7 +56,8 @@ def crear_proyecto(
         fecha_fin_estimada=proyecto.fecha_fin_estimada,
         estado=proyecto.estado,
         monto_contratado=proyecto.monto_contratado,
-        supervisor_id=usuario_id
+        supervisor_id=usuario_id,
+        deposito_id=proyecto.deposito_id,
     )
     db.add(db_proyecto)
     db.commit()

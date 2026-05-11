@@ -20,6 +20,9 @@ class ProyectoCreate(ProyectoBase):
     """Schema para crear proyecto."""
     cliente_id: Optional[UUID] = None
     monto_contratado: Optional[Decimal] = Field(None, ge=0)
+    # Si esta seteado, los materiales del proyecto operan sobre el stock
+    # del deposito indicado. Si es None, sobre el stock global.
+    deposito_id: Optional[UUID] = None
     # Actividades tipo a asignar al proyecto
     actividades_tipo_ids: Optional[List[UUID]] = None
     # Herramientas a asignar al proyecto
@@ -32,6 +35,7 @@ class ProyectoUpdate(BaseModel):
     descripcion: Optional[str] = None
     cliente_id: Optional[UUID] = None
     supervisor_id: Optional[UUID] = None
+    deposito_id: Optional[UUID] = None
     ubicacion: Optional[str] = Field(None, max_length=255)
     fecha_inicio: Optional[date] = None
     fecha_fin_estimada: Optional[date] = None
@@ -50,6 +54,8 @@ class ProyectoResponse(ProyectoBase):
     activo: bool
     created_at: datetime
     supervisor_id: Optional[UUID] = None
+    deposito_id: Optional[UUID] = None
+    deposito_nombre: Optional[str] = None
 
     class Config:
         from_attributes = True

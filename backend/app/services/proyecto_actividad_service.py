@@ -14,6 +14,7 @@ from app.models.actividad_tipo import ActividadTipo, MaterialActividadTipo
 from app.models.proyecto import Proyecto
 from app.models.herramienta import Herramienta
 from app.models.material import Material
+from app.models.deposito import DepositoMaterial
 from app.models.movimiento_stock import MovimientoStock, TipoMovimiento
 from app.schemas.proyecto_actividad import (
     ProyectoActividadCreate,
@@ -37,10 +38,15 @@ class ProyectoActividadService:
     def calcular_materiales_actividad(
         self,
         actividad_tipo_id: UUID,
-        cantidad: Decimal
+        cantidad: Decimal,
+        deposito_id: Optional[UUID] = None,
     ) -> List[MaterialCalculado]:
         """
         Calcula los materiales necesarios para una cantidad de actividad.
+
+        Si deposito_id esta seteado, el stock_actual mostrado corresponde
+        al stock de ese deposito para cada material (DepositoMaterial). Si
+        es None, se usa el stock global (Material.stock_actual).
 
         Ejemplo: Si la actividad "Contrabases" requiere 7.14kg de cemento por unidad
         y se planifican 10 unidades, calcula 71.4kg de cemento.
@@ -50,18 +56,33 @@ class ProyectoActividadService:
             MaterialActividadTipo.activo == True
         ).all()
 
+        # Precargar stocks del deposito en una sola query si aplica
+        stocks_deposito = {}
+        if deposito_id and materiales_actividad:
+            material_ids = [mat.material_id for mat in materiales_actividad]
+            rows = self.db.query(DepositoMaterial).filter(
+                DepositoMaterial.deposito_id == deposito_id,
+                DepositoMaterial.material_id.in_(material_ids),
+                DepositoMaterial.activo == True,
+            ).all()
+            stocks_deposito = {dm.material_id: dm.stock_actual for dm in rows}
+
         materiales_calculados = []
         for mat in materiales_actividad:
             material = self.db.query(Material).filter(Material.id == mat.material_id).first()
             if material:
                 cantidad_total = mat.cantidad_por_unidad * cantidad
+                if deposito_id:
+                    stock = stocks_deposito.get(material.id, Decimal("0"))
+                else:
+                    stock = material.stock_actual
                 materiales_calculados.append(MaterialCalculado(
                     material_id=material.id,
                     material_nombre=material.nombre,
                     material_codigo=material.codigo,
                     cantidad_total=cantidad_total,
                     unidad=material.unidad,
-                    stock_actual=material.stock_actual
+                    stock_actual=stock,
                 ))
 
         return materiales_calculados
@@ -201,6 +222,11 @@ class ProyectoActividadService:
         if not actividad:
             raise ValueError(f"Actividad {actividad_id} no encontrada")
 
+        proyecto = self.db.query(Proyecto).filter(
+            Proyecto.id == actividad.proyecto_id
+        ).first()
+        deposito_id = proyecto.deposito_id if proyecto else None
+
         # Validar stock antes de descontar nada
         if avance_data.materiales_consumidos:
             for consumo in avance_data.materiales_consumidos:
@@ -214,12 +240,23 @@ class ProyectoActividadService:
                         status_code=404,
                         detail=f"Material {consumo.material_id} no encontrado"
                     )
-                if material.stock_actual < consumo.cantidad:
+                # Validar contra deposito si esta configurado, sino global
+                if deposito_id:
+                    dm = self.db.query(DepositoMaterial).filter(
+                        DepositoMaterial.deposito_id == deposito_id,
+                        DepositoMaterial.material_id == material.id,
+                        DepositoMaterial.activo == True,
+                    ).first()
+                    stock_disp = dm.stock_actual if dm else Decimal("0")
+                else:
+                    stock_disp = material.stock_actual
+                if stock_disp < consumo.cantidad:
+                    fuente = "el deposito del proyecto" if deposito_id else "el stock global"
                     raise HTTPException(
                         status_code=400,
                         detail=(
-                            f"Stock insuficiente de '{material.nombre}'. "
-                            f"Disponible: {material.stock_actual} {material.unidad}, "
+                            f"Stock insuficiente de '{material.nombre}' en {fuente}. "
+                            f"Disponible: {stock_disp} {material.unidad}, "
                             f"requerido: {consumo.cantidad}"
                         )
                     )
@@ -238,7 +275,9 @@ class ProyectoActividadService:
         # Actualizar cantidad ejecutada de la actividad
         actividad.cantidad_ejecutada = actividad.cantidad_ejecutada + avance_data.cantidad
 
-        # Descontar stock y registrar movimientos
+        # Descontar stock y registrar movimientos. Si el proyecto tiene
+        # deposito_id, se descuenta del DepositoMaterial; si no, del
+        # stock global Material.stock_actual.
         if avance_data.materiales_consumidos:
             for consumo in avance_data.materiales_consumidos:
                 if consumo.cantidad <= 0:
@@ -246,15 +285,37 @@ class ProyectoActividadService:
                 material = self.db.query(Material).filter(
                     Material.id == consumo.material_id
                 ).first()
-                stock_anterior = material.stock_actual
-                material.stock_actual = stock_anterior - consumo.cantidad
+                if deposito_id:
+                    dm = self.db.query(DepositoMaterial).filter(
+                        DepositoMaterial.deposito_id == deposito_id,
+                        DepositoMaterial.material_id == material.id,
+                        DepositoMaterial.activo == True,
+                    ).first()
+                    if not dm:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=(
+                                f"El material '{material.nombre}' no esta cargado "
+                                f"en el deposito del proyecto."
+                            )
+                        )
+                    stock_anterior = dm.stock_actual
+                    dm.stock_actual = stock_anterior - consumo.cantidad
+                else:
+                    stock_anterior = material.stock_actual
+                    material.stock_actual = stock_anterior - consumo.cantidad
+
                 self.db.add(MovimientoStock(
                     material_id=material.id,
                     tipo=TipoMovimiento.salida,
                     cantidad=consumo.cantidad,
                     stock_anterior=stock_anterior,
-                    stock_nuevo=material.stock_actual,
-                    motivo=f"Consumo en avance de tarea {actividad.actividad_tipo.nombre if actividad.actividad_tipo else ''}".strip(),
+                    stock_nuevo=stock_anterior - consumo.cantidad,
+                    motivo=(
+                        f"Consumo en avance de tarea "
+                        f"{actividad.actividad_tipo.nombre if actividad.actividad_tipo else ''}"
+                        + (f" (deposito {deposito_id})" if deposito_id else "")
+                    ).strip(),
                     proyecto_id=actividad.proyecto_id,
                     usuario_id=registrado_por_id
                 ))
@@ -361,8 +422,13 @@ class ProyectoActividadService:
         Los materiales totales se recalculan en vivo a partir de la
         cantidad_por_unidad actual en actividades-tipo, asi cualquier
         cambio en el catalogo se refleja inmediatamente en el proyecto.
+
+        Si el proyecto tiene deposito_id, el stock_actual viene de ese
+        deposito; sino, del stock global.
         """
         actividades = self.obtener_actividades_proyecto(proyecto_id)
+        proyecto = self.db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+        deposito_id = proyecto.deposito_id if proyecto else None
 
         total = len(actividades)
         completadas = sum(1 for a in actividades if a.porcentaje_avance >= 100)
@@ -379,7 +445,8 @@ class ProyectoActividadService:
         for actividad in actividades:
             materiales_live = self.calcular_materiales_actividad(
                 actividad.actividad_tipo_id,
-                actividad.cantidad_planificada
+                actividad.cantidad_planificada,
+                deposito_id=deposito_id,
             )
             for mat in materiales_live:
                 mat_id = str(mat.material_id)

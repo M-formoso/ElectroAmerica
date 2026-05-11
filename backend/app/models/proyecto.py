@@ -28,6 +28,8 @@ class Proyecto(Base, BaseModel):
     porcentaje_avance = Column(Numeric(5, 2), default=0, nullable=False)
     monto_contratado = Column(Numeric(15, 2), nullable=True)
     supervisor_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    # Fuente de materiales: null = stock global, valor = deposito especifico
+    deposito_id = Column(UUID(as_uuid=True), ForeignKey("depositos.id"), nullable=True)
 
     # Relaciones
     cliente = relationship(
@@ -38,6 +40,10 @@ class Proyecto(Base, BaseModel):
     supervisor = relationship(
         "Usuario",
         foreign_keys=[supervisor_id]
+    )
+    deposito = relationship(
+        "Deposito",
+        foreign_keys=[deposito_id]
     )
     etapas = relationship(
         "Etapa",
@@ -72,6 +78,11 @@ class Proyecto(Base, BaseModel):
     def cliente_nombre(self):
         """Nombre del cliente para mostrar (razon_social/nombre_fantasia)."""
         return self.cliente.nombre_display if self.cliente else None
+
+    @property
+    def deposito_nombre(self):
+        """Nombre del deposito asociado al proyecto, si tiene."""
+        return self.deposito.nombre if self.deposito else None
 
     def __repr__(self):
         return f"<Proyecto {self.nombre}>"

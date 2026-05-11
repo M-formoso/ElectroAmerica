@@ -60,6 +60,7 @@ import { actividadesTipoService, type ActividadTipoList } from '@/services/activ
 import { proyectoActividadesService } from '@/services/proyectoActividades'
 import { herramientasService, type Herramienta } from '@/services/herramientas'
 import { getClientes, type ClienteListItem } from '@/services/clientes'
+import { depositosService } from '@/services/depositos'
 import { formatDate } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useIsAdmin } from '@/store/auth'
@@ -78,6 +79,8 @@ interface ProyectoForm {
   fecha_fin_estimada: string
   monto_contratado: string
   cliente_id: string
+  fuente_materiales: 'global' | 'deposito'
+  deposito_id: string
   actividades: ActividadSeleccionada[]
   herramientas_ids: string[]
 }
@@ -90,6 +93,8 @@ const formInicial: ProyectoForm = {
   fecha_fin_estimada: '',
   monto_contratado: '',
   cliente_id: '',
+  fuente_materiales: 'global',
+  deposito_id: '',
   actividades: [],
   herramientas_ids: [],
 }
@@ -147,6 +152,13 @@ export function ProyectosPage() {
     queryFn: () => getClientes(),
   })
 
+  // Depositos del cliente seleccionado (para elegir fuente de materiales)
+  const { data: depositosCliente = [] } = useQuery({
+    queryKey: ['depositos', formData.cliente_id],
+    queryFn: () => depositosService.list(formData.cliente_id),
+    enabled: isCreateOpen && !!formData.cliente_id,
+  })
+
   const createMutation = useMutation({
     mutationFn: async (payload: {
       proyecto: Parameters<typeof proyectosService.createProyecto>[0]
@@ -199,6 +211,10 @@ export function ProyectosPage() {
         fecha_fin_estimada: formData.fecha_fin_estimada || undefined,
         monto_contratado: formData.monto_contratado ? parseFloat(formData.monto_contratado) : undefined,
         cliente_id: formData.cliente_id || undefined,
+        deposito_id:
+          formData.fuente_materiales === 'deposito' && formData.deposito_id
+            ? formData.deposito_id
+            : undefined,
       },
       actividades: formData.actividades,
     })
@@ -593,7 +609,15 @@ export function ProyectosPage() {
                   <Label>Cliente</Label>
                   <Select
                     value={formData.cliente_id}
-                    onValueChange={(v) => setFormData({ ...formData, cliente_id: v })}
+                    onValueChange={(v) =>
+                      setFormData({
+                        ...formData,
+                        cliente_id: v,
+                        // Al cambiar de cliente, resetear el deposito seleccionado
+                        deposito_id: '',
+                        fuente_materiales: 'global',
+                      })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar cliente" />
@@ -607,6 +631,102 @@ export function ProyectosPage() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              {/* Fuente de materiales */}
+              <div className="space-y-3 pt-4 border-t">
+                <div className="flex items-center gap-2">
+                  <Wrench className="h-4 w-4 text-primary" />
+                  <Label className="text-base font-semibold">Fuente de materiales</Label>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Donde se descuenta el stock al consumir materiales en este proyecto.
+                </p>
+                <div className="grid gap-2">
+                  <label className="flex items-center gap-3 p-2 rounded-md border cursor-pointer hover:bg-muted/50">
+                    <input
+                      type="radio"
+                      name="fuente_materiales"
+                      checked={formData.fuente_materiales === 'global'}
+                      onChange={() =>
+                        setFormData({
+                          ...formData,
+                          fuente_materiales: 'global',
+                          deposito_id: '',
+                        })
+                      }
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Stock global</p>
+                      <p className="text-xs text-muted-foreground">
+                        Usa el inventario general de la seccion Materiales.
+                      </p>
+                    </div>
+                  </label>
+                  <label
+                    className={`flex items-center gap-3 p-2 rounded-md border ${
+                      formData.cliente_id
+                        ? 'cursor-pointer hover:bg-muted/50'
+                        : 'opacity-50 cursor-not-allowed'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="fuente_materiales"
+                      disabled={!formData.cliente_id}
+                      checked={formData.fuente_materiales === 'deposito'}
+                      onChange={() =>
+                        setFormData({ ...formData, fuente_materiales: 'deposito' })
+                      }
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">
+                        Deposito del cliente
+                        {!formData.cliente_id && (
+                          <span className="text-xs text-muted-foreground ml-2">
+                            (selecciona un cliente primero)
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Usa el stock de un deposito especifico del cliente.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+                {formData.fuente_materiales === 'deposito' && (
+                  <div className="space-y-2 pl-4">
+                    <Label>Deposito *</Label>
+                    <Select
+                      value={formData.deposito_id}
+                      onValueChange={(v) =>
+                        setFormData({ ...formData, deposito_id: v })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar deposito del cliente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {depositosCliente.length === 0 ? (
+                          <div className="p-2 text-sm text-muted-foreground text-center">
+                            El cliente no tiene depositos. Crealos en Recursos &gt; Depositos.
+                          </div>
+                        ) : (
+                          depositosCliente.map((d) => (
+                            <SelectItem key={d.id} value={d.id}>
+                              {d.nombre}
+                              {d.cantidad_materiales > 0 && (
+                                <span className="text-xs text-muted-foreground ml-2">
+                                  ({d.cantidad_materiales} materiales)
+                                </span>
+                              )}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               {/* Seccion de Actividades Tipo */}
@@ -771,7 +891,14 @@ export function ProyectosPage() {
               <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createMutation.isPending || !formData.nombre}>
+              <Button
+                type="submit"
+                disabled={
+                  createMutation.isPending ||
+                  !formData.nombre ||
+                  (formData.fuente_materiales === 'deposito' && !formData.deposito_id)
+                }
+              >
                 {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Crear Proyecto
               </Button>
