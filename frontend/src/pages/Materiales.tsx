@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   ArrowUpCircle,
   ArrowDownCircle,
+  ArrowRightLeft,
   MoreVertical,
   Edit,
   Trash2,
@@ -16,6 +17,7 @@ import {
   TrendingDown,
   RefreshCw,
   MapPin,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -47,6 +49,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Label } from '@/components/ui/label'
 import { materialesService, type MovimientoStock } from '@/services/materiales'
+import { DepositoSelector } from '@/components/materiales/DepositoSelector'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/hooks/use-toast'
@@ -75,17 +78,27 @@ const initialFormState: MaterialForm = {
   ubicacion_almacen: '',
 }
 
+interface DestinoForm {
+  deposito_id: string
+  cantidad: string
+}
+
 export function MaterialesPage() {
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isMovimientoOpen, setIsMovimientoOpen] = useState(false)
   const [isHistorialOpen, setIsHistorialOpen] = useState(false)
+  const [isTransferirOpen, setIsTransferirOpen] = useState(false)
   const [movimientoTipo, setMovimientoTipo] = useState<'entrada' | 'salida'>('entrada')
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null)
   const [movimientoCantidad, setMovimientoCantidad] = useState('')
   const [movimientoMotivo, setMovimientoMotivo] = useState('')
+  const [transferirCantidad, setTransferirCantidad] = useState('')
+  const [transferirMotivo, setTransferirMotivo] = useState('')
+  const [transferirDepositoId, setTransferirDepositoId] = useState('')
   const [formData, setFormData] = useState<MaterialForm>(initialFormState)
+  const [destinosIniciales, setDestinosIniciales] = useState<DestinoForm[]>([])
 
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -148,9 +161,38 @@ export function MaterialesPage() {
       toast({ title: 'Material creado exitosamente' })
       setIsCreateOpen(false)
       setFormData(initialFormState)
+      setDestinosIniciales([])
     },
     onError: () => {
       toast({ variant: 'destructive', title: 'Error al crear material' })
+    },
+  })
+
+  const transferirMutation = useMutation({
+    mutationFn: ({
+      materialId,
+      payload,
+    }: {
+      materialId: string
+      payload: { deposito_id: string; cantidad: number; motivo?: string }
+    }) => materialesService.transferirADeposito(materialId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['materiales'] })
+      queryClient.invalidateQueries({ queryKey: ['materiales-stock-bajo'] })
+      queryClient.invalidateQueries({ queryKey: ['depositos'] })
+      toast({ title: 'Stock transferido al depósito' })
+      setIsTransferirOpen(false)
+      setTransferirCantidad('')
+      setTransferirMotivo('')
+      setTransferirDepositoId('')
+      setSelectedMaterial(null)
+    },
+    onError: (error: any) => {
+      toast({
+        variant: 'destructive',
+        title: 'Error al transferir',
+        description: error.response?.data?.detail || 'Verificá el stock disponible',
+      })
     },
   })
 
@@ -162,6 +204,9 @@ export function MaterialesPage() {
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    const destinos = destinosIniciales
+      .filter((d) => d.deposito_id && parseFloat(d.cantidad) > 0)
+      .map((d) => ({ deposito_id: d.deposito_id, cantidad: parseFloat(d.cantidad) }))
     createMutation.mutate({
       codigo: formData.codigo,
       nombre: formData.nombre,
@@ -171,6 +216,19 @@ export function MaterialesPage() {
       stock_minimo: parseFloat(formData.stock_minimo) || 0,
       precio_unitario: formData.precio_unitario ? parseFloat(formData.precio_unitario) : undefined,
       ubicacion_almacen: formData.ubicacion_almacen || undefined,
+      destinos_iniciales: destinos.length > 0 ? destinos : undefined,
+    })
+  }
+
+  const handleTransferir = () => {
+    if (!selectedMaterial || !transferirDepositoId || !transferirCantidad) return
+    transferirMutation.mutate({
+      materialId: selectedMaterial.id,
+      payload: {
+        deposito_id: transferirDepositoId,
+        cantidad: parseFloat(transferirCantidad),
+        motivo: transferirMotivo || undefined,
+      },
     })
   }
 
@@ -331,6 +389,15 @@ export function MaterialesPage() {
                         >
                           <ArrowDownCircle className="h-4 w-4 mr-2 text-red-600" />
                           Salida
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedMaterial(material)
+                            setIsTransferirOpen(true)
+                          }}
+                        >
+                          <ArrowRightLeft className="h-4 w-4 mr-2 text-blue-600" />
+                          Transferir a depósito
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => {
@@ -496,6 +563,15 @@ export function MaterialesPage() {
                         <DropdownMenuItem
                           onClick={() => {
                             setSelectedMaterial(material)
+                            setIsTransferirOpen(true)
+                          }}
+                        >
+                          <ArrowRightLeft className="h-4 w-4 mr-2 text-blue-600" />
+                          Transferir a depósito
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedMaterial(material)
                             setIsHistorialOpen(true)
                           }}
                         >
@@ -623,6 +699,82 @@ export function MaterialesPage() {
                   placeholder="Ej: Estante A, Rack 3..."
                 />
               </div>
+
+              {/* Distribuir stock inicial a depósitos */}
+              <div className="space-y-3 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Distribuir stock a depósitos (opcional)</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Carga inicial directa a depósitos/subdepósitos de clientes.
+                      Se suma además del stock global.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setDestinosIniciales((prev) => [
+                        ...prev,
+                        { deposito_id: '', cantidad: '' },
+                      ])
+                    }
+                  >
+                    <Plus className="h-4 w-4 mr-1" /> Agregar
+                  </Button>
+                </div>
+
+                {destinosIniciales.map((destino, idx) => (
+                  <div key={idx} className="border rounded-md p-3 space-y-3 bg-muted/30">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Destino #{idx + 1}
+                      </span>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() =>
+                          setDestinosIniciales((prev) =>
+                            prev.filter((_, i) => i !== idx)
+                          )
+                        }
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <DepositoSelector
+                      value={destino.deposito_id}
+                      onChange={(id) =>
+                        setDestinosIniciales((prev) =>
+                          prev.map((d, i) =>
+                            i === idx ? { ...d, deposito_id: id } : d
+                          )
+                        )
+                      }
+                    />
+                    <div className="space-y-2">
+                      <Label>Cantidad ({formData.unidad})</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={destino.cantidad}
+                        onChange={(e) =>
+                          setDestinosIniciales((prev) =>
+                            prev.map((d, i) =>
+                              i === idx ? { ...d, cantidad: e.target.value } : d
+                            )
+                          )
+                        }
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
@@ -634,6 +786,70 @@ export function MaterialesPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Transferir a depósito dialog */}
+      <Dialog open={isTransferirOpen} onOpenChange={setIsTransferirOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5 text-blue-600" />
+              Transferir a depósito
+            </DialogTitle>
+            <DialogDescription>
+              {selectedMaterial?.nombre} — Stock global: {selectedMaterial?.stock_actual}{' '}
+              {selectedMaterial?.unidad}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <DepositoSelector
+              value={transferirDepositoId}
+              onChange={setTransferirDepositoId}
+            />
+            <div className="space-y-2">
+              <Label>Cantidad ({selectedMaterial?.unidad})</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={transferirCantidad}
+                onChange={(e) => setTransferirCantidad(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Motivo (opcional)</Label>
+              <Input
+                value={transferirMotivo}
+                onChange={(e) => setTransferirMotivo(e.target.value)}
+                placeholder="Ej: Carga para obra X"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsTransferirOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleTransferir}
+              disabled={
+                !transferirDepositoId ||
+                !transferirCantidad ||
+                parseFloat(transferirCantidad) <= 0 ||
+                (selectedMaterial &&
+                  parseFloat(transferirCantidad) > selectedMaterial.stock_actual) ||
+                transferirMutation.isPending
+              }
+            >
+              {transferirMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Transferir
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

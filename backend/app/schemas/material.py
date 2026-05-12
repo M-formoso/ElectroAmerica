@@ -17,9 +17,23 @@ class MaterialBase(BaseModel):
     ubicacion_almacen: Optional[str] = Field(None, max_length=100)
 
 
+class DestinoInicialStock(BaseModel):
+    """Stock inicial a cargar en un deposito al crear el material."""
+    deposito_id: UUID
+    cantidad: Decimal = Field(..., gt=0)
+
+
 class MaterialCreate(MaterialBase):
     """Schema para crear material."""
     stock_actual: Decimal = Field(default=0, ge=0)
+    destinos_iniciales: Optional[list[DestinoInicialStock]] = None
+
+
+class TransferenciaADepositoCreate(BaseModel):
+    """Schema para transferir stock global hacia un deposito/subdeposito."""
+    deposito_id: UUID
+    cantidad: Decimal = Field(..., gt=0)
+    motivo: Optional[str] = Field(None, max_length=300)
 
 
 class MaterialUpdate(BaseModel):
@@ -88,6 +102,7 @@ class MovimientoStockResponse(BaseModel):
     stock_nuevo: Decimal
     motivo: Optional[str] = None
     proyecto_id: Optional[UUID] = None
+    deposito_destino_id: Optional[UUID] = None
     created_at: datetime
 
     class Config:

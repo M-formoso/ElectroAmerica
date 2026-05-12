@@ -8,7 +8,7 @@ from app.schemas.material import (
     MaterialCreate, MaterialUpdate, MaterialResponse,
     AsignacionMaterialCreate, AsignacionMaterialResponse,
     IngresoStockCreate, MovimientoStockResponse,
-    ValorInventarioResponse
+    ValorInventarioResponse, TransferenciaADepositoCreate
 )
 from app.services import material_service
 
@@ -59,8 +59,12 @@ def crear_material(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(require_admin_or_supervisor)
 ):
-    """Crea un nuevo material (solo admin/supervisor)."""
-    return material_service.crear_material(db, material)
+    """Crea un nuevo material (solo admin/supervisor).
+
+    Si se envia `destinos_iniciales`, ademas del stock global se carga
+    stock inicial directo a cada deposito/subdeposito indicado.
+    """
+    return material_service.crear_material(db, material, usuario.id)
 
 
 @router.get("/{material_id}", response_model=MaterialResponse)
@@ -143,3 +147,24 @@ def registrar_ingreso(
 ):
     """Registra un ingreso de stock (compra) - solo admin/supervisor."""
     return material_service.registrar_ingreso_stock(db, ingreso, usuario.id)
+
+
+@router.post(
+    "/{material_id}/transferir-a-deposito",
+    response_model=MovimientoStockResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def transferir_a_deposito(
+    material_id: UUID,
+    transferencia: TransferenciaADepositoCreate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Transfiere stock global al deposito/subdeposito indicado.
+
+    Resta del stock global y suma al deposito destino (crea la relacion
+    si todavia no existia). Registra el movimiento para trazabilidad.
+    """
+    return material_service.transferir_a_deposito(
+        db, material_id, transferencia, usuario.id
+    )

@@ -8,9 +8,11 @@ from fastapi import HTTPException
 from app.models.material import Material
 from app.models.movimiento_stock import MovimientoStock, TipoMovimiento
 from app.models.asignacion_material import AsignacionMaterial
+from app.models.deposito import Deposito, DepositoMaterial
 from app.schemas.material import (
     MaterialCreate, MaterialUpdate,
-    AsignacionMaterialCreate, IngresoStockCreate
+    AsignacionMaterialCreate, IngresoStockCreate,
+    TransferenciaADepositoCreate
 )
 
 
@@ -37,8 +39,13 @@ def obtener_material(db: Session, material_id: UUID) -> Optional[Material]:
     ).first()
 
 
-def crear_material(db: Session, material: MaterialCreate) -> Material:
-    """Crea un nuevo material."""
+def crear_material(
+    db: Session,
+    material: MaterialCreate,
+    usuario_id: Optional[UUID] = None,
+) -> Material:
+    """Crea un nuevo material y, opcionalmente, distribuye stock inicial
+    a depositos/subdepositos."""
     db_material = Material(
         codigo=material.codigo,
         nombre=material.nombre,
@@ -50,9 +57,108 @@ def crear_material(db: Session, material: MaterialCreate) -> Material:
         ubicacion_almacen=material.ubicacion_almacen
     )
     db.add(db_material)
+    db.flush()  # Para obtener el ID
+
+    # Si vienen destinos iniciales, crear el stock en cada deposito.
+    # Estos stocks son ADICIONALES al stock global (no se descuentan).
+    if material.destinos_iniciales:
+        for destino in material.destinos_iniciales:
+            deposito = db.query(Deposito).filter(Deposito.id == destino.deposito_id).first()
+            if not deposito:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Deposito {destino.deposito_id} no encontrado",
+                )
+            db.add(DepositoMaterial(
+                deposito_id=destino.deposito_id,
+                material_id=db_material.id,
+                stock_actual=destino.cantidad,
+                stock_minimo=0,
+            ))
+            # Trazabilidad: registrar como entrada con destino al deposito.
+            if usuario_id:
+                db.add(MovimientoStock(
+                    material_id=db_material.id,
+                    tipo=TipoMovimiento.entrada,
+                    cantidad=destino.cantidad,
+                    stock_anterior=Decimal(0),
+                    stock_nuevo=destino.cantidad,
+                    motivo="Carga inicial a deposito",
+                    deposito_destino_id=destino.deposito_id,
+                    usuario_id=usuario_id,
+                ))
+
     db.commit()
     db.refresh(db_material)
     return db_material
+
+
+def transferir_a_deposito(
+    db: Session,
+    material_id: UUID,
+    transferencia: TransferenciaADepositoCreate,
+    usuario_id: UUID,
+) -> MovimientoStock:
+    """Transfiere stock del global al deposito/subdeposito indicado.
+
+    Resta del stock_actual del Material y suma al DepositoMaterial
+    correspondiente (crea la relacion si no existe). Registra un
+    MovimientoStock de tipo transferencia_a_deposito para trazabilidad.
+    """
+    material = obtener_material(db, material_id)
+    if not material:
+        raise HTTPException(status_code=404, detail="Material no encontrado")
+
+    if material.stock_actual < transferencia.cantidad:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Stock global insuficiente. Disponible: "
+                f"{material.stock_actual} {material.unidad}"
+            ),
+        )
+
+    deposito = db.query(Deposito).filter(Deposito.id == transferencia.deposito_id).first()
+    if not deposito:
+        raise HTTPException(status_code=404, detail="Deposito no encontrado")
+
+    # Buscar/crear la fila de stock en el deposito.
+    deposito_material = db.query(DepositoMaterial).filter(
+        DepositoMaterial.deposito_id == transferencia.deposito_id,
+        DepositoMaterial.material_id == material_id,
+    ).first()
+
+    if deposito_material is None:
+        deposito_material = DepositoMaterial(
+            deposito_id=transferencia.deposito_id,
+            material_id=material_id,
+            stock_actual=Decimal(0),
+            stock_minimo=Decimal(0),
+        )
+        db.add(deposito_material)
+
+    # Aplicar el movimiento.
+    stock_anterior = material.stock_actual
+    material.stock_actual = stock_anterior - transferencia.cantidad
+    deposito_material.stock_actual = (
+        Decimal(deposito_material.stock_actual or 0) + transferencia.cantidad
+    )
+
+    movimiento = MovimientoStock(
+        material_id=material_id,
+        tipo=TipoMovimiento.transferencia_a_deposito,
+        cantidad=transferencia.cantidad,
+        stock_anterior=stock_anterior,
+        stock_nuevo=material.stock_actual,
+        motivo=transferencia.motivo or f"Transferencia a {deposito.nombre}",
+        deposito_destino_id=transferencia.deposito_id,
+        usuario_id=usuario_id,
+    )
+    db.add(movimiento)
+
+    db.commit()
+    db.refresh(movimiento)
+    return movimiento
 
 
 def actualizar_material(

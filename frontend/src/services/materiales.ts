@@ -1,6 +1,15 @@
 import api from './api'
 import type { Material } from '@/types'
 
+export interface DestinoInicialStock {
+  deposito_id: string
+  cantidad: number
+}
+
+export interface MaterialCreatePayload extends Partial<Material> {
+  destinos_iniciales?: DestinoInicialStock[]
+}
+
 export const materialesService = {
   async getMateriales(params?: {
     skip?: number
@@ -15,8 +24,19 @@ export const materialesService = {
     return response.data
   },
 
-  async createMaterial(data: Partial<Material>): Promise<Material> {
+  async createMaterial(data: MaterialCreatePayload): Promise<Material> {
     const response = await api.post<Material>('/materiales/', data)
+    return response.data
+  },
+
+  async transferirADeposito(
+    materialId: string,
+    payload: { deposito_id: string; cantidad: number; motivo?: string }
+  ): Promise<MovimientoStock> {
+    const response = await api.post<MovimientoStock>(
+      `/materiales/${materialId}/transferir-a-deposito`,
+      payload
+    )
     return response.data
   },
 
