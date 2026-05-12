@@ -87,6 +87,8 @@ export function MaterialesPage() {
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [editingMaterial, setEditingMaterial] = useState<Material | null>(null)
+  const [materialToDelete, setMaterialToDelete] = useState<Material | null>(null)
   const [isMovimientoOpen, setIsMovimientoOpen] = useState(false)
   const [isHistorialOpen, setIsHistorialOpen] = useState(false)
   const [isTransferirOpen, setIsTransferirOpen] = useState(false)
@@ -168,6 +170,66 @@ export function MaterialesPage() {
     },
   })
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Material> }) =>
+      materialesService.updateMaterial(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['materiales'] })
+      queryClient.invalidateQueries({ queryKey: ['materiales-stock-bajo'] })
+      toast({ title: 'Material actualizado' })
+      setIsCreateOpen(false)
+      setEditingMaterial(null)
+      setFormData(initialFormState)
+    },
+    onError: (e: any) => {
+      toast({
+        variant: 'destructive',
+        title: 'Error al actualizar material',
+        description: e?.response?.data?.detail || '',
+      })
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => materialesService.deleteMaterial(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['materiales'] })
+      queryClient.invalidateQueries({ queryKey: ['materiales-stock-bajo'] })
+      toast({ title: 'Material eliminado' })
+      setMaterialToDelete(null)
+    },
+    onError: (e: any) => {
+      toast({
+        variant: 'destructive',
+        title: 'Error al eliminar material',
+        description: e?.response?.data?.detail || '',
+      })
+    },
+  })
+
+  const openEditMaterial = (material: Material) => {
+    setEditingMaterial(material)
+    setFormData({
+      codigo: material.codigo,
+      nombre: material.nombre,
+      descripcion: material.descripcion || '',
+      unidad: material.unidad,
+      stock_actual: String(material.stock_actual ?? 0),
+      stock_minimo: String(material.stock_minimo ?? 0),
+      precio_unitario: material.precio_unitario != null ? String(material.precio_unitario) : '',
+      ubicacion_almacen: material.ubicacion_almacen || '',
+    })
+    setDestinosIniciales([])
+    setIsCreateOpen(true)
+  }
+
+  const closeFormDialog = () => {
+    setIsCreateOpen(false)
+    setEditingMaterial(null)
+    setFormData(initialFormState)
+    setDestinosIniciales([])
+  }
+
   const transferirMutation = useMutation({
     mutationFn: ({
       materialId,
@@ -204,6 +266,21 @@ export function MaterialesPage() {
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (editingMaterial) {
+      updateMutation.mutate({
+        id: editingMaterial.id,
+        data: {
+          codigo: formData.codigo,
+          nombre: formData.nombre,
+          descripcion: formData.descripcion || undefined,
+          unidad: formData.unidad,
+          stock_minimo: parseFloat(formData.stock_minimo) || 0,
+          precio_unitario: formData.precio_unitario ? parseFloat(formData.precio_unitario) : undefined,
+          ubicacion_almacen: formData.ubicacion_almacen || undefined,
+        },
+      })
+      return
+    }
     const destinos = destinosIniciales
       .filter((d) => d.deposito_id && parseFloat(d.cantidad) > 0)
       .map((d) => ({ deposito_id: d.deposito_id, cantidad: parseFloat(d.cantidad) }))
@@ -411,11 +488,14 @@ export function MaterialesPage() {
                         {isAdmin && (
                           <>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEditMaterial(material)}>
                               <Edit className="h-4 w-4 mr-2" />
                               Editar
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive">
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => setMaterialToDelete(material)}
+                            >
                               <Trash2 className="h-4 w-4 mr-2" />
                               Eliminar
                             </DropdownMenuItem>
@@ -581,11 +661,14 @@ export function MaterialesPage() {
                         {isAdmin && (
                           <>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEditMaterial(material)}>
                               <Edit className="h-4 w-4 mr-2" />
                               Editar
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive">
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => setMaterialToDelete(material)}
+                            >
                               <Trash2 className="h-4 w-4 mr-2" />
                               Eliminar
                             </DropdownMenuItem>
@@ -603,12 +686,14 @@ export function MaterialesPage() {
       )}
 
       {/* Create material dialog */}
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+      <Dialog open={isCreateOpen} onOpenChange={(o) => !o && closeFormDialog()}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Nuevo Material</DialogTitle>
+            <DialogTitle>{editingMaterial ? 'Editar Material' : 'Nuevo Material'}</DialogTitle>
             <DialogDescription>
-              Ingresa los datos del nuevo material
+              {editingMaterial
+                ? 'Modificá los datos del material. El stock global no se cambia desde acá: usá Entrada/Salida.'
+                : 'Ingresa los datos del nuevo material'}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateSubmit}>
@@ -656,14 +741,17 @@ export function MaterialesPage() {
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="stock_actual">Stock Inicial</Label>
+                  <Label htmlFor="stock_actual">
+                    {editingMaterial ? 'Stock Actual' : 'Stock Inicial'}
+                  </Label>
                   <Input
                     id="stock_actual"
                     type="number"
-                    step="0.01"
+                    step="any"
                     min="0"
                     value={formData.stock_actual}
                     onChange={(e) => setFormData({ ...formData, stock_actual: e.target.value })}
+                    disabled={!!editingMaterial}
                   />
                 </div>
                 <div className="space-y-2">
@@ -700,7 +788,8 @@ export function MaterialesPage() {
                 />
               </div>
 
-              {/* Distribuir stock inicial a depósitos */}
+              {/* Distribuir stock inicial a depósitos — solo al crear */}
+              {!editingMaterial && (
               <div className="space-y-3 border-t pt-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -775,17 +864,62 @@ export function MaterialesPage() {
                   </div>
                 ))}
               </div>
+              )}
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
+              <Button type="button" variant="outline" onClick={closeFormDialog}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createMutation.isPending || !formData.codigo || !formData.nombre}>
-                {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Crear Material
+              <Button
+                type="submit"
+                disabled={
+                  createMutation.isPending ||
+                  updateMutation.isPending ||
+                  !formData.codigo ||
+                  !formData.nombre
+                }
+              >
+                {(createMutation.isPending || updateMutation.isPending) && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {editingMaterial ? 'Guardar cambios' : 'Crear Material'}
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog confirmar eliminacion de material */}
+      <Dialog
+        open={!!materialToDelete}
+        onOpenChange={(o) => !o && setMaterialToDelete(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar material</DialogTitle>
+            <DialogDescription>
+              ¿Seguro que querés eliminar <strong>{materialToDelete?.nombre}</strong>? Se
+              hace una baja lógica: deja de aparecer en los listados pero el historial y
+              los movimientos quedan registrados.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMaterialToDelete(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() =>
+                materialToDelete && deleteMutation.mutate(materialToDelete.id)
+              }
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Eliminar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
