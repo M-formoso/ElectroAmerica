@@ -3,8 +3,12 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 from uuid import UUID
 from datetime import date
+import logging
+import traceback
 
 from app.core.deps import get_db, get_usuario_actual
+
+logger = logging.getLogger(__name__)
 from app.models.usuario import Usuario
 from app.models.cliente import TipoCliente
 from app.schemas.cliente import (
@@ -133,6 +137,24 @@ def crear_cliente(
         return cliente_service.get_cliente_response(db, db_cliente)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Log el payload y el traceback para diagnosticar 500.
+        try:
+            payload_dump = cliente.model_dump()
+        except Exception:
+            payload_dump = "<no se pudo serializar el payload>"
+        logger.error(
+            "Error al crear cliente. Payload=%s\n%s",
+            payload_dump,
+            traceback.format_exc(),
+        )
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al crear cliente: {type(e).__name__}: {e}",
+        )
 
 
 @router.put("/{cliente_id}", response_model=ClienteResponse)
