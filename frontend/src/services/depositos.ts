@@ -1,4 +1,5 @@
 import api from './api'
+import type { MovimientoStock } from './materiales'
 
 export interface Deposito {
   id: string
@@ -65,6 +66,27 @@ export interface DepositoMaterialUpdate {
   stock_minimo?: number
 }
 
+export interface DepositoMaterialBulkItem {
+  material_id: string
+  stock_actual: number
+  stock_minimo: number
+}
+
+export interface DepositoMaterialNuevoPayload {
+  codigo?: string
+  nombre: string
+  descripcion?: string
+  unidad: string
+  precio_unitario?: number
+  stock_actual: number
+  stock_minimo: number
+}
+
+export interface DepositoMovimientoPayload {
+  cantidad: number
+  motivo?: string
+}
+
 export const depositosService = {
   async list(clienteId?: string, parentId?: string): Promise<Deposito[]> {
     const params: Record<string, string | boolean> = {}
@@ -128,5 +150,63 @@ export const depositosService = {
 
   async removeMaterial(depositoId: string, materialId: string): Promise<void> {
     await api.delete(`/depositos/${depositoId}/materiales/${materialId}`)
+  },
+
+  async addMaterialesBulk(
+    depositoId: string,
+    items: DepositoMaterialBulkItem[]
+  ): Promise<DepositoMaterial[]> {
+    const response = await api.post<DepositoMaterial[]>(
+      `/depositos/${depositoId}/materiales/bulk`,
+      { items }
+    )
+    return response.data
+  },
+
+  async addMaterialNuevo(
+    depositoId: string,
+    data: DepositoMaterialNuevoPayload
+  ): Promise<DepositoMaterial> {
+    const response = await api.post<DepositoMaterial>(
+      `/depositos/${depositoId}/materiales/nuevo`,
+      data
+    )
+    return response.data
+  },
+
+  async entrada(
+    depositoId: string,
+    materialId: string,
+    data: DepositoMovimientoPayload
+  ): Promise<MovimientoStock> {
+    const response = await api.post<MovimientoStock>(
+      `/depositos/${depositoId}/materiales/${materialId}/entrada`,
+      data
+    )
+    return response.data
+  },
+
+  async salida(
+    depositoId: string,
+    materialId: string,
+    data: DepositoMovimientoPayload
+  ): Promise<MovimientoStock> {
+    const response = await api.post<MovimientoStock>(
+      `/depositos/${depositoId}/materiales/${materialId}/salida`,
+      data
+    )
+    return response.data
+  },
+
+  async getMovimientosMaterial(
+    depositoId: string,
+    materialId: string,
+    limit = 50
+  ): Promise<MovimientoStock[]> {
+    const response = await api.get<MovimientoStock[]>(
+      `/depositos/${depositoId}/materiales/${materialId}/movimientos`,
+      { params: { limit } }
+    )
+    return response.data
   },
 }

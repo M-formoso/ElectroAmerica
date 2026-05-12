@@ -12,6 +12,14 @@ import {
   Check,
   X,
   ArrowLeft,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  History,
+  MoreVertical,
+  TrendingUp,
+  TrendingDown,
+  RefreshCw,
+  ArrowRightLeft,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,14 +50,26 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useToast } from '@/hooks/use-toast'
 import {
   depositosService,
   type Deposito,
-  type DepositoDetail,
+  type DepositoMaterial as DepositoMaterialRow,
+  type DepositoMaterialBulkItem,
 } from '@/services/depositos'
 import { getClientes, type ClienteListItem } from '@/services/clientes'
 import { materialesService } from '@/services/materiales'
+import { formatDate } from '@/lib/utils'
 
 interface DepositoFormData {
   cliente_id: string
@@ -85,10 +105,15 @@ export function DepositosPage() {
   // Ver/gestionar materiales del deposito
   const [openDepositoId, setOpenDepositoId] = useState<string | null>(null)
 
-  // Form para agregar material al deposito
+  // Form para agregar materiales al deposito (multi-select / nuevo)
   const [addMaterialOpen, setAddMaterialOpen] = useState(false)
-  const [newMaterial, setNewMaterial] = useState({
-    material_id: '',
+  const [addTab, setAddTab] = useState<'catalogo' | 'nuevo'>('catalogo')
+  const [catalogoSearch, setCatalogoSearch] = useState('')
+  const [seleccionados, setSeleccionados] = useState<Record<string, { stock_actual: string; stock_minimo: string }>>({})
+  const [materialNuevoForm, setMaterialNuevoForm] = useState({
+    nombre: '',
+    unidad: 'unidad',
+    descripcion: '',
     stock_actual: '0',
     stock_minimo: '0',
   })
@@ -96,6 +121,17 @@ export function DepositosPage() {
   // Stock inline editing
   const [editingStock, setEditingStock] = useState<string | null>(null)
   const [stockDraft, setStockDraft] = useState('')
+
+  // Movimientos (entrada/salida) e historial sobre material del deposito
+  const [movDialog, setMovDialog] = useState<{
+    open: boolean
+    tipo: 'entrada' | 'salida'
+    material: DepositoMaterialRow | null
+  }>({ open: false, tipo: 'entrada', material: null })
+  const [movCantidad, setMovCantidad] = useState('')
+  const [movMotivo, setMovMotivo] = useState('')
+
+  const [historialMaterial, setHistorialMaterial] = useState<DepositoMaterialRow | null>(null)
 
   const { data: clientes = [] } = useQuery({
     queryKey: ['clientes'],
@@ -162,22 +198,93 @@ export function DepositosPage() {
     onError: () => toast({ variant: 'destructive', title: 'Error al eliminar' }),
   })
 
-  const addMaterialMutation = useMutation({
-    mutationFn: ({ depositoId, data }: { depositoId: string; data: any }) =>
-      depositosService.addMaterial(depositoId, data),
-    onSuccess: () => {
+  const closeAddMaterialDialog = () => {
+    setAddMaterialOpen(false)
+    setSeleccionados({})
+    setCatalogoSearch('')
+    setMaterialNuevoForm({
+      nombre: '',
+      unidad: 'unidad',
+      descripcion: '',
+      stock_actual: '0',
+      stock_minimo: '0',
+    })
+    setAddTab('catalogo')
+  }
+
+  const addMaterialesBulkMutation = useMutation({
+    mutationFn: ({ depositoId, items }: { depositoId: string; items: DepositoMaterialBulkItem[] }) =>
+      depositosService.addMaterialesBulk(depositoId, items),
+    onSuccess: (created) => {
       qc.invalidateQueries({ queryKey: ['deposito', openDepositoId] })
       qc.invalidateQueries({ queryKey: ['depositos'] })
-      toast({ title: 'Material agregado' })
-      setAddMaterialOpen(false)
-      setNewMaterial({ material_id: '', stock_actual: '0', stock_minimo: '0' })
+      toast({ title: `${created.length} material(es) agregado(s)` })
+      closeAddMaterialDialog()
     },
     onError: (e: any) =>
       toast({
         variant: 'destructive',
-        title: 'Error al agregar material',
+        title: 'Error al agregar materiales',
         description: e?.response?.data?.detail || '',
       }),
+  })
+
+  const addMaterialNuevoMutation = useMutation({
+    mutationFn: ({ depositoId, data }: { depositoId: string; data: any }) =>
+      depositosService.addMaterialNuevo(depositoId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deposito', openDepositoId] })
+      qc.invalidateQueries({ queryKey: ['depositos'] })
+      qc.invalidateQueries({ queryKey: ['materiales'] })
+      qc.invalidateQueries({ queryKey: ['materiales-catalogo'] })
+      toast({ title: 'Material creado y agregado' })
+      closeAddMaterialDialog()
+    },
+    onError: (e: any) =>
+      toast({
+        variant: 'destructive',
+        title: 'Error al crear material',
+        description: e?.response?.data?.detail || '',
+      }),
+  })
+
+  const movimientoMutation = useMutation({
+    mutationFn: ({
+      depositoId,
+      materialId,
+      tipo,
+      payload,
+    }: {
+      depositoId: string
+      materialId: string
+      tipo: 'entrada' | 'salida'
+      payload: { cantidad: number; motivo?: string }
+    }) =>
+      tipo === 'entrada'
+        ? depositosService.entrada(depositoId, materialId, payload)
+        : depositosService.salida(depositoId, materialId, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deposito', openDepositoId] })
+      qc.invalidateQueries({ queryKey: ['depositos'] })
+      qc.invalidateQueries({ queryKey: ['mov-deposito-material'] })
+      toast({ title: 'Movimiento registrado' })
+      setMovDialog({ open: false, tipo: 'entrada', material: null })
+      setMovCantidad('')
+      setMovMotivo('')
+    },
+    onError: (e: any) =>
+      toast({
+        variant: 'destructive',
+        title: 'Error al registrar movimiento',
+        description: e?.response?.data?.detail || '',
+      }),
+  })
+
+  const { data: movimientosHist, isLoading: isLoadingMovHist } = useQuery({
+    queryKey: ['mov-deposito-material', openDepositoId, historialMaterial?.material_id],
+    queryFn: () =>
+      depositosService.getMovimientosMaterial(openDepositoId!, historialMaterial!.material_id),
+    enabled: !!openDepositoId && !!historialMaterial,
   })
 
   const updateStockMutation = useMutation({
@@ -693,12 +800,21 @@ export function DepositosPage() {
             <Button
               size="sm"
               onClick={() => {
-                setNewMaterial({ material_id: '', stock_actual: '0', stock_minimo: '0' })
+                setSeleccionados({})
+                setCatalogoSearch('')
+                setMaterialNuevoForm({
+                  nombre: '',
+                  unidad: 'unidad',
+                  descripcion: '',
+                  stock_actual: '0',
+                  stock_minimo: '0',
+                })
+                setAddTab('catalogo')
                 setAddMaterialOpen(true)
               }}
             >
               <Plus className="h-4 w-4 mr-2" />
-              Agregar material
+              Agregar materiales
             </Button>
           </div>
 
@@ -774,19 +890,52 @@ export function DepositosPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive"
-                        onClick={() =>
-                          removeMaterialMutation.mutate({
-                            depositoId: openDepositoId!,
-                            materialId: m.material_id,
-                          })
-                        }
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setMovDialog({ open: true, tipo: 'entrada', material: m })
+                              setMovCantidad('')
+                              setMovMotivo('')
+                            }}
+                          >
+                            <ArrowUpCircle className="h-4 w-4 mr-2 text-green-600" />
+                            Entrada
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setMovDialog({ open: true, tipo: 'salida', material: m })
+                              setMovCantidad('')
+                              setMovMotivo('')
+                            }}
+                          >
+                            <ArrowDownCircle className="h-4 w-4 mr-2 text-red-600" />
+                            Salida
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setHistorialMaterial(m)}>
+                            <History className="h-4 w-4 mr-2" />
+                            Historial
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() =>
+                              removeMaterialMutation.mutate({
+                                depositoId: openDepositoId!,
+                                materialId: m.material_id,
+                              })
+                            }
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Quitar del depósito
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -800,101 +949,448 @@ export function DepositosPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog agregar material al deposito */}
-      <Dialog open={addMaterialOpen} onOpenChange={setAddMaterialOpen}>
-        <DialogContent>
+      {/* Dialog agregar materiales al deposito (catalogo multi-select / nuevo) */}
+      <Dialog open={addMaterialOpen} onOpenChange={(o) => !o && closeAddMaterialDialog()}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Agregar material al deposito</DialogTitle>
+            <DialogTitle>Agregar materiales al depósito</DialogTitle>
             <DialogDescription>
-              Selecciona un material del catalogo y carga su stock inicial.
+              Seleccioná uno o varios del catálogo, o cargá un material nuevo.
             </DialogDescription>
           </DialogHeader>
+
+          <Tabs value={addTab} onValueChange={(v) => setAddTab(v as 'catalogo' | 'nuevo')}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="catalogo">Desde catálogo</TabsTrigger>
+              <TabsTrigger value="nuevo">Material nuevo</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="catalogo" className="space-y-3 mt-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-9"
+                  placeholder="Buscar material..."
+                  value={catalogoSearch}
+                  onChange={(e) => setCatalogoSearch(e.target.value)}
+                />
+              </div>
+
+              {materialesError ? (
+                <div className="p-4 text-sm text-destructive text-center border rounded-md">
+                  Error al cargar el catálogo
+                </div>
+              ) : materialesDisponibles.length === 0 ? (
+                <div className="p-4 text-sm text-muted-foreground text-center border rounded-md">
+                  {materialesCatalogo.length === 0
+                    ? 'No hay materiales en el catálogo. Cargá uno nuevo en la pestaña de al lado.'
+                    : 'Todos los materiales del catálogo ya están en este depósito.'}
+                </div>
+              ) : (
+                <ScrollArea className="h-[320px] border rounded-md">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background z-10">
+                      <TableRow>
+                        <TableHead className="w-10"></TableHead>
+                        <TableHead>Material</TableHead>
+                        <TableHead className="w-32">Cantidad</TableHead>
+                        <TableHead className="w-32">Mínimo</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {materialesDisponibles
+                        .filter(
+                          (m) =>
+                            m.nombre.toLowerCase().includes(catalogoSearch.toLowerCase()) ||
+                            m.codigo.toLowerCase().includes(catalogoSearch.toLowerCase())
+                        )
+                        .map((m) => {
+                          const checked = !!seleccionados[m.id]
+                          return (
+                            <TableRow key={m.id}>
+                              <TableCell>
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={(v) => {
+                                    setSeleccionados((prev) => {
+                                      const next = { ...prev }
+                                      if (v) {
+                                        next[m.id] = { stock_actual: '0', stock_minimo: '0' }
+                                      } else {
+                                        delete next[m.id]
+                                      }
+                                      return next
+                                    })
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <div className="font-medium text-sm">{m.nombre}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {m.codigo} • {m.unidad}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  className="h-8"
+                                  disabled={!checked}
+                                  value={seleccionados[m.id]?.stock_actual ?? '0'}
+                                  onChange={(e) =>
+                                    setSeleccionados((prev) => ({
+                                      ...prev,
+                                      [m.id]: {
+                                        stock_actual: e.target.value,
+                                        stock_minimo: prev[m.id]?.stock_minimo ?? '0',
+                                      },
+                                    }))
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  className="h-8"
+                                  disabled={!checked}
+                                  value={seleccionados[m.id]?.stock_minimo ?? '0'}
+                                  onChange={(e) =>
+                                    setSeleccionados((prev) => ({
+                                      ...prev,
+                                      [m.id]: {
+                                        stock_actual: prev[m.id]?.stock_actual ?? '0',
+                                        stock_minimo: e.target.value,
+                                      },
+                                    }))
+                                  }
+                                />
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              )}
+
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>{Object.keys(seleccionados).length} seleccionado(s)</span>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={closeAddMaterialDialog}>
+                  Cancelar
+                </Button>
+                <Button
+                  disabled={
+                    Object.keys(seleccionados).length === 0 ||
+                    addMaterialesBulkMutation.isPending
+                  }
+                  onClick={() => {
+                    const items = Object.entries(seleccionados).map(
+                      ([material_id, { stock_actual, stock_minimo }]) => ({
+                        material_id,
+                        stock_actual: parseFloat(stock_actual) || 0,
+                        stock_minimo: parseFloat(stock_minimo) || 0,
+                      })
+                    )
+                    addMaterialesBulkMutation.mutate({
+                      depositoId: openDepositoId!,
+                      items,
+                    })
+                  }}
+                >
+                  {addMaterialesBulkMutation.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Agregar {Object.keys(seleccionados).length || ''}
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+
+            <TabsContent value="nuevo" className="space-y-3 mt-4">
+              <p className="text-xs text-muted-foreground">
+                El material se da de alta en el catálogo global (stock global = 0) y se carga al
+                depósito con la cantidad indicada.
+              </p>
+              <div className="space-y-2">
+                <Label>Nombre *</Label>
+                <Input
+                  value={materialNuevoForm.nombre}
+                  onChange={(e) =>
+                    setMaterialNuevoForm({ ...materialNuevoForm, nombre: e.target.value })
+                  }
+                  placeholder="Ej: Cable subterráneo 4x4mm"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Unidad *</Label>
+                  <Input
+                    value={materialNuevoForm.unidad}
+                    onChange={(e) =>
+                      setMaterialNuevoForm({ ...materialNuevoForm, unidad: e.target.value })
+                    }
+                    placeholder="kg, m, unidad..."
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Descripción</Label>
+                <Input
+                  value={materialNuevoForm.descripcion}
+                  onChange={(e) =>
+                    setMaterialNuevoForm({ ...materialNuevoForm, descripcion: e.target.value })
+                  }
+                  placeholder="Opcional"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Stock inicial</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={materialNuevoForm.stock_actual}
+                    onChange={(e) =>
+                      setMaterialNuevoForm({
+                        ...materialNuevoForm,
+                        stock_actual: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Stock mínimo</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={materialNuevoForm.stock_minimo}
+                    onChange={(e) =>
+                      setMaterialNuevoForm({
+                        ...materialNuevoForm,
+                        stock_minimo: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={closeAddMaterialDialog}>
+                  Cancelar
+                </Button>
+                <Button
+                  disabled={
+                    !materialNuevoForm.nombre.trim() ||
+                    !materialNuevoForm.unidad.trim() ||
+                    addMaterialNuevoMutation.isPending
+                  }
+                  onClick={() =>
+                    addMaterialNuevoMutation.mutate({
+                      depositoId: openDepositoId!,
+                      data: {
+                        nombre: materialNuevoForm.nombre.trim(),
+                        unidad: materialNuevoForm.unidad.trim(),
+                        descripcion: materialNuevoForm.descripcion.trim() || undefined,
+                        stock_actual: parseFloat(materialNuevoForm.stock_actual) || 0,
+                        stock_minimo: parseFloat(materialNuevoForm.stock_minimo) || 0,
+                      },
+                    })
+                  }
+                >
+                  {addMaterialNuevoMutation.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Crear y agregar
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog entrada / salida sobre material del deposito */}
+      <Dialog
+        open={movDialog.open}
+        onOpenChange={(o) =>
+          !o && setMovDialog({ open: false, tipo: 'entrada', material: null })
+        }
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {movDialog.tipo === 'entrada' ? (
+                <ArrowUpCircle className="h-5 w-5 text-green-600" />
+              ) : (
+                <ArrowDownCircle className="h-5 w-5 text-red-600" />
+              )}
+              {movDialog.tipo === 'entrada' ? 'Registrar entrada' : 'Registrar salida'}
+            </DialogTitle>
+            <DialogDescription>
+              {movDialog.material?.material_nombre} — Stock en depósito:{' '}
+              {movDialog.material?.stock_actual} {movDialog.material?.material_unidad}
+            </DialogDescription>
+          </DialogHeader>
+
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Material *</Label>
-              <Select
-                value={newMaterial.material_id}
-                onValueChange={(v) =>
-                  setNewMaterial({ ...newMaterial, material_id: v })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar material" />
-                </SelectTrigger>
-                <SelectContent>
-                  {materialesError ? (
-                    <div className="p-2 text-sm text-destructive text-center">
-                      Error al cargar el catalogo
-                    </div>
-                  ) : materialesCatalogo.length === 0 ? (
-                    <div className="p-2 text-sm text-muted-foreground text-center">
-                      No hay materiales en el catalogo. Crealos primero en
-                      Recursos &gt; Materiales.
-                    </div>
-                  ) : materialesDisponibles.length === 0 ? (
-                    <div className="p-2 text-sm text-muted-foreground text-center">
-                      Todos los materiales del catalogo ya estan en este deposito
-                    </div>
-                  ) : (
-                    materialesDisponibles.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.nombre} ({m.unidad})
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              <Label>Cantidad ({movDialog.material?.material_unidad})</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={movCantidad}
+                onChange={(e) => setMovCantidad(e.target.value)}
+                placeholder="0.00"
+              />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Stock actual</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={newMaterial.stock_actual}
-                  onChange={(e) =>
-                    setNewMaterial({ ...newMaterial, stock_actual: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Stock minimo</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={newMaterial.stock_minimo}
-                  onChange={(e) =>
-                    setNewMaterial({ ...newMaterial, stock_minimo: e.target.value })
-                  }
-                />
-              </div>
+            <div className="space-y-2">
+              <Label>Motivo (opcional)</Label>
+              <Input
+                value={movMotivo}
+                onChange={(e) => setMovMotivo(e.target.value)}
+                placeholder="Ej: Devolución de obra"
+              />
             </div>
           </div>
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddMaterialOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setMovDialog({ open: false, tipo: 'entrada', material: null })}
+            >
               Cancelar
             </Button>
             <Button
-              onClick={() =>
-                addMaterialMutation.mutate({
+              disabled={
+                !movCantidad ||
+                parseFloat(movCantidad) <= 0 ||
+                movimientoMutation.isPending ||
+                (movDialog.tipo === 'salida' &&
+                  !!movDialog.material &&
+                  parseFloat(movCantidad) > Number(movDialog.material.stock_actual))
+              }
+              variant={movDialog.tipo === 'salida' ? 'destructive' : 'default'}
+              className={
+                movDialog.tipo === 'entrada' ? 'bg-green-600 hover:bg-green-700' : ''
+              }
+              onClick={() => {
+                if (!movDialog.material) return
+                movimientoMutation.mutate({
                   depositoId: openDepositoId!,
-                  data: {
-                    material_id: newMaterial.material_id,
-                    stock_actual: parseFloat(newMaterial.stock_actual) || 0,
-                    stock_minimo: parseFloat(newMaterial.stock_minimo) || 0,
+                  materialId: movDialog.material.material_id,
+                  tipo: movDialog.tipo,
+                  payload: {
+                    cantidad: parseFloat(movCantidad),
+                    motivo: movMotivo || undefined,
                   },
                 })
-              }
-              disabled={!newMaterial.material_id || addMaterialMutation.isPending}
+              }}
             >
-              {addMaterialMutation.isPending && (
+              {movimientoMutation.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              Agregar
+              {movDialog.tipo === 'entrada' ? 'Registrar entrada' : 'Registrar salida'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog historial de movimientos del material en el deposito */}
+      <Dialog
+        open={!!historialMaterial}
+        onOpenChange={(o) => !o && setHistorialMaterial(null)}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Historial — {historialMaterial?.material_nombre}
+            </DialogTitle>
+            <DialogDescription>
+              Movimientos de este material dentro del depósito.
+            </DialogDescription>
+          </DialogHeader>
+
+          <ScrollArea className="h-[400px] pr-4">
+            {isLoadingMovHist ? (
+              <div className="flex items-center justify-center h-40">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : !movimientosHist || movimientosHist.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <History className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                Aún no hay movimientos registrados en este depósito.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {movimientosHist.map((mov) => {
+                  const esTransferencia = mov.tipo === 'transferencia_a_deposito' as any
+                  return (
+                    <div
+                      key={mov.id}
+                      className="flex items-start gap-3 p-3 rounded-lg border bg-card"
+                    >
+                      <div
+                        className={`p-2 rounded-full ${
+                          mov.tipo === 'entrada' || esTransferencia
+                            ? 'bg-green-100 text-green-600'
+                            : mov.tipo === 'salida'
+                              ? 'bg-red-100 text-red-600'
+                              : 'bg-blue-100 text-blue-600'
+                        }`}
+                      >
+                        {mov.tipo === 'entrada' ? (
+                          <TrendingUp className="h-4 w-4" />
+                        ) : mov.tipo === 'salida' ? (
+                          <TrendingDown className="h-4 w-4" />
+                        ) : esTransferencia ? (
+                          <ArrowRightLeft className="h-4 w-4" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium capitalize text-sm">
+                            {String(mov.tipo).replace(/_/g, ' ')}
+                          </span>
+                          <span
+                            className={`font-bold ${
+                              mov.tipo === 'entrada' || esTransferencia
+                                ? 'text-green-600'
+                                : mov.tipo === 'salida'
+                                  ? 'text-red-600'
+                                  : ''
+                            }`}
+                          >
+                            {mov.tipo === 'salida' ? '-' : '+'}
+                            {Number(mov.cantidad).toFixed(2)}{' '}
+                            {historialMaterial?.material_unidad}
+                          </span>
+                        </div>
+                        {mov.motivo && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {mov.motivo}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatDate(mov.created_at)}
+                          {mov.usuario_nombre ? ` — ${mov.usuario_nombre}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </ScrollArea>
         </DialogContent>
       </Dialog>
     </div>

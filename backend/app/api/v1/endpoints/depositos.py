@@ -10,13 +10,18 @@ from app.models.usuario import Usuario
 from app.models.deposito import Deposito, DepositoMaterial
 from app.models.cliente import Cliente
 from app.models.material import Material
+from app.models.movimiento_stock import MovimientoStock, TipoMovimiento
 from app.schemas.deposito import (
     DepositoCreate, DepositoUpdate, DepositoResponse, DepositoDetailResponse,
     DepositoMaterialCreate, DepositoMaterialUpdate, DepositoMaterialResponse,
-    MaterialAgregado,
+    DepositoMaterialBulkCreate, DepositoMaterialNuevoCreate,
+    DepositoMovimientoCreate, MaterialAgregado,
 )
+from app.schemas.material import MovimientoStockResponse
 from decimal import Decimal
 from collections import defaultdict
+import re
+import unicodedata
 
 router = APIRouter()
 
@@ -381,3 +386,271 @@ def quitar_material_deposito(
         raise HTTPException(status_code=404, detail="Material no encontrado en deposito")
     dm.activo = False
     db.commit()
+
+
+# ============ Operaciones masivas y manuales sobre el stock del deposito ============
+
+def _generar_codigo_material(db: Session, nombre: str) -> str:
+    """Genera un codigo unico para Material a partir del nombre."""
+    sin_acentos = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode("ascii")
+    base = re.sub(r"[^A-Z0-9]+", "_", sin_acentos.upper()).strip("_")[:45] or "MAT"
+    codigo = base
+    sufijo = 1
+    while db.query(Material).filter(Material.codigo == codigo).first():
+        sufijo += 1
+        codigo = f"{base[:45 - len(str(sufijo)) - 1]}_{sufijo}"
+    return codigo
+
+
+def _crear_o_reactivar_deposito_material(
+    db: Session,
+    deposito_id: UUID,
+    material_id: UUID,
+    stock_actual: Decimal,
+    stock_minimo: Decimal,
+) -> DepositoMaterial:
+    """Crea o reactiva el DepositoMaterial con el stock indicado."""
+    existente = db.query(DepositoMaterial).filter(
+        DepositoMaterial.deposito_id == deposito_id,
+        DepositoMaterial.material_id == material_id,
+    ).first()
+    if existente:
+        existente.activo = True
+        existente.stock_actual = stock_actual
+        existente.stock_minimo = stock_minimo
+        return existente
+    dm = DepositoMaterial(
+        deposito_id=deposito_id,
+        material_id=material_id,
+        stock_actual=stock_actual,
+        stock_minimo=stock_minimo,
+    )
+    db.add(dm)
+    return dm
+
+
+@router.post(
+    "/{deposito_id}/materiales/bulk",
+    response_model=List[DepositoMaterialResponse],
+    status_code=status.HTTP_201_CREATED,
+)
+def agregar_materiales_bulk(
+    deposito_id: UUID,
+    data: DepositoMaterialBulkCreate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Agrega varios materiales del catalogo al deposito en una sola operacion."""
+    deposito = db.query(Deposito).filter(
+        Deposito.id == deposito_id, Deposito.activo == True
+    ).first()
+    if not deposito:
+        raise HTTPException(status_code=404, detail="Deposito no encontrado")
+
+    if not data.items:
+        raise HTTPException(status_code=400, detail="Lista de materiales vacia")
+
+    creados: List[DepositoMaterial] = []
+    for item in data.items:
+        material = db.query(Material).filter(Material.id == item.material_id).first()
+        if not material:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Material {item.material_id} no encontrado",
+            )
+        dm = _crear_o_reactivar_deposito_material(
+            db, deposito_id, item.material_id, item.stock_actual, item.stock_minimo
+        )
+        creados.append(dm)
+        # Registrar movimiento si hay stock inicial > 0
+        if item.stock_actual > 0:
+            db.add(MovimientoStock(
+                material_id=item.material_id,
+                tipo=TipoMovimiento.entrada,
+                cantidad=item.stock_actual,
+                stock_anterior=Decimal(0),
+                stock_nuevo=item.stock_actual,
+                motivo=f"Carga inicial en {deposito.nombre}",
+                deposito_destino_id=deposito_id,
+                usuario_id=usuario.id,
+            ))
+
+    db.commit()
+    for dm in creados:
+        db.refresh(dm)
+    return [_serializar_deposito_material(dm) for dm in creados]
+
+
+@router.post(
+    "/{deposito_id}/materiales/nuevo",
+    response_model=DepositoMaterialResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def agregar_material_nuevo_al_deposito(
+    deposito_id: UUID,
+    data: DepositoMaterialNuevoCreate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Crea un material nuevo en el catalogo global y lo carga al deposito.
+
+    El stock global del material queda en 0; el stock indicado se carga
+    directamente al deposito. Si el codigo no se envia, se auto-genera.
+    """
+    deposito = db.query(Deposito).filter(
+        Deposito.id == deposito_id, Deposito.activo == True
+    ).first()
+    if not deposito:
+        raise HTTPException(status_code=404, detail="Deposito no encontrado")
+
+    codigo = data.codigo or _generar_codigo_material(db, data.nombre)
+    if db.query(Material).filter(Material.codigo == codigo).first():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ya existe un material con el codigo {codigo}",
+        )
+
+    material = Material(
+        codigo=codigo,
+        nombre=data.nombre,
+        descripcion=data.descripcion,
+        unidad=data.unidad,
+        stock_actual=Decimal(0),
+        stock_minimo=Decimal(0),
+        precio_unitario=data.precio_unitario,
+    )
+    db.add(material)
+    db.flush()  # Para obtener el id
+
+    dm = DepositoMaterial(
+        deposito_id=deposito_id,
+        material_id=material.id,
+        stock_actual=data.stock_actual,
+        stock_minimo=data.stock_minimo,
+    )
+    db.add(dm)
+
+    if data.stock_actual > 0:
+        db.add(MovimientoStock(
+            material_id=material.id,
+            tipo=TipoMovimiento.entrada,
+            cantidad=data.stock_actual,
+            stock_anterior=Decimal(0),
+            stock_nuevo=data.stock_actual,
+            motivo=f"Carga inicial en {deposito.nombre}",
+            deposito_destino_id=deposito_id,
+            usuario_id=usuario.id,
+        ))
+
+    db.commit()
+    db.refresh(dm)
+    return _serializar_deposito_material(dm)
+
+
+@router.post(
+    "/{deposito_id}/materiales/{material_id}/entrada",
+    response_model=MovimientoStockResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def entrada_material_deposito(
+    deposito_id: UUID,
+    material_id: UUID,
+    data: DepositoMovimientoCreate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Registra una entrada (suma) de stock para un material en el deposito."""
+    dm = db.query(DepositoMaterial).filter(
+        DepositoMaterial.deposito_id == deposito_id,
+        DepositoMaterial.material_id == material_id,
+        DepositoMaterial.activo == True,
+    ).first()
+    if not dm:
+        raise HTTPException(status_code=404, detail="Material no encontrado en deposito")
+
+    stock_anterior = Decimal(dm.stock_actual or 0)
+    dm.stock_actual = stock_anterior + data.cantidad
+
+    mov = MovimientoStock(
+        material_id=material_id,
+        tipo=TipoMovimiento.entrada,
+        cantidad=data.cantidad,
+        stock_anterior=stock_anterior,
+        stock_nuevo=dm.stock_actual,
+        motivo=data.motivo,
+        deposito_destino_id=deposito_id,
+        usuario_id=usuario.id,
+    )
+    db.add(mov)
+    db.commit()
+    db.refresh(mov)
+    return mov
+
+
+@router.post(
+    "/{deposito_id}/materiales/{material_id}/salida",
+    response_model=MovimientoStockResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def salida_material_deposito(
+    deposito_id: UUID,
+    material_id: UUID,
+    data: DepositoMovimientoCreate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Registra una salida (resta) de stock para un material en el deposito."""
+    dm = db.query(DepositoMaterial).filter(
+        DepositoMaterial.deposito_id == deposito_id,
+        DepositoMaterial.material_id == material_id,
+        DepositoMaterial.activo == True,
+    ).first()
+    if not dm:
+        raise HTTPException(status_code=404, detail="Material no encontrado en deposito")
+
+    stock_anterior = Decimal(dm.stock_actual or 0)
+    if data.cantidad > stock_anterior:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Stock insuficiente en el deposito. Disponible: {stock_anterior}",
+        )
+
+    dm.stock_actual = stock_anterior - data.cantidad
+    mov = MovimientoStock(
+        material_id=material_id,
+        tipo=TipoMovimiento.salida,
+        cantidad=data.cantidad,
+        stock_anterior=stock_anterior,
+        stock_nuevo=dm.stock_actual,
+        motivo=data.motivo,
+        deposito_destino_id=deposito_id,
+        usuario_id=usuario.id,
+    )
+    db.add(mov)
+    db.commit()
+    db.refresh(mov)
+    return mov
+
+
+@router.get(
+    "/{deposito_id}/materiales/{material_id}/movimientos",
+    response_model=List[MovimientoStockResponse],
+)
+def listar_movimientos_material_deposito(
+    deposito_id: UUID,
+    material_id: UUID,
+    limit: int = Query(50, le=200),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_usuario_actual),
+):
+    """Devuelve el historial de movimientos del material dentro del deposito."""
+    return (
+        db.query(MovimientoStock)
+        .filter(
+            MovimientoStock.material_id == material_id,
+            MovimientoStock.deposito_destino_id == deposito_id,
+        )
+        .order_by(MovimientoStock.created_at.desc())
+        .limit(limit)
+        .all()
+    )

@@ -78,3 +78,38 @@ class DepositoDetailResponse(DepositoResponse):
     subdepositos: List[DepositoResponse] = []
     # Suma agregada: stock del deposito + stock de todos los subdepositos
     materiales_totales: List[MaterialAgregado] = []
+
+
+# ============ Operaciones especiales sobre materiales del deposito ============
+
+class DepositoMaterialBulkItem(BaseModel):
+    """Item de la carga masiva de materiales del catalogo al deposito."""
+    material_id: UUID
+    stock_actual: Decimal = Field(default=Decimal("0"), ge=0)
+    stock_minimo: Decimal = Field(default=Decimal("0"), ge=0)
+
+
+class DepositoMaterialBulkCreate(BaseModel):
+    """Agregar varios materiales del catalogo al deposito en una sola operacion."""
+    items: List[DepositoMaterialBulkItem]
+
+
+class DepositoMaterialNuevoCreate(BaseModel):
+    """Crear un material nuevo en el catalogo y agregarlo al deposito directamente.
+
+    Se da de alta el material en el catalogo global (stock global = 0) y
+    se carga el stock indicado al deposito.
+    """
+    codigo: Optional[str] = Field(None, max_length=50)
+    nombre: str = Field(..., min_length=2, max_length=200)
+    descripcion: Optional[str] = None
+    unidad: str = Field(..., max_length=50)
+    precio_unitario: Optional[Decimal] = Field(None, ge=0)
+    stock_actual: Decimal = Field(default=Decimal("0"), ge=0)
+    stock_minimo: Decimal = Field(default=Decimal("0"), ge=0)
+
+
+class DepositoMovimientoCreate(BaseModel):
+    """Entrada o salida manual de un material en un deposito."""
+    cantidad: Decimal = Field(..., gt=0)
+    motivo: Optional[str] = Field(None, max_length=300)
