@@ -43,7 +43,7 @@ import {
   LayoutGrid,
   List,
 } from 'lucide-react'
-import { actividadesTipoService, type ActividadTipoCreate, type ActividadTipo } from '@/services/actividadesTipo'
+import { actividadesTipoService, type ActividadTipoCreate, type ActividadTipo, type ActividadTipoList } from '@/services/actividadesTipo'
 import { materialesService } from '@/services/materiales'
 
 interface MaterialSeleccionado {
@@ -55,7 +55,7 @@ export default function ActividadesTipo() {
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [actividadEditar, setActividadEditar] = useState<ActividadTipo | null>(null)
+  const [actividadEditar, setActividadEditar] = useState<ActividadTipoList | ActividadTipo | null>(null)
   const [actividadEliminar, setActividadEliminar] = useState<string | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards')
@@ -132,7 +132,7 @@ export default function ActividadesTipo() {
     },
   })
 
-  const handleOpenDialog = (actividad?: ActividadTipo) => {
+  const handleOpenDialog = (actividad?: ActividadTipoList | ActividadTipo) => {
     if (actividad) {
       setFormData({
         nombre: actividad.nombre,
@@ -214,7 +214,7 @@ export default function ActividadesTipo() {
       acc[cat].push(act)
       return acc
     },
-    {} as Record<string, ActividadTipo[]>
+    {} as Record<string, ActividadTipoList[]>
   )
 
   const isPending = crearMutation.isPending || actualizarMutation.isPending

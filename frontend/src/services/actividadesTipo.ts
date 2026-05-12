@@ -10,6 +10,8 @@ export interface ActividadTipoList {
   unidad_trabajo: string
   cantidad_materiales: number
   activo: boolean
+  descripcion?: string
+  materiales?: MaterialActividadTipo[]
 }
 
 export interface MaterialActividadTipo {
@@ -38,10 +40,10 @@ export interface ActividadTipo {
 }
 
 export interface ActividadTipoCreate {
-  codigo: string
+  codigo?: string
   nombre: string
   descripcion?: string
-  categoria: string
+  categoria?: string
   unidad_trabajo?: string
   materiales?: {
     material_id: string
