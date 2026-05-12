@@ -494,7 +494,7 @@ export default function ActividadesTipo() {
                               handleCantidadMaterial(mat.id, parseFloat(e.target.value) || 0)
                             }
                             min="0"
-                            step="0.1"
+                            step="any"
                           />
                           <span className="text-xs text-gray-500">{mat.unidad}</span>
                         </div>
