@@ -10,6 +10,16 @@ from uuid import UUID
 
 # ============ Materiales Calculados ============
 
+class MaterialDesgloseTarea(BaseModel):
+    """Aporte de una tarea (proyecto_actividad) al total de un material."""
+    proyecto_actividad_id: UUID
+    actividad_tipo_id: UUID
+    actividad_nombre: str
+    cantidad_planificada: Decimal
+    unidad_trabajo: Optional[str] = None
+    cantidad_aporte: Decimal
+
+
 class MaterialCalculado(BaseModel):
     """Material calculado para una actividad."""
     material_id: UUID
@@ -18,6 +28,9 @@ class MaterialCalculado(BaseModel):
     cantidad_total: Decimal
     unidad: str
     stock_actual: Optional[Decimal] = None
+    # Solo se completa en el resumen total del proyecto (no en el calculo de
+    # una sola actividad). Lista las tareas que aportan a este total.
+    desglose_por_tarea: List[MaterialDesgloseTarea] = []
 
 
 class MaterialConsumido(BaseModel):

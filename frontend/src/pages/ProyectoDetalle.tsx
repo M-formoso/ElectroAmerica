@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Fragment } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -27,6 +27,8 @@ import {
   AlertTriangle,
   FileSpreadsheet,
   Printer,
+  ChevronRight,
+  ChevronDown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -148,6 +150,16 @@ export function ProyectoDetallePage() {
   const [selectedEtapa, setSelectedEtapa] = useState<Etapa | null>(null)
   const [etapaForm, setEtapaForm] = useState<EtapaForm>(initialEtapaForm)
   const [isEditing, setIsEditing] = useState(false)
+
+  // Materiales: filas expandibles con el desglose por tarea
+  const [materialesExpandidos, setMaterialesExpandidos] = useState<Set<string>>(new Set())
+  const toggleMaterialExpandido = (id: string) =>
+    setMaterialesExpandidos((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
 
   // Estados para fotos
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
@@ -1103,21 +1115,79 @@ export function ProyectoDetallePage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-8"></TableHead>
                     <TableHead>Material</TableHead>
                     <TableHead className="text-right">Cantidad Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {resumenActividades.materiales_totales.map((mat) => (
-                    <TableRow key={mat.material_id}>
-                      <TableCell className="font-medium">
-                        {mat.material_nombre}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {Number(mat.cantidad_total).toFixed(2)} {mat.unidad}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {resumenActividades.materiales_totales.map((mat) => {
+                    const expandido = materialesExpandidos.has(mat.material_id)
+                    const tieneDesglose =
+                      !!mat.desglose_por_tarea && mat.desglose_por_tarea.length > 0
+                    return (
+                      <Fragment key={mat.material_id}>
+                        <TableRow
+                          className={tieneDesglose ? 'cursor-pointer hover:bg-muted/50' : ''}
+                          onClick={() =>
+                            tieneDesglose && toggleMaterialExpandido(mat.material_id)
+                          }
+                        >
+                          <TableCell className="w-8 pr-0">
+                            {tieneDesglose ? (
+                              expandido ? (
+                                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                              )
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {mat.material_nombre}
+                            {tieneDesglose && (
+                              <span className="text-xs text-muted-foreground ml-2">
+                                ({mat.desglose_por_tarea!.length} tarea
+                                {mat.desglose_por_tarea!.length === 1 ? '' : 's'})
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {Number(mat.cantidad_total).toFixed(2)} {mat.unidad}
+                          </TableCell>
+                        </TableRow>
+                        {expandido && tieneDesglose && (
+                          <TableRow className="bg-muted/30 hover:bg-muted/30">
+                            <TableCell colSpan={3} className="py-2">
+                              <div className="ml-4 border-l-2 border-muted-foreground/20 pl-4 space-y-1">
+                                {mat.desglose_por_tarea!.map((d, i) => (
+                                  <div
+                                    key={`${d.proyecto_actividad_id}-${i}`}
+                                    className="flex items-center justify-between text-sm py-1"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className="text-muted-foreground">↳</span>
+                                      <span className="font-medium truncate">
+                                        {d.actividad_nombre}
+                                      </span>
+                                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                        × {Number(d.cantidad_planificada).toFixed(
+                                          Number(d.cantidad_planificada) % 1 === 0 ? 0 : 2
+                                        )}
+                                        {d.unidad_trabajo ? ` ${d.unidad_trabajo}` : ''}
+                                      </span>
+                                    </div>
+                                    <span className="font-medium tabular-nums whitespace-nowrap">
+                                      {Number(d.cantidad_aporte).toFixed(2)} {mat.unidad}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </Card>

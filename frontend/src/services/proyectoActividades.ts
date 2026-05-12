@@ -2,6 +2,15 @@ import api from './api'
 
 // ============ Types ============
 
+export interface MaterialDesgloseTarea {
+  proyecto_actividad_id: string
+  actividad_tipo_id: string
+  actividad_nombre: string
+  cantidad_planificada: number
+  unidad_trabajo?: string
+  cantidad_aporte: number
+}
+
 export interface MaterialCalculado {
   material_id: string
   material_nombre: string
@@ -9,6 +18,7 @@ export interface MaterialCalculado {
   cantidad_total: number
   unidad: string
   stock_actual?: number
+  desglose_por_tarea?: MaterialDesgloseTarea[]
 }
 
 export interface MaterialConsumido {

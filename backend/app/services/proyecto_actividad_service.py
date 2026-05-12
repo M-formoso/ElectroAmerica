@@ -440,7 +440,8 @@ class ProyectoActividadService:
         total_ejecutado = sum(a.cantidad_ejecutada for a in actividades)
         porcentaje_global = (total_ejecutado / total_planificado * 100) if total_planificado > 0 else Decimal("0")
 
-        # Consolidar materiales totales (recalculo en vivo)
+        # Consolidar materiales totales (recalculo en vivo) y armar el
+        # desglose por tarea: para cada material, lista de tareas que aportan.
         materiales_dict = {}
         for actividad in actividades:
             materiales_live = self.calcular_materiales_actividad(
@@ -448,10 +449,25 @@ class ProyectoActividadService:
                 actividad.cantidad_planificada,
                 deposito_id=deposito_id,
             )
+            actividad_nombre = (
+                actividad.actividad_tipo.nombre if actividad.actividad_tipo else ''
+            )
+            unidad_trabajo = (
+                actividad.actividad_tipo.unidad_trabajo if actividad.actividad_tipo else None
+            )
             for mat in materiales_live:
                 mat_id = str(mat.material_id)
+                aporte = {
+                    'proyecto_actividad_id': actividad.id,
+                    'actividad_tipo_id': actividad.actividad_tipo_id,
+                    'actividad_nombre': actividad_nombre,
+                    'cantidad_planificada': Decimal(str(actividad.cantidad_planificada)),
+                    'unidad_trabajo': unidad_trabajo,
+                    'cantidad_aporte': Decimal(str(mat.cantidad_total)),
+                }
                 if mat_id in materiales_dict:
                     materiales_dict[mat_id]['cantidad_total'] += Decimal(str(mat.cantidad_total))
+                    materiales_dict[mat_id]['desglose_por_tarea'].append(aporte)
                 else:
                     materiales_dict[mat_id] = {
                         'material_id': mat.material_id,
@@ -459,6 +475,7 @@ class ProyectoActividadService:
                         'material_codigo': mat.material_codigo,
                         'cantidad_total': Decimal(str(mat.cantidad_total)),
                         'unidad': mat.unidad,
+                        'desglose_por_tarea': [aporte],
                     }
 
         materiales_totales = [MaterialCalculado(**m) for m in materiales_dict.values()]
