@@ -50,6 +50,7 @@ class ActividadTipoBase(BaseModel):
 
 
 class ActividadTipoCreate(ActividadTipoBase):
+    codigo: Optional[str] = Field(None, max_length=50)
     materiales: List[MaterialActividadTipoCreate] = []
 
 

@@ -65,16 +65,33 @@ def get_categorias(db: Session) -> List[dict]:
     return [{"nombre": r.categoria, "cantidad_actividades": r.cantidad} for r in results]
 
 
+def _generar_codigo_desde_nombre(db: Session, nombre: str) -> str:
+    """Genera un código único a partir del nombre (slug + sufijo si colisiona)."""
+    import re
+    import unicodedata
+    sin_acentos = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode("ascii")
+    base = re.sub(r"[^A-Z0-9]+", "_", sin_acentos.upper()).strip("_")[:45] or "ACT"
+    codigo = base
+    sufijo = 1
+    while db.query(ActividadTipo).filter(ActividadTipo.codigo == codigo).first():
+        sufijo += 1
+        codigo = f"{base[:45 - len(str(sufijo)) - 1]}_{sufijo}"
+    return codigo
+
+
 def create_actividad_tipo(db: Session, actividad: ActividadTipoCreate) -> ActividadTipo:
     """Crea una nueva actividad tipo con sus materiales."""
+    # Si no envían código, generarlo desde el nombre
+    codigo = actividad.codigo or _generar_codigo_desde_nombre(db, actividad.nombre)
+
     # Verificar que no exista el código
-    existente = get_actividad_tipo_by_codigo(db, actividad.codigo)
+    existente = get_actividad_tipo_by_codigo(db, codigo)
     if existente:
-        raise ValueError(f"Ya existe una actividad con el código {actividad.codigo}")
+        raise ValueError(f"Ya existe una actividad con el código {codigo}")
 
     # Crear actividad
     db_actividad = ActividadTipo(
-        codigo=actividad.codigo,
+        codigo=codigo,
         nombre=actividad.nombre,
         descripcion=actividad.descripcion,
         categoria=actividad.categoria,

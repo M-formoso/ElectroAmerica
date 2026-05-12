@@ -101,7 +101,7 @@ export default function ActividadesTipo() {
 
   // Mutation crear
   const crearMutation = useMutation({
-    mutationFn: (data: ActividadTipoCreate) => actividadesTipoService.crearActividadTipo(data),
+    mutationFn: (data: ActividadTipoCreate) => actividadesTipoService.createActividadTipo(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['actividades-tipo'] })
       handleCloseDialog()
@@ -111,7 +111,7 @@ export default function ActividadesTipo() {
   // Mutation actualizar
   const actualizarMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: ActividadTipoCreate }) =>
-      actividadesTipoService.actualizarActividadTipo(id, data),
+      actividadesTipoService.updateActividadTipo(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['actividades-tipo'] })
       // Refrescar materiales calculados de cualquier proyecto que use esta actividad
@@ -124,7 +124,7 @@ export default function ActividadesTipo() {
 
   // Mutation eliminar
   const eliminarMutation = useMutation({
-    mutationFn: (id: string) => actividadesTipoService.eliminarActividadTipo(id),
+    mutationFn: (id: string) => actividadesTipoService.deleteActividadTipo(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['actividades-tipo'] })
       setDeleteDialogOpen(false)

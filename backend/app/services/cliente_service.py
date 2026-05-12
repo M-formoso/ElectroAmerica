@@ -544,5 +544,5 @@ def get_estadisticas_clientes(db: Session) -> dict:
         "total_clientes": total,
         "clientes_con_deuda": con_deuda,
         "total_deuda": float(total_deuda),
-        "por_tipo": [{"tipo": t.value, "cantidad": c} for t, c in por_tipo]
+        "por_tipo": [{"tipo": getattr(t, "value", t), "cantidad": c} for t, c in por_tipo]
     }
