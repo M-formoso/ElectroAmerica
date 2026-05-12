@@ -1,8 +1,19 @@
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, field_validator
 from typing import Optional, List
 from datetime import date
 from uuid import UUID
 from enum import Enum
+
+
+def _empty_string_to_none(v):
+    """Normaliza strings vacios o con solo espacios a None.
+
+    Util para campos Optional[str] que pueden ser unique en DB (cuit) o
+    que no tiene sentido guardar como cadena vacia.
+    """
+    if isinstance(v, str) and not v.strip():
+        return None
+    return v
 
 
 class TipoCliente(str, Enum):
@@ -46,6 +57,15 @@ class ClienteBase(BaseModel):
     notas: Optional[str] = None
     notas_internas: Optional[str] = None
 
+    # Convierte strings vacios a None para campos opcionales.
+    # Critico para cuit (unique en DB: dos cadenas vacias chocan, NULL no).
+    _normalize_strings = field_validator(
+        'cuit', 'nombre_fantasia', 'email', 'telefono', 'celular',
+        'contacto_nombre', 'contacto_cargo', 'direccion', 'ciudad',
+        'codigo_postal', 'notas', 'notas_internas',
+        mode='before',
+    )(_empty_string_to_none)
+
 
 class ClienteCreate(ClienteBase):
     class Config:
@@ -73,6 +93,13 @@ class ClienteUpdate(BaseModel):
     enviar_notificaciones: Optional[bool] = None
     notas: Optional[str] = None
     notas_internas: Optional[str] = None
+
+    _normalize_strings = field_validator(
+        'cuit', 'nombre_fantasia', 'email', 'telefono', 'celular',
+        'contacto_nombre', 'contacto_cargo', 'direccion', 'ciudad',
+        'codigo_postal', 'notas', 'notas_internas',
+        mode='before',
+    )(_empty_string_to_none)
 
     class Config:
         use_enum_values = True
