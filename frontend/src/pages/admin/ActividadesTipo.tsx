@@ -43,7 +43,7 @@ import {
   LayoutGrid,
   List,
 } from 'lucide-react'
-import { actividadesTipoService, type ActividadTipoCreate, type ActividadTipo } from '@/services/jornadasOperario'
+import { actividadesTipoService, type ActividadTipoCreate, type ActividadTipo } from '@/services/actividadesTipo'
 import { materialesService } from '@/services/materiales'
 
 interface MaterialSeleccionado {
