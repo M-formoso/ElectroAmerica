@@ -89,10 +89,10 @@ class ProyectoActividadListResponse(BaseModel):
     """Schema de respuesta para lista de actividades."""
     id: UUID
     actividad_tipo_id: UUID
-    actividad_codigo: str
-    actividad_nombre: str
-    actividad_categoria: str
-    unidad_trabajo: str
+    actividad_codigo: Optional[str] = None
+    actividad_nombre: Optional[str] = None
+    actividad_categoria: Optional[str] = None
+    unidad_trabajo: Optional[str] = None
     cantidad_planificada: Decimal
     cantidad_ejecutada: Decimal
     porcentaje_avance: Decimal

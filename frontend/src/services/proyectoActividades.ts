@@ -31,10 +31,10 @@ export interface MaterialConsumido {
 export interface ProyectoActividadList {
   id: string
   actividad_tipo_id: string
-  actividad_codigo: string
-  actividad_nombre: string
-  actividad_categoria: string
-  unidad_trabajo: string
+  actividad_codigo?: string
+  actividad_nombre?: string
+  actividad_categoria?: string
+  unidad_trabajo?: string
   cantidad_planificada: number
   cantidad_ejecutada: number
   porcentaje_avance: number
