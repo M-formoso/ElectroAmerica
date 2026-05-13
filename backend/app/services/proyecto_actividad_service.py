@@ -177,19 +177,22 @@ class ProyectoActividadService:
         if not actividad:
             raise ValueError(f"Actividad {actividad_id} no encontrada")
 
-        # Si cambia la cantidad planificada, recalcular materiales
         if actividad_data.cantidad_planificada is not None:
             actividad.cantidad_planificada = actividad_data.cantidad_planificada
-            materiales_calculados = self.calcular_materiales_actividad(
-                actividad.actividad_tipo_id,
-                actividad_data.cantidad_planificada
-            )
-            actividad.materiales_calculados = [m.model_dump(mode='json') for m in materiales_calculados]
 
         if actividad_data.observaciones is not None:
             actividad.observaciones = actividad_data.observaciones
         if actividad_data.orden is not None:
             actividad.orden = actividad_data.orden
+
+        # Recalcular siempre el snapshot de materiales para reflejar
+        # cambios en el catalogo de actividades-tipo (cantidad_por_unidad
+        # o lista de materiales pueden haberse modificado).
+        materiales_calculados = self.calcular_materiales_actividad(
+            actividad.actividad_tipo_id,
+            actividad.cantidad_planificada
+        )
+        actividad.materiales_calculados = [m.model_dump(mode='json') for m in materiales_calculados]
 
         self.db.commit()
         self.db.refresh(actividad)

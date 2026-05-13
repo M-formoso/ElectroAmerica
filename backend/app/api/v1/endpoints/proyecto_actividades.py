@@ -64,6 +64,25 @@ def listar_actividades_proyecto(
     return result
 
 
+def _materiales_en_vivo(
+    service: ProyectoActividadService,
+    actividad,
+    proyecto_id: UUID,
+) -> list:
+    """Recalcula los materiales de una actividad leyendo el catalogo
+    de actividades-tipo en vivo, asi cualquier edicion al catalogo se
+    refleja inmediatamente. El stock viene del deposito del proyecto
+    si esta configurado.
+    """
+    proyecto_full = proyecto_service.obtener_proyecto(service.db, proyecto_id)
+    materiales = service.calcular_materiales_actividad(
+        actividad.actividad_tipo_id,
+        actividad.cantidad_planificada,
+        deposito_id=proyecto_full.deposito_id if proyecto_full else None,
+    )
+    return [m.model_dump(mode='json') for m in materiales]
+
+
 @router.post("/{proyecto_id}/actividades", response_model=ProyectoActividadResponse, status_code=status.HTTP_201_CREATED)
 def asignar_actividad(
     proyecto_id: UUID,
@@ -84,7 +103,7 @@ def asignar_actividad(
             cantidad_ejecutada=actividad.cantidad_ejecutada,
             orden=actividad.orden,
             observaciones=actividad.observaciones,
-            materiales_calculados=actividad.materiales_calculados,
+            materiales_calculados=_materiales_en_vivo(service, actividad, proyecto_id),
             porcentaje_avance=actividad.porcentaje_avance,
             cantidad_pendiente=actividad.cantidad_pendiente,
             activo=actividad.activo,
@@ -122,7 +141,7 @@ def asignar_actividades_bulk(
                 cantidad_ejecutada=a.cantidad_ejecutada,
                 orden=a.orden,
                 observaciones=a.observaciones,
-                materiales_calculados=a.materiales_calculados,
+                materiales_calculados=_materiales_en_vivo(service, a, proyecto_id),
                 porcentaje_avance=a.porcentaje_avance,
                 cantidad_pendiente=a.cantidad_pendiente,
                 activo=a.activo,
@@ -155,17 +174,6 @@ def obtener_actividad_proyecto(
     if not actividad or actividad.proyecto_id != proyecto_id:
         raise HTTPException(status_code=404, detail="Actividad no encontrada")
 
-    # Recalculo en vivo de materiales para reflejar cambios en
-    # cantidad_por_unidad del catalogo de actividades-tipo. El stock
-    # viene del deposito del proyecto si esta configurado.
-    proyecto_full = proyecto_service.obtener_proyecto(db, proyecto_id)
-    materiales_live = service.calcular_materiales_actividad(
-        actividad.actividad_tipo_id,
-        actividad.cantidad_planificada,
-        deposito_id=proyecto_full.deposito_id if proyecto_full else None,
-    )
-    materiales_calculados_dump = [m.model_dump(mode='json') for m in materiales_live]
-
     return ProyectoActividadResponse(
         id=actividad.id,
         proyecto_id=actividad.proyecto_id,
@@ -174,7 +182,7 @@ def obtener_actividad_proyecto(
         cantidad_ejecutada=actividad.cantidad_ejecutada,
         orden=actividad.orden,
         observaciones=actividad.observaciones,
-        materiales_calculados=materiales_calculados_dump,
+        materiales_calculados=_materiales_en_vivo(service, actividad, proyecto_id),
         porcentaje_avance=actividad.porcentaje_avance,
         cantidad_pendiente=actividad.cantidad_pendiente,
         activo=actividad.activo,
@@ -210,7 +218,7 @@ def actualizar_actividad_proyecto(
             cantidad_ejecutada=actividad.cantidad_ejecutada,
             orden=actividad.orden,
             observaciones=actividad.observaciones,
-            materiales_calculados=actividad.materiales_calculados,
+            materiales_calculados=_materiales_en_vivo(service, actividad, proyecto_id),
             porcentaje_avance=actividad.porcentaje_avance,
             cantidad_pendiente=actividad.cantidad_pendiente,
             activo=actividad.activo,
