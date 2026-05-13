@@ -44,7 +44,7 @@ interface ProyectoForm {
   monto_contratado: string
   cliente_id: string
   supervisor_id: string
-  fuente_materiales: 'global' | 'deposito'
+  fuente_materiales: 'ninguna' | 'global' | 'deposito'
   deposito_id: string
 }
 
@@ -65,7 +65,7 @@ export function ProyectoEditarPage() {
     monto_contratado: '',
     cliente_id: '',
     supervisor_id: '',
-    fuente_materiales: 'global',
+    fuente_materiales: 'ninguna',
     deposito_id: '',
   })
 
@@ -100,7 +100,7 @@ export function ProyectoEditarPage() {
         monto_contratado: proyecto.monto_contratado?.toString() || '',
         cliente_id: proyecto.cliente_id || '',
         supervisor_id: proyecto.supervisor_id || '',
-        fuente_materiales: proyecto.deposito_id ? 'deposito' : 'global',
+        fuente_materiales: proyecto.deposito_id ? 'deposito' : 'ninguna',
         deposito_id: proyecto.deposito_id || '',
       })
     }
@@ -383,7 +383,7 @@ export function ProyectoEditarPage() {
                       cliente_id: v === 'none' ? '' : v,
                       // Al cambiar el cliente, resetear deposito
                       deposito_id: '',
-                      fuente_materiales: 'global',
+                      fuente_materiales: 'ninguna',
                     })
                   }
                 >
@@ -436,10 +436,31 @@ export function ProyectoEditarPage() {
             </CardTitle>
             <CardDescription>
               Donde se descuenta el stock al consumir materiales en este proyecto.
+              Podés dejarlo sin asignar.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid gap-2">
+              <label className="flex items-center gap-3 p-2 rounded-md border cursor-pointer hover:bg-muted/50">
+                <input
+                  type="radio"
+                  name="fuente_materiales_edit"
+                  checked={formData.fuente_materiales === 'ninguna'}
+                  onChange={() =>
+                    setFormData({
+                      ...formData,
+                      fuente_materiales: 'ninguna',
+                      deposito_id: '',
+                    })
+                  }
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Sin asignar</p>
+                  <p className="text-xs text-muted-foreground">
+                    El proyecto no descuenta stock automáticamente. Podés vincular una fuente más tarde.
+                  </p>
+                </div>
+              </label>
               <label className="flex items-center gap-3 p-2 rounded-md border cursor-pointer hover:bg-muted/50">
                 <input
                   type="radio"
