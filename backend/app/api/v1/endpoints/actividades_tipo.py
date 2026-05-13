@@ -32,18 +32,21 @@ async def listar_actividades_tipo(
         db, categoria=categoria, busqueda=busqueda, skip=skip, limit=limit
     )
 
-    return [
-        ActividadTipoListResponse(
+    result = []
+    for a in actividades:
+        enriched = actividad_tipo_service.enrich_actividad_response(db, a)
+        result.append(ActividadTipoListResponse(
             id=a.id,
             codigo=a.codigo,
             nombre=a.nombre,
+            descripcion=a.descripcion,
             categoria=a.categoria,
             unidad_trabajo=a.unidad_trabajo,
-            cantidad_materiales=len([m for m in a.materiales if m.activo]),
-            activo=a.activo
-        )
-        for a in actividades
-    ]
+            cantidad_materiales=enriched["cantidad_materiales"],
+            materiales=enriched["materiales"],
+            activo=a.activo,
+        ))
+    return result
 
 
 @router.get("/categorias", response_model=ListarCategoriasResponse)

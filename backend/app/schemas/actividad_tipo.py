@@ -80,9 +80,11 @@ class ActividadTipoListResponse(BaseModel):
     id: UUID
     codigo: str
     nombre: str
+    descripcion: Optional[str] = None
     categoria: Optional[str] = None
     unidad_trabajo: Optional[str] = None
     cantidad_materiales: int = 0
+    materiales: List[MaterialActividadTipoResponse] = []
     activo: bool
 
     class Config:
