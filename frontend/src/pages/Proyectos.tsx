@@ -79,7 +79,7 @@ interface ProyectoForm {
   fecha_fin_estimada: string
   monto_contratado: string
   cliente_id: string
-  fuente_materiales: 'global' | 'deposito'
+  fuente_materiales: 'ninguna' | 'global' | 'deposito'
   deposito_id: string
   actividades: ActividadSeleccionada[]
   herramientas_ids: string[]
@@ -93,7 +93,7 @@ const formInicial: ProyectoForm = {
   fecha_fin_estimada: '',
   monto_contratado: '',
   cliente_id: '',
-  fuente_materiales: 'global',
+  fuente_materiales: 'ninguna',
   deposito_id: '',
   actividades: [],
   herramientas_ids: [],
@@ -655,7 +655,7 @@ export function ProyectosPage() {
                         cliente_id: v,
                         // Al cambiar de cliente, resetear el deposito seleccionado
                         deposito_id: '',
-                        fuente_materiales: 'global',
+                        fuente_materiales: 'ninguna',
                       })
                     }
                   >
@@ -681,8 +681,29 @@ export function ProyectosPage() {
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Donde se descuenta el stock al consumir materiales en este proyecto.
+                  Podés dejarlo sin asignar y definirlo más tarde.
                 </p>
                 <div className="grid gap-2">
+                  <label className="flex items-center gap-3 p-2 rounded-md border cursor-pointer hover:bg-muted/50">
+                    <input
+                      type="radio"
+                      name="fuente_materiales"
+                      checked={formData.fuente_materiales === 'ninguna'}
+                      onChange={() =>
+                        setFormData({
+                          ...formData,
+                          fuente_materiales: 'ninguna',
+                          deposito_id: '',
+                        })
+                      }
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Sin asignar</p>
+                      <p className="text-xs text-muted-foreground">
+                        Creá el proyecto ahora y definí la fuente más tarde desde el detalle.
+                      </p>
+                    </div>
+                  </label>
                   <label className="flex items-center gap-3 p-2 rounded-md border cursor-pointer hover:bg-muted/50">
                     <input
                       type="radio"
