@@ -160,13 +160,24 @@ export function MaterialesPage() {
     mutationFn: materialesService.createMaterial,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['materiales'] })
+      queryClient.invalidateQueries({ queryKey: ['materiales-stock-bajo'] })
       toast({ title: 'Material creado exitosamente' })
       setIsCreateOpen(false)
       setFormData(initialFormState)
       setDestinosIniciales([])
     },
-    onError: () => {
-      toast({ variant: 'destructive', title: 'Error al crear material' })
+    onError: (e: any) => {
+      const detail = e?.response?.data?.detail
+      const msg = typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+          ? detail.map((d: any) => `${d.loc?.join('.')}: ${d.msg}`).join('; ')
+          : ''
+      toast({
+        variant: 'destructive',
+        title: 'Error al crear material',
+        description: msg || 'Revisá la consola del navegador.',
+      })
     },
   })
 
