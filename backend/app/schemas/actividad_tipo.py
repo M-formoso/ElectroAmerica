@@ -61,6 +61,10 @@ class ActividadTipoUpdate(BaseModel):
     categoria: Optional[str] = None
     unidad_trabajo: Optional[str] = None
     tiempo_estimado: Optional[float] = None
+    # Si viene presente, reemplaza la lista de materiales: actualiza
+    # cantidades de los existentes, agrega los nuevos y desactiva los
+    # que ya no estan.
+    materiales: Optional[List[MaterialActividadTipoCreate]] = None
 
 
 class ActividadTipoResponse(ActividadTipoBase):

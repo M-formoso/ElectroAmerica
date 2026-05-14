@@ -128,6 +128,7 @@ def update_actividad_tipo(
         return None
 
     update_data = actividad.model_dump(exclude_unset=True)
+    materiales_payload = update_data.pop('materiales', None)
 
     # Verificar código único si se está cambiando
     if 'codigo' in update_data:
@@ -141,9 +142,52 @@ def update_actividad_tipo(
                 value = Decimal(str(value))
             setattr(db_actividad, field, value)
 
+    if materiales_payload is not None:
+        _sincronizar_materiales(db, actividad_id, materiales_payload)
+
     db.commit()
     db.refresh(db_actividad)
     return db_actividad
+
+
+def _sincronizar_materiales(
+    db: Session,
+    actividad_id: UUID,
+    materiales_payload: list,
+) -> None:
+    """Sincroniza la lista de materiales de una actividad.
+
+    - Si un material del payload ya existe (mismo material_id, activo),
+      actualiza cantidad/es_opcional/notas.
+    - Si es nuevo, lo crea.
+    - Si un material existente no esta en el payload, lo desactiva.
+    """
+    actuales = db.query(MaterialActividadTipo).filter(
+        MaterialActividadTipo.actividad_tipo_id == actividad_id,
+        MaterialActividadTipo.activo == True,
+    ).all()
+    actuales_por_material = {str(m.material_id): m for m in actuales}
+    payload_material_ids = {str(m['material_id']) for m in materiales_payload}
+
+    for mat in materiales_payload:
+        material_id_str = str(mat['material_id'])
+        existente = actuales_por_material.get(material_id_str)
+        if existente:
+            existente.cantidad_por_unidad = Decimal(str(mat['cantidad_por_unidad']))
+            existente.es_opcional = mat.get('es_opcional', False)
+            existente.notas = mat.get('notas')
+        else:
+            db.add(MaterialActividadTipo(
+                actividad_tipo_id=actividad_id,
+                material_id=mat['material_id'],
+                cantidad_por_unidad=Decimal(str(mat['cantidad_por_unidad'])),
+                es_opcional=mat.get('es_opcional', False),
+                notas=mat.get('notas'),
+            ))
+
+    for material_id_str, existente in actuales_por_material.items():
+        if material_id_str not in payload_material_ids:
+            existente.activo = False
 
 
 def delete_actividad_tipo(db: Session, actividad_id: UUID) -> bool:
