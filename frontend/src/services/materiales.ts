@@ -14,8 +14,11 @@ export const materialesService = {
   async getMateriales(params?: {
     skip?: number
     limit?: number
+    busqueda?: string
   }): Promise<Material[]> {
-    const response = await api.get<Material[]>('/materiales/', { params })
+    const response = await api.get<Material[]>('/materiales/', {
+      params: { limit: 1000, ...params },
+    })
     return response.data
   },
 

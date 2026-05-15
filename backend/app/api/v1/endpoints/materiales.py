@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 from app.core.deps import get_db, get_usuario_actual, require_staff, require_admin_or_supervisor
 from app.models.usuario import Usuario
@@ -18,12 +18,15 @@ router = APIRouter()
 @router.get("/", response_model=List[MaterialResponse])
 def listar_materiales(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(1000, ge=1, le=5000),
+    busqueda: Optional[str] = Query(None, max_length=200),
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(require_staff)
 ):
-    """Lista materiales."""
-    return material_service.obtener_materiales(db, skip, limit)
+    """Lista materiales con busqueda opcional por nombre o codigo."""
+    return material_service.obtener_materiales(
+        db, skip=skip, limit=limit, busqueda=busqueda
+    )
 
 
 @router.get("/stock-bajo", response_model=List[MaterialResponse])

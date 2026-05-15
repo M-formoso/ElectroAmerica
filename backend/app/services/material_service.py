@@ -20,13 +20,23 @@ def obtener_materiales(
     db: Session,
     skip: int = 0,
     limit: int = 100,
-    solo_stock_bajo: bool = False
+    solo_stock_bajo: bool = False,
+    busqueda: Optional[str] = None,
 ) -> List[Material]:
-    """Obtiene lista de materiales."""
+    """Obtiene lista de materiales.
+
+    Si `busqueda` esta presente, filtra por nombre o codigo (case-insensitive).
+    """
     query = db.query(Material).filter(Material.activo == True)
 
     if solo_stock_bajo:
         query = query.filter(Material.stock_actual <= Material.stock_minimo)
+
+    if busqueda:
+        like = f"%{busqueda.strip()}%"
+        query = query.filter(
+            (Material.nombre.ilike(like)) | (Material.codigo.ilike(like))
+        )
 
     return query.order_by(Material.nombre).offset(skip).limit(limit).all()
 
