@@ -230,39 +230,8 @@ class ProyectoActividadService:
         ).first()
         deposito_id = proyecto.deposito_id if proyecto else None
 
-        # Validar stock antes de descontar nada
-        if avance_data.materiales_consumidos:
-            for consumo in avance_data.materiales_consumidos:
-                if consumo.cantidad <= 0:
-                    continue
-                material = self.db.query(Material).filter(
-                    Material.id == consumo.material_id
-                ).first()
-                if not material:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"Material {consumo.material_id} no encontrado"
-                    )
-                # Validar contra deposito si esta configurado, sino global
-                if deposito_id:
-                    dm = self.db.query(DepositoMaterial).filter(
-                        DepositoMaterial.deposito_id == deposito_id,
-                        DepositoMaterial.material_id == material.id,
-                        DepositoMaterial.activo == True,
-                    ).first()
-                    stock_disp = dm.stock_actual if dm else Decimal("0")
-                else:
-                    stock_disp = material.stock_actual
-                if stock_disp < consumo.cantidad:
-                    fuente = "el deposito del proyecto" if deposito_id else "el stock global"
-                    raise HTTPException(
-                        status_code=400,
-                        detail=(
-                            f"Stock insuficiente de '{material.nombre}' en {fuente}. "
-                            f"Disponible: {stock_disp} {material.unidad}, "
-                            f"requerido: {consumo.cantidad}"
-                        )
-                    )
+        # El stock NO bloquea el registro del avance. Si no alcanza, el
+        # stock queda en negativo y se registra igual.
 
         # Crear el registro de avance
         avance = AvanceActividad(
@@ -288,6 +257,8 @@ class ProyectoActividadService:
                 material = self.db.query(Material).filter(
                     Material.id == consumo.material_id
                 ).first()
+                if not material:
+                    continue
                 if deposito_id:
                     dm = self.db.query(DepositoMaterial).filter(
                         DepositoMaterial.deposito_id == deposito_id,
@@ -295,13 +266,16 @@ class ProyectoActividadService:
                         DepositoMaterial.activo == True,
                     ).first()
                     if not dm:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=(
-                                f"El material '{material.nombre}' no esta cargado "
-                                f"en el deposito del proyecto."
-                            )
+                        # Crear el registro con stock 0 para poder
+                        # descontar (queda en negativo).
+                        dm = DepositoMaterial(
+                            deposito_id=deposito_id,
+                            material_id=material.id,
+                            stock_actual=Decimal("0"),
+                            stock_minimo=Decimal("0"),
                         )
+                        self.db.add(dm)
+                        self.db.flush()
                     stock_anterior = dm.stock_actual
                     dm.stock_actual = stock_anterior - consumo.cantidad
                 else:

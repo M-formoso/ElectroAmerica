@@ -2177,9 +2177,9 @@ export function ProyectoDetallePage() {
                   </TableBody>
                 </Table>
                 {avanceForm.materiales.some((m) => parseFloat(m.cantidad) > m.stock_actual) && (
-                  <p className="text-xs text-destructive flex items-center gap-1">
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
                     <AlertTriangle className="h-3 w-3" />
-                    Hay materiales con cantidad mayor al stock disponible.
+                    El stock va a quedar en negativo al guardar.
                   </p>
                 )}
               </div>
@@ -2200,10 +2200,7 @@ export function ProyectoDetallePage() {
               </Button>
               <Button
                 type="submit"
-                disabled={
-                  registrarAvanceMutation.isPending ||
-                  avanceForm.materiales.some((m) => parseFloat(m.cantidad) > m.stock_actual)
-                }
+                disabled={registrarAvanceMutation.isPending}
               >
                 {registrarAvanceMutation.isPending && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
