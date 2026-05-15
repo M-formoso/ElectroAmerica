@@ -41,6 +41,8 @@ class RemitoResponse(BaseModel):
     fecha: date
     deposito_id: UUID
     deposito_nombre: Optional[str] = None
+    deposito_padre_nombre: Optional[str] = None
+    es_subdeposito: bool = False
     proyecto_id: Optional[UUID] = None
     proyecto_nombre: Optional[str] = None
     destinatario_texto: Optional[str] = None
@@ -65,6 +67,8 @@ class RemitoListResponse(BaseModel):
     fecha: date
     deposito_id: UUID
     deposito_nombre: Optional[str] = None
+    deposito_padre_nombre: Optional[str] = None
+    es_subdeposito: bool = False
     proyecto_id: Optional[UUID] = None
     proyecto_nombre: Optional[str] = None
     destinatario_texto: Optional[str] = None

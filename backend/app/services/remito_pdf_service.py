@@ -92,8 +92,12 @@ def generar_pdf_remito(remito_data: dict) -> bytes:
     creado = remito_data.get("created_at")
     creado_str = creado.strftime("%d/%m/%Y %H:%M") if creado else "-"
 
+    deposito_label = remito_data.get("deposito_nombre") or "-"
+    if remito_data.get("deposito_padre_nombre"):
+        deposito_label = f"{remito_data['deposito_padre_nombre']} → {deposito_label}"
+
     info_rows = [
-        ["Fecha:", fecha_str, "Depósito:", remito_data.get("deposito_nombre") or "-"],
+        ["Fecha:", fecha_str, "Depósito:", deposito_label],
         ["Proyecto:", remito_data.get("proyecto_nombre") or "-",
          "Destinatario:", remito_data.get("destinatario_texto") or "-"],
         ["Responsable retira:", remito_data.get("responsable_retira") or "-",

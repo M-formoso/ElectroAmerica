@@ -135,7 +135,20 @@ export function RemitosPage() {
                     {r.numero_formateado}
                   </TableCell>
                   <TableCell>{formatDate(r.fecha)}</TableCell>
-                  <TableCell>{r.deposito_nombre || '-'}</TableCell>
+                  <TableCell>
+                    {r.es_subdeposito && r.deposito_padre_nombre ? (
+                      <div className="flex flex-col">
+                        <span className="text-xs text-muted-foreground">
+                          {r.deposito_padre_nombre}
+                        </span>
+                        <span className="font-medium text-sm">
+                          ↳ {r.deposito_nombre}
+                        </span>
+                      </div>
+                    ) : (
+                      r.deposito_nombre || '-'
+                    )}
+                  </TableCell>
                   <TableCell>
                     {r.proyecto_nombre ? (
                       <Badge variant="outline">{r.proyecto_nombre}</Badge>
@@ -222,7 +235,14 @@ function DetalleRemito({
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-2 text-sm">
-        <Field label="Depósito" value={remito.deposito_nombre} />
+        <Field
+          label="Depósito"
+          value={
+            remito.es_subdeposito && remito.deposito_padre_nombre
+              ? `${remito.deposito_padre_nombre} → ${remito.deposito_nombre}`
+              : remito.deposito_nombre
+          }
+        />
         <Field label="Proyecto" value={remito.proyecto_nombre} />
         <Field label="Destinatario" value={remito.destinatario_texto} />
         <Field label="Responsable" value={remito.responsable_retira} />

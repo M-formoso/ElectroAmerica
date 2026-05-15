@@ -156,15 +156,32 @@ def listar_remitos(
     )
 
 
+def _deposito_path(remito: Remito) -> tuple[str | None, str | None, bool]:
+    """Devuelve (nombre_propio, nombre_padre, es_subdeposito) del deposito.
+
+    Cuando el remito sale de un subdeposito, queremos saber tambien el
+    nombre del padre para dar contexto en la UI y en el PDF.
+    """
+    if not remito.deposito:
+        return None, None, False
+    propio = remito.deposito.nombre
+    es_sub = remito.deposito.parent_id is not None
+    padre_nombre = remito.deposito.parent.nombre if es_sub and remito.deposito.parent else None
+    return propio, padre_nombre, es_sub
+
+
 def to_response_dict(remito: Remito) -> dict:
     """Helper para construir el dict de RemitoResponse con campos derivados."""
+    propio, padre, es_sub = _deposito_path(remito)
     return {
         "id": remito.id,
         "numero": remito.numero,
         "numero_formateado": remito.numero_formateado,
         "fecha": remito.fecha,
         "deposito_id": remito.deposito_id,
-        "deposito_nombre": remito.deposito.nombre if remito.deposito else None,
+        "deposito_nombre": propio,
+        "deposito_padre_nombre": padre,
+        "es_subdeposito": es_sub,
         "proyecto_id": remito.proyecto_id,
         "proyecto_nombre": remito.proyecto.nombre if remito.proyecto else None,
         "destinatario_texto": remito.destinatario_texto,
@@ -190,13 +207,16 @@ def to_response_dict(remito: Remito) -> dict:
 
 
 def to_list_dict(remito: Remito) -> dict:
+    propio, padre, es_sub = _deposito_path(remito)
     return {
         "id": remito.id,
         "numero": remito.numero,
         "numero_formateado": remito.numero_formateado,
         "fecha": remito.fecha,
         "deposito_id": remito.deposito_id,
-        "deposito_nombre": remito.deposito.nombre if remito.deposito else None,
+        "deposito_nombre": propio,
+        "deposito_padre_nombre": padre,
+        "es_subdeposito": es_sub,
         "proyecto_id": remito.proyecto_id,
         "proyecto_nombre": remito.proyecto.nombre if remito.proyecto else None,
         "destinatario_texto": remito.destinatario_texto,

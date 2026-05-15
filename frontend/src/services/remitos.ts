@@ -33,6 +33,8 @@ export interface Remito {
   fecha: string
   deposito_id: string
   deposito_nombre?: string
+  deposito_padre_nombre?: string
+  es_subdeposito?: boolean
   proyecto_id?: string
   proyecto_nombre?: string
   destinatario_texto?: string
@@ -53,6 +55,8 @@ export interface RemitoListItem {
   fecha: string
   deposito_id: string
   deposito_nombre?: string
+  deposito_padre_nombre?: string
+  es_subdeposito?: boolean
   proyecto_id?: string
   proyecto_nombre?: string
   destinatario_texto?: string
