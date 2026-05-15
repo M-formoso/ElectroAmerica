@@ -1,14 +1,21 @@
 """Generador de PDF para remitos de salida de materiales."""
 import io
+import os
 from datetime import datetime
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image,
 )
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
+
+
+LOGO_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "assets", "logo.jpg",
+)
 
 
 # Identidad visual Electro America
@@ -61,8 +68,16 @@ def generar_pdf_remito(remito_data: dict) -> bytes:
 
     elements = []
 
-    # Cabecera
-    elements.append(Paragraph("ELECTRO AMERICA", h_titulo))
+    # Cabecera con logo (proporcion 648:171, ancho 6cm => alto ~1.58cm)
+    if os.path.exists(LOGO_PATH):
+        logo = Image(LOGO_PATH, width=6 * cm, height=1.58 * cm)
+        logo.hAlign = "CENTER"
+        elements.append(logo)
+        elements.append(Spacer(1, 4))
+    else:
+        # Fallback si por algun motivo no esta el logo
+        elements.append(Paragraph("ELECTRO AMERICA", h_titulo))
+
     elements.append(Paragraph("REMITO DE SALIDA", ParagraphStyle(
         "Subtitle", parent=styles["Normal"], fontSize=11, textColor=NEGRO,
         alignment=TA_CENTER, spaceAfter=4,
