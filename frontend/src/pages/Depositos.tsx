@@ -451,8 +451,8 @@ export function DepositosPage() {
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <Warehouse className="h-4 w-4 text-primary" />
-                    {d.nombre}
+                    <Building2 className="h-4 w-4 text-primary" />
+                    {d.cliente_nombre || 'Sin cliente'}
                   </CardTitle>
                   <div className="flex gap-1">
                     <Button
@@ -473,12 +473,10 @@ export function DepositosPage() {
                     </Button>
                   </div>
                 </div>
-                {d.cliente_nombre && (
-                  <CardDescription className="flex items-center gap-1">
-                    <Building2 className="h-3 w-3" />
-                    {d.cliente_nombre}
-                  </CardDescription>
-                )}
+                <CardDescription className="flex items-center gap-1">
+                  <Warehouse className="h-3 w-3" />
+                  {d.nombre}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {d.direccion && (
