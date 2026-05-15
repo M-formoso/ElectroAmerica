@@ -20,6 +20,7 @@ import {
   TrendingDown,
   RefreshCw,
   ArrowRightLeft,
+  FileText,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -70,6 +71,7 @@ import {
 import { getClientes, type ClienteListItem } from '@/services/clientes'
 import { materialesService } from '@/services/materiales'
 import { formatDate } from '@/lib/utils'
+import { SalidaRemitoDialog } from '@/components/remitos/SalidaRemitoDialog'
 
 interface DepositoFormData {
   cliente_id: string
@@ -104,6 +106,9 @@ export function DepositosPage() {
 
   // Ver/gestionar materiales del deposito
   const [openDepositoId, setOpenDepositoId] = useState<string | null>(null)
+
+  // Salida (remito) desde un deposito
+  const [salidaDeposito, setSalidaDeposito] = useState<{ id: string; nombre: string } | null>(null)
 
   // Form para agregar materiales al deposito (multi-select / nuevo)
   const [addMaterialOpen, setAddMaterialOpen] = useState(false)
@@ -495,13 +500,23 @@ export function DepositosPage() {
                       </Badge>
                     )}
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setOpenDepositoId(d.id)}
-                  >
-                    Ver stock
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSalidaDeposito({ id: d.id, nombre: d.nombre })}
+                    >
+                      <FileText className="h-3 w-3 mr-1" />
+                      Salida
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setOpenDepositoId(d.id)}
+                    >
+                      Ver stock
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -752,25 +767,37 @@ export function DepositosPage() {
                 </span>
               )}
             </p>
-            <Button
-              size="sm"
-              onClick={() => {
-                setSeleccionados({})
-                setCatalogoSearch('')
-                setMaterialNuevoForm({
-                  nombre: '',
-                  unidad: 'unidad',
-                  descripcion: '',
-                  stock_actual: '0',
-                  stock_minimo: '0',
-                })
-                setAddTab('catalogo')
-                setAddMaterialOpen(true)
-              }}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Agregar materiales
-            </Button>
+            <div className="flex gap-2">
+              {depositoDetail && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSalidaDeposito({ id: depositoDetail.id, nombre: depositoDetail.nombre })}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Salida (remito)
+                </Button>
+              )}
+              <Button
+                size="sm"
+                onClick={() => {
+                  setSeleccionados({})
+                  setCatalogoSearch('')
+                  setMaterialNuevoForm({
+                    nombre: '',
+                    unidad: 'unidad',
+                    descripcion: '',
+                    stock_actual: '0',
+                    stock_minimo: '0',
+                  })
+                  setAddTab('catalogo')
+                  setAddMaterialOpen(true)
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Agregar materiales
+              </Button>
+            </div>
           </div>
 
           {depositoDetail && depositoDetail.materiales.length === 0 ? (
@@ -1391,6 +1418,16 @@ export function DepositosPage() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog de salida (remito) */}
+      {salidaDeposito && (
+        <SalidaRemitoDialog
+          open={!!salidaDeposito}
+          onOpenChange={(o) => !o && setSalidaDeposito(null)}
+          depositoId={salidaDeposito.id}
+          depositoNombre={salidaDeposito.nombre}
+        />
+      )}
     </div>
   )
 }
