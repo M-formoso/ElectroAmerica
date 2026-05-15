@@ -657,49 +657,6 @@ export function DepositosPage() {
             </DialogDescription>
           </DialogHeader>
 
-          {/* Resumen total agregado (deposito + subdepositos) */}
-          {depositoDetail && depositoDetail.subdepositos.length > 0 && (
-            <div className="border rounded-md p-3 bg-muted/30 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium">
-                  Resumen total (deposito + subdepositos)
-                </p>
-                <Badge variant="secondary">
-                  {depositoDetail.materiales_totales.length} materiales
-                </Badge>
-              </div>
-              {depositoDetail.materiales_totales.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Material</TableHead>
-                      <TableHead className="text-right">Stock total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {depositoDetail.materiales_totales.map((m) => (
-                      <TableRow key={m.material_id}>
-                        <TableCell>
-                          <div className="font-medium">{m.material_nombre}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {m.material_codigo}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {Number(m.stock_total).toFixed(2)} {m.material_unidad}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Aun no hay materiales cargados.
-                </p>
-              )}
-            </div>
-          )}
-
           {/* Subdepositos */}
           {depositoDetail && !depositoDetail.parent_id && (
             <div className="space-y-2">
@@ -944,6 +901,49 @@ export function DepositosPage() {
           ) : (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {/* Resumen total agregado (deposito + subdepositos) */}
+          {depositoDetail && depositoDetail.subdepositos.length > 0 && (
+            <div className="border rounded-md p-3 bg-muted/30 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">
+                  Resumen total (deposito + subdepositos)
+                </p>
+                <Badge variant="secondary">
+                  {depositoDetail.materiales_totales.length} materiales
+                </Badge>
+              </div>
+              {depositoDetail.materiales_totales.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Material</TableHead>
+                      <TableHead className="text-right">Stock total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {depositoDetail.materiales_totales.map((m) => (
+                      <TableRow key={m.material_id}>
+                        <TableCell>
+                          <div className="font-medium">{m.material_nombre}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {m.material_codigo}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {Number(m.stock_total).toFixed(2)} {m.material_unidad}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Aun no hay materiales cargados.
+                </p>
+              )}
             </div>
           )}
         </DialogContent>
