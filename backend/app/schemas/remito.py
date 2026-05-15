@@ -1,0 +1,76 @@
+from pydantic import BaseModel, Field
+from typing import Optional, List
+from datetime import date, datetime
+from decimal import Decimal
+from uuid import UUID
+
+
+class RemitoItemCreate(BaseModel):
+    material_id: UUID
+    cantidad: Decimal = Field(..., gt=0)
+
+
+class RemitoItemResponse(BaseModel):
+    id: UUID
+    material_id: Optional[UUID] = None
+    material_codigo: Optional[str] = None
+    material_nombre: str
+    material_unidad: str
+    cantidad: Decimal
+
+    class Config:
+        from_attributes = True
+
+
+class RemitoCreate(BaseModel):
+    fecha: date
+    deposito_id: UUID
+    proyecto_id: Optional[UUID] = None
+    destinatario_texto: Optional[str] = Field(None, max_length=255)
+    responsable_retira: Optional[str] = Field(None, max_length=255)
+    direccion_entrega: Optional[str] = Field(None, max_length=255)
+    transportista: Optional[str] = Field(None, max_length=255)
+    observaciones: Optional[str] = None
+    items: List[RemitoItemCreate] = Field(..., min_length=1)
+
+
+class RemitoResponse(BaseModel):
+    id: UUID
+    numero: int
+    numero_formateado: str
+    fecha: date
+    deposito_id: UUID
+    deposito_nombre: Optional[str] = None
+    proyecto_id: Optional[UUID] = None
+    proyecto_nombre: Optional[str] = None
+    destinatario_texto: Optional[str] = None
+    responsable_retira: Optional[str] = None
+    direccion_entrega: Optional[str] = None
+    transportista: Optional[str] = None
+    observaciones: Optional[str] = None
+    usuario_id: Optional[UUID] = None
+    usuario_nombre: Optional[str] = None
+    items: List[RemitoItemResponse] = []
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class RemitoListResponse(BaseModel):
+    """Schema reducido para el listado."""
+    id: UUID
+    numero: int
+    numero_formateado: str
+    fecha: date
+    deposito_id: UUID
+    deposito_nombre: Optional[str] = None
+    proyecto_id: Optional[UUID] = None
+    proyecto_nombre: Optional[str] = None
+    destinatario_texto: Optional[str] = None
+    usuario_nombre: Optional[str] = None
+    cantidad_items: int = 0
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

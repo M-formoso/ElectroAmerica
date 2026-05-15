@@ -25,6 +25,7 @@ from app.api.v1.endpoints import (
     requerimientos_material,
     proyecto_actividades,
     depositos,
+    remitos,
 )
 
 api_router = APIRouter()
@@ -202,4 +203,11 @@ api_router.include_router(
     depositos.router,
     prefix="/depositos",
     tags=["Depositos"]
+)
+
+# Remitos de salida
+api_router.include_router(
+    remitos.router,
+    prefix="/remitos",
+    tags=["Remitos"]
 )
