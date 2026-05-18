@@ -84,22 +84,37 @@ def listar_depositos(
         query = query.filter(Deposito.parent_id.is_(None))
     depositos = query.order_by(Deposito.nombre).all()
 
-    counts_mat = dict(
-        db.query(DepositoMaterial.deposito_id, func.count(DepositoMaterial.id))
+    # Materiales propios por deposito (id -> set(material_id))
+    materiales_por_dep: dict = {}
+    for dep_id, mat_id in (
+        db.query(DepositoMaterial.deposito_id, DepositoMaterial.material_id)
         .filter(DepositoMaterial.activo == True)
-        .group_by(DepositoMaterial.deposito_id)
         .all()
-    )
-    counts_sub = dict(
-        db.query(Deposito.parent_id, func.count(Deposito.id))
+    ):
+        materiales_por_dep.setdefault(dep_id, set()).add(mat_id)
+
+    # Mapa parent_id -> [ids de subdepositos]
+    hijos_por_padre: dict = {}
+    for sub_id, parent in (
+        db.query(Deposito.id, Deposito.parent_id)
         .filter(Deposito.activo == True, Deposito.parent_id.isnot(None))
-        .group_by(Deposito.parent_id)
         .all()
-    )
+    ):
+        hijos_por_padre.setdefault(parent, []).append(sub_id)
+
+    counts_sub = {p: len(hs) for p, hs in hijos_por_padre.items()}
+
+    def cantidad_total(deposito_id) -> int:
+        """Cantidad de materiales unicos contando el deposito + subdepositos."""
+        ids_materiales = set(materiales_por_dep.get(deposito_id, ()))
+        for hijo_id in hijos_por_padre.get(deposito_id, ()):
+            ids_materiales |= materiales_por_dep.get(hijo_id, set())
+        return len(ids_materiales)
+
     return [
         _serializar_deposito(
             d,
-            cantidad_materiales=counts_mat.get(d.id, 0),
+            cantidad_materiales=cantidad_total(d.id),
             cantidad_subdepositos=counts_sub.get(d.id, 0),
         )
         for d in depositos
