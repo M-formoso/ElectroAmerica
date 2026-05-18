@@ -7,7 +7,9 @@ from uuid import UUID
 
 class DepositoMaterialBase(BaseModel):
     material_id: UUID
-    stock_actual: Decimal = Field(default=Decimal("0"), ge=0)
+    # stock_actual SIN ge=0: el sistema permite stock negativo cuando una
+    # salida (avance o remito) descuenta mas de lo disponible.
+    stock_actual: Decimal = Field(default=Decimal("0"))
     stock_minimo: Decimal = Field(default=Decimal("0"), ge=0)
 
 
@@ -16,7 +18,7 @@ class DepositoMaterialCreate(DepositoMaterialBase):
 
 
 class DepositoMaterialUpdate(BaseModel):
-    stock_actual: Optional[Decimal] = Field(None, ge=0)
+    stock_actual: Optional[Decimal] = None
     stock_minimo: Optional[Decimal] = Field(None, ge=0)
 
 
@@ -85,7 +87,7 @@ class DepositoDetailResponse(DepositoResponse):
 class DepositoMaterialBulkItem(BaseModel):
     """Item de la carga masiva de materiales del catalogo al deposito."""
     material_id: UUID
-    stock_actual: Decimal = Field(default=Decimal("0"), ge=0)
+    stock_actual: Decimal = Field(default=Decimal("0"))
     stock_minimo: Decimal = Field(default=Decimal("0"), ge=0)
 
 
