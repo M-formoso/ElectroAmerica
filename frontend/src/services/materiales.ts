@@ -124,13 +124,17 @@ export const materialesService = {
 export interface MovimientoStock {
   id: string
   material_id: string
-  tipo: 'entrada' | 'salida' | 'ajuste'
+  tipo: 'entrada' | 'salida' | 'ajuste' | 'devolucion' | 'transferencia_a_deposito'
   cantidad: number
   stock_anterior: number
   stock_nuevo: number
   motivo?: string
   proyecto_id?: string
   proyecto_nombre?: string
+  deposito_id?: string
+  deposito_nombre?: string
+  deposito_destino_id?: string
+  deposito_destino_nombre?: string
   usuario_id: string
   usuario_nombre?: string
   created_at: string

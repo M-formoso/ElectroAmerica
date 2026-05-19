@@ -115,8 +115,36 @@ def listar_movimientos(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(require_staff)
 ):
-    """Lista el historial de movimientos de un material."""
-    return material_service.obtener_movimientos_material(db, material_id, limit)
+    """Lista el historial de movimientos del material (entradas, salidas,
+    transferencias y descuentos por remitos/avances en cualquier deposito).
+    """
+    movs = material_service.obtener_movimientos_material(db, material_id, limit)
+    result = []
+    for m in movs:
+        # Para movimientos viejos sin deposito_id, usar deposito_destino_id
+        # como fallback (es el deposito afectado por carga inicial /
+        # entrada / salida en endpoints de depositos).
+        dep_id = m.deposito_id or m.deposito_destino_id
+        dep_nombre = (
+            (m.deposito.nombre if m.deposito else None)
+            or (m.deposito_destino.nombre if m.deposito_destino else None)
+        )
+        result.append(MovimientoStockResponse(
+            id=m.id,
+            material_id=m.material_id,
+            tipo=m.tipo,
+            cantidad=m.cantidad,
+            stock_anterior=m.stock_anterior,
+            stock_nuevo=m.stock_nuevo,
+            motivo=m.motivo,
+            proyecto_id=m.proyecto_id,
+            deposito_id=dep_id,
+            deposito_nombre=dep_nombre,
+            deposito_destino_id=m.deposito_destino_id,
+            deposito_destino_nombre=m.deposito_destino.nombre if m.deposito_destino else None,
+            created_at=m.created_at,
+        ))
+    return result
 
 
 @router.post("/asignar", response_model=AsignacionMaterialResponse, status_code=status.HTTP_201_CREATED)

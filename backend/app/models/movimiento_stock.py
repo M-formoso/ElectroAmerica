@@ -25,13 +25,22 @@ class MovimientoStock(Base, BaseModel):
     stock_nuevo = Column(Numeric(12, 4), nullable=False)
     motivo = Column(String(300), nullable=True)
     proyecto_id = Column(UUID(as_uuid=True), ForeignKey("proyectos.id"), nullable=True)
+    # Deposito donde ocurrio el movimiento (origen para salidas, deposito
+    # afectado para entradas/ajustes). NULL si es sobre stock global.
+    deposito_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("depositos.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     deposito_destino_id = Column(UUID(as_uuid=True), ForeignKey("depositos.id", ondelete="SET NULL"), nullable=True)
     usuario_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
 
     # Relaciones
     material = relationship("Material", back_populates="movimientos")
     proyecto = relationship("Proyecto")
-    deposito_destino = relationship("Deposito")
+    deposito = relationship("Deposito", foreign_keys=[deposito_id])
+    deposito_destino = relationship("Deposito", foreign_keys=[deposito_destino_id])
     usuario = relationship("Usuario")
 
     def __repr__(self):

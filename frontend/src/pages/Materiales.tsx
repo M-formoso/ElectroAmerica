@@ -1104,17 +1104,23 @@ export function MaterialesPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="font-medium capitalize">{mov.tipo}</span>
+                        <span className="font-medium capitalize">
+                          {mov.tipo === 'devolucion'
+                            ? 'Devolución'
+                            : mov.tipo === 'transferencia_a_deposito'
+                            ? 'Transferencia'
+                            : mov.tipo}
+                        </span>
                         <span
                           className={`font-bold ${
-                            mov.tipo === 'entrada'
+                            mov.tipo === 'entrada' || mov.tipo === 'devolucion'
                               ? 'text-green-600'
                               : mov.tipo === 'salida'
                               ? 'text-red-600'
-                              : ''
+                              : 'text-blue-600'
                           }`}
                         >
-                          {mov.tipo === 'entrada' ? '+' : '-'}
+                          {mov.tipo === 'entrada' || mov.tipo === 'devolucion' ? '+' : '-'}
                           {mov.cantidad} {selectedMaterial?.unidad}
                         </span>
                       </div>
@@ -1123,13 +1129,20 @@ export function MaterialesPage() {
                           Stock: {mov.stock_anterior} → {mov.stock_nuevo}
                         </span>
                       </div>
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
+                        {mov.deposito_nombre && (
+                          <Badge variant="secondary" className="text-xs">
+                            📦 {mov.deposito_nombre}
+                          </Badge>
+                        )}
+                        {mov.proyecto_nombre && (
+                          <Badge variant="outline" className="text-xs">
+                            {mov.proyecto_nombre}
+                          </Badge>
+                        )}
+                      </div>
                       {mov.motivo && (
-                        <p className="text-sm mt-1">{mov.motivo}</p>
-                      )}
-                      {mov.proyecto_nombre && (
-                        <Badge variant="outline" className="mt-1">
-                          {mov.proyecto_nombre}
-                        </Badge>
+                        <p className="text-sm mt-1 text-muted-foreground">{mov.motivo}</p>
                       )}
                       <p className="text-xs text-muted-foreground mt-2">
                         {formatDate(mov.created_at)}

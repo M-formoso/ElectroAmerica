@@ -102,7 +102,10 @@ class MovimientoStockResponse(BaseModel):
     stock_nuevo: Decimal
     motivo: Optional[str] = None
     proyecto_id: Optional[UUID] = None
+    deposito_id: Optional[UUID] = None
+    deposito_nombre: Optional[str] = None
     deposito_destino_id: Optional[UUID] = None
+    deposito_destino_nombre: Optional[str] = None
     created_at: datetime
 
     class Config:

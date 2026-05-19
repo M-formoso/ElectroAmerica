@@ -109,6 +109,7 @@ def _descontar_material_cascada(
             stock_nuevo=stock_anterior - usar,
             motivo=f"{motivo_prefix} (deposito {dep.nombre})",
             proyecto_id=proyecto_id,
+            deposito_id=dep.id,
             usuario_id=usuario_id,
         ))
         db.add(RemitoDescuento(
@@ -130,6 +131,7 @@ def _descontar_material_cascada(
             stock_nuevo=stock_anterior - restante,
             motivo=f"{motivo_prefix} (deposito {origen.nombre}, sin stock)",
             proyecto_id=proyecto_id,
+            deposito_id=origen.id,
             usuario_id=usuario_id,
         ))
         db.add(RemitoDescuento(
@@ -375,6 +377,7 @@ def _revertir_descuentos(db: Session, remito: Remito, usuario_id: Optional[UUID]
                 stock_nuevo=stock_anterior + desc.cantidad,
                 motivo=f"Reversion de remito {remito.numero_formateado}",
                 proyecto_id=remito.proyecto_id,
+                deposito_id=desc.deposito_id,
                 usuario_id=usuario_id,
             ))
     else:
@@ -400,6 +403,7 @@ def _revertir_descuentos(db: Session, remito: Remito, usuario_id: Optional[UUID]
                 stock_nuevo=stock_anterior + item.cantidad,
                 motivo=f"Reversion de remito {remito.numero_formateado} (fallback origen)",
                 proyecto_id=remito.proyecto_id,
+                deposito_id=remito.deposito_id,
                 usuario_id=usuario_id,
             ))
 

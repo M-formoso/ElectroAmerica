@@ -294,6 +294,7 @@ class ProyectoActividadService:
                         + (f" (deposito {deposito_id})" if deposito_id else "")
                     ).strip(),
                     proyecto_id=actividad.proyecto_id,
+                    deposito_id=deposito_id,
                     usuario_id=registrado_por_id
                 ))
 
