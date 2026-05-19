@@ -65,6 +65,16 @@ export function SalidaRemitoDialog({
     enabled: open && !!depositoId,
   })
 
+  // Si el deposito de origen es un subdeposito, tambien traemos el detalle
+  // del padre para tener la vista consolidada de todo el grupo (padre +
+  // hermanos). Asi el usuario puede elegir cualquier material del grupo.
+  const padreId = deposito?.parent_id || null
+  const { data: padreDeposito, isLoading: loadingPadre } = useQuery({
+    queryKey: ['deposito-detail', padreId],
+    queryFn: () => depositosService.get(padreId!),
+    enabled: open && !!padreId,
+  })
+
   const { data: proyectos } = useQuery({
     queryKey: ['proyectos-todos-min'],
     queryFn: () => proyectosService.getProyectos(),
@@ -84,16 +94,46 @@ export function SalidaRemitoDialog({
     setItems({})
   }, [open, defaultProyectoId])
 
+  // Fuente de materiales para mostrar en la tabla:
+  //  - Si origen es subdeposito: consolidado del padre (todo el grupo).
+  //  - Si origen es root: su propio consolidado (incluye sus subdepositos).
+  //  - Fallback: materiales directos del origen.
+  const materialesFuente = useMemo(() => {
+    const fuente = padreDeposito || deposito
+    if (!fuente) return [] as Array<{
+      material_id: string
+      material_codigo?: string
+      material_nombre?: string
+      material_unidad?: string
+      stock_actual: number
+    }>
+    if (fuente.materiales_totales && fuente.materiales_totales.length > 0) {
+      return fuente.materiales_totales.map((m) => ({
+        material_id: m.material_id,
+        material_codigo: m.material_codigo,
+        material_nombre: m.material_nombre,
+        material_unidad: m.material_unidad,
+        stock_actual: Number(m.stock_total),
+      }))
+    }
+    return fuente.materiales.map((m) => ({
+      material_id: m.material_id,
+      material_codigo: m.material_codigo,
+      material_nombre: m.material_nombre,
+      material_unidad: m.material_unidad,
+      stock_actual: Number(m.stock_actual),
+    }))
+  }, [deposito, padreDeposito])
+
   const materialesFiltrados = useMemo(() => {
-    if (!deposito) return []
     const q = search.trim().toLowerCase()
-    if (!q) return deposito.materiales
-    return deposito.materiales.filter(
+    if (!q) return materialesFuente
+    return materialesFuente.filter(
       (m) =>
         m.material_nombre?.toLowerCase().includes(q) ||
         m.material_codigo?.toLowerCase().includes(q),
     )
-  }, [deposito, search])
+  }, [materialesFuente, search])
 
   const itemsArmados = useMemo(() => {
     return Object.entries(items)
@@ -234,13 +274,21 @@ export function SalidaRemitoDialog({
               />
             </div>
 
-            {loadingDeposito ? (
+            {padreDeposito && (
+              <p className="text-xs text-muted-foreground">
+                Mostrando el inventario consolidado de <strong>{padreDeposito.nombre}</strong>
+                {' '}(todos sus subdepósitos). El descuento prioriza el origen y luego
+                los demás del mismo grupo.
+              </p>
+            )}
+
+            {loadingDeposito || loadingPadre ? (
               <div className="flex justify-center py-6">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : materialesFiltrados.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">
-                {deposito?.materiales.length === 0
+                {materialesFuente.length === 0
                   ? 'Este depósito no tiene materiales cargados.'
                   : 'No hay materiales que coincidan con la búsqueda.'}
               </p>
@@ -258,9 +306,9 @@ export function SalidaRemitoDialog({
                     {materialesFiltrados.map((m) => {
                       const v = items[m.material_id]?.cantidad || ''
                       const cantidadNum = parseFloat(v) || 0
-                      const negativo = cantidadNum > Number(m.stock_actual)
+                      const negativo = cantidadNum > m.stock_actual
                       return (
-                        <TableRow key={m.id}>
+                        <TableRow key={m.material_id}>
                           <TableCell className="py-2">
                             <div className="font-medium text-sm">{m.material_nombre}</div>
                             <div className="text-xs text-muted-foreground">
@@ -268,7 +316,7 @@ export function SalidaRemitoDialog({
                             </div>
                           </TableCell>
                           <TableCell className="text-right text-sm text-muted-foreground py-2">
-                            {Number(m.stock_actual).toFixed(2)}
+                            {m.stock_actual.toFixed(2)}
                           </TableCell>
                           <TableCell className="py-2">
                             <Input
@@ -294,11 +342,12 @@ export function SalidaRemitoDialog({
               </div>
             )}
             {itemsArmados.some((it) => {
-              const m = deposito?.materiales.find((x) => x.material_id === it.material_id)
-              return m && it.cantidad > Number(m.stock_actual)
+              const m = materialesFuente.find((x) => x.material_id === it.material_id)
+              return m && it.cantidad > m.stock_actual
             }) && (
               <p className="text-xs text-amber-600">
-                Algunos materiales van a quedar con stock negativo al guardar.
+                Algunos materiales superan el stock del grupo. El faltante se va a marcar
+                como salida sin stock en el depósito de origen.
               </p>
             )}
           </div>

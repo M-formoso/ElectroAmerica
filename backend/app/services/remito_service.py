@@ -36,6 +36,95 @@ def _get_or_create_deposito_material(
     return dm
 
 
+def _depositos_relacionados(db: Session, origen: Deposito) -> List[Deposito]:
+    """Devuelve [origen, ...resto] donde 'resto' son los otros depositos
+    del mismo grupo (padre + hermanos si origen es subdeposito, o hijos
+    si origen es root). Sirve para que la salida pueda 'tomar' stock
+    de otros lados del mismo grupo logico.
+    """
+    if origen.parent_id:
+        padre = db.query(Deposito).filter(
+            Deposito.id == origen.parent_id,
+            Deposito.activo == True,
+        ).first()
+        hermanos = (
+            db.query(Deposito)
+            .filter(
+                Deposito.parent_id == origen.parent_id,
+                Deposito.id != origen.id,
+                Deposito.activo == True,
+            )
+            .all()
+        )
+        resto = (hermanos + [padre]) if padre else hermanos
+    else:
+        hijos = (
+            db.query(Deposito)
+            .filter(Deposito.parent_id == origen.id, Deposito.activo == True)
+            .all()
+        )
+        resto = hijos
+    return [origen, *resto]
+
+
+def _descontar_material_cascada(
+    db: Session,
+    origen: Deposito,
+    material: Material,
+    cantidad: Decimal,
+    motivo_prefix: str,
+    proyecto_id: Optional[UUID],
+    usuario_id: Optional[UUID],
+) -> None:
+    """Descuenta `cantidad` de `material` empezando por `origen` y
+    siguiendo con los depositos del mismo grupo (padre+hermanos o hijos).
+    Si despues de recorrerlos queda restante, lo descuenta del `origen`
+    dejandolo en negativo.
+    """
+    restante = cantidad
+    candidatos = _depositos_relacionados(db, origen)
+
+    for dep in candidatos:
+        if restante <= 0:
+            break
+        dm = db.query(DepositoMaterial).filter(
+            DepositoMaterial.deposito_id == dep.id,
+            DepositoMaterial.material_id == material.id,
+            DepositoMaterial.activo == True,
+        ).first()
+        if not dm or dm.stock_actual <= 0:
+            continue
+        usar = dm.stock_actual if dm.stock_actual < restante else restante
+        stock_anterior = dm.stock_actual
+        dm.stock_actual = stock_anterior - usar
+        restante = restante - usar
+        db.add(MovimientoStock(
+            material_id=material.id,
+            tipo=TipoMovimiento.salida,
+            cantidad=usar,
+            stock_anterior=stock_anterior,
+            stock_nuevo=stock_anterior - usar,
+            motivo=f"{motivo_prefix} (deposito {dep.nombre})",
+            proyecto_id=proyecto_id,
+            usuario_id=usuario_id,
+        ))
+
+    if restante > 0:
+        dm_origen = _get_or_create_deposito_material(db, origen.id, material.id)
+        stock_anterior = dm_origen.stock_actual
+        dm_origen.stock_actual = stock_anterior - restante
+        db.add(MovimientoStock(
+            material_id=material.id,
+            tipo=TipoMovimiento.salida,
+            cantidad=restante,
+            stock_anterior=stock_anterior,
+            stock_nuevo=stock_anterior - restante,
+            motivo=f"{motivo_prefix} (deposito {origen.nombre}, sin stock)",
+            proyecto_id=proyecto_id,
+            usuario_id=usuario_id,
+        ))
+
+
 def crear_remito(
     db: Session,
     data: RemitoCreate,
@@ -70,6 +159,9 @@ def crear_remito(
     )
     db.add(remito)
     db.flush()
+    # Asegurar que se haya leido el numero asignado por la sequence
+    # antes de usarlo en los motivos de los MovimientoStock.
+    db.refresh(remito)
 
     for item_data in data.items:
         if item_data.cantidad <= 0:
@@ -91,22 +183,18 @@ def crear_remito(
             cantidad=item_data.cantidad,
         ))
 
-        # Descontar stock del deposito (queda negativo si no alcanza)
-        dm = _get_or_create_deposito_material(db, deposito.id, material.id)
-        stock_anterior = dm.stock_actual
-        dm.stock_actual = stock_anterior - item_data.cantidad
-
-        # Trazabilidad: movimiento de salida
-        db.add(MovimientoStock(
-            material_id=material.id,
-            tipo=TipoMovimiento.salida,
+        # Descontar en cascada: primero del origen, despues de hermanos/padre
+        # (o hijos si origen es root). Si nada alcanza, deja el origen
+        # en negativo. Cada descuento real genera un MovimientoStock.
+        _descontar_material_cascada(
+            db,
+            origen=deposito,
+            material=material,
             cantidad=item_data.cantidad,
-            stock_anterior=stock_anterior,
-            stock_nuevo=stock_anterior - item_data.cantidad,
-            motivo=f"Salida por remito (deposito {deposito.nombre})",
+            motivo_prefix=f"Salida por remito {remito.numero_formateado}",
             proyecto_id=data.proyecto_id,
             usuario_id=usuario_id,
-        ))
+        )
 
     db.commit()
     db.refresh(remito)
