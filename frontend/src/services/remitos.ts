@@ -46,6 +46,13 @@ export interface Remito {
   usuario_nombre?: string
   items: RemitoItem[]
   created_at: string
+  anulado?: boolean
+  anulado_at?: string | null
+  anulado_por_nombre?: string | null
+  motivo_anulacion?: string | null
+  editado?: boolean
+  editado_at?: string | null
+  editado_por_nombre?: string | null
 }
 
 export interface RemitoListItem {
@@ -63,6 +70,22 @@ export interface RemitoListItem {
   usuario_nombre?: string
   cantidad_items: number
   created_at: string
+  anulado?: boolean
+  editado?: boolean
+}
+
+export interface RemitoUpdate {
+  fecha?: string
+  proyecto_id?: string | null
+  destinatario_texto?: string | null
+  responsable_retira?: string | null
+  direccion_entrega?: string | null
+  transportista?: string | null
+  observaciones?: string | null
+}
+
+export interface RemitoItemsUpdate {
+  items: RemitoItemCreate[]
 }
 
 export interface RemitosFilters {
@@ -102,5 +125,20 @@ export const remitosService = {
     link.click()
     link.remove()
     window.URL.revokeObjectURL(url)
+  },
+
+  async actualizar(id: string, data: RemitoUpdate): Promise<Remito> {
+    const res = await api.put<Remito>(`/remitos/${id}`, data)
+    return res.data
+  },
+
+  async actualizarItems(id: string, data: RemitoItemsUpdate): Promise<Remito> {
+    const res = await api.put<Remito>(`/remitos/${id}/items`, data)
+    return res.data
+  },
+
+  async anular(id: string, motivo: string): Promise<Remito> {
+    const res = await api.post<Remito>(`/remitos/${id}/anular`, { motivo })
+    return res.data
   },
 }

@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, String, Text, Numeric, ForeignKey, Integer, Sequence, Date,
+    Column, String, Text, Numeric, ForeignKey, Integer, Sequence, Date, DateTime,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -57,15 +57,45 @@ class Remito(Base, BaseModel):
         index=True,
     )
 
+    # Auditoria de edicion y anulacion
+    editado_at = Column(DateTime(timezone=True), nullable=True)
+    editado_por_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("usuarios.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    anulado_at = Column(DateTime(timezone=True), nullable=True)
+    anulado_por_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("usuarios.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    motivo_anulacion = Column(Text, nullable=True)
+
     deposito = relationship("Deposito", lazy="joined")
     proyecto = relationship("Proyecto", lazy="joined")
-    usuario = relationship("Usuario", lazy="joined")
+    usuario = relationship("Usuario", lazy="joined", foreign_keys=[usuario_id])
+    editado_por = relationship("Usuario", lazy="joined", foreign_keys=[editado_por_id])
+    anulado_por = relationship("Usuario", lazy="joined", foreign_keys=[anulado_por_id])
     items = relationship(
         "RemitoItem",
         back_populates="remito",
         cascade="all, delete-orphan",
         lazy="joined",
     )
+    descuentos = relationship(
+        "RemitoDescuento",
+        back_populates="remito",
+        cascade="all, delete-orphan",
+    )
+
+    @property
+    def anulado(self) -> bool:
+        return self.anulado_at is not None
+
+    @property
+    def editado(self) -> bool:
+        return self.editado_at is not None
 
     @property
     def numero_formateado(self) -> str:
@@ -103,3 +133,41 @@ class RemitoItem(Base, BaseModel):
 
     def __repr__(self):
         return f"<RemitoItem {self.material_nombre} x{self.cantidad}>"
+
+
+class RemitoDescuento(Base, BaseModel):
+    """Registro fino de cada descuento real de stock realizado por un remito.
+
+    Como el descuento puede repartirse entre varios depositos del mismo
+    grupo (origen + hermanos + padre), un mismo item del remito puede
+    generar varios `RemitoDescuento`. Esta tabla es la fuente de verdad
+    para revertir los descuentos al anular o editar.
+    """
+    __tablename__ = "remito_descuentos"
+
+    remito_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("remitos.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    deposito_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("depositos.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    material_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("materiales.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    cantidad = Column(Numeric(12, 4), nullable=False)
+
+    remito = relationship("Remito", back_populates="descuentos")
+    deposito = relationship("Deposito")
+    material = relationship("Material")
+
+    def __repr__(self):
+        return f"<RemitoDescuento remito={self.remito_id} dep={self.deposito_id} mat={self.material_id} x{self.cantidad}>"

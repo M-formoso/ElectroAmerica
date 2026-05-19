@@ -1,8 +1,12 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Download, Search, Loader2, FileText, Eye } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  Download, Search, Loader2, FileText, Eye, Edit, Ban, AlertTriangle,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -17,6 +21,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -26,12 +31,89 @@ import { formatDate } from '@/lib/utils'
 
 export function RemitosPage() {
   const { toast } = useToast()
+  const queryClient = useQueryClient()
 
   const [search, setSearch] = useState('')
   const [fechaDesde, setFechaDesde] = useState('')
   const [fechaHasta, setFechaHasta] = useState('')
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [verRemitoId, setVerRemitoId] = useState<string | null>(null)
+
+  // Dialogs de edicion / anulacion
+  const [editandoRemito, setEditandoRemito] = useState<Remito | null>(null)
+  const [anulandoRemito, setAnulandoRemito] = useState<Remito | null>(null)
+  const [motivoAnulacion, setMotivoAnulacion] = useState('')
+  const [formEdicion, setFormEdicion] = useState({
+    fecha: '',
+    destinatario_texto: '',
+    responsable_retira: '',
+    direccion_entrega: '',
+    transportista: '',
+    observaciones: '',
+  })
+
+  useEffect(() => {
+    if (editandoRemito) {
+      setFormEdicion({
+        fecha: editandoRemito.fecha,
+        destinatario_texto: editandoRemito.destinatario_texto || '',
+        responsable_retira: editandoRemito.responsable_retira || '',
+        direccion_entrega: editandoRemito.direccion_entrega || '',
+        transportista: editandoRemito.transportista || '',
+        observaciones: editandoRemito.observaciones || '',
+      })
+    }
+  }, [editandoRemito])
+
+  const invalidateRemitos = () => {
+    queryClient.invalidateQueries({ queryKey: ['remitos'] })
+    queryClient.invalidateQueries({ queryKey: ['remito-detalle'] })
+    queryClient.invalidateQueries({ queryKey: ['depositos'] })
+    queryClient.invalidateQueries({ queryKey: ['deposito-detail'] })
+    queryClient.invalidateQueries({ queryKey: ['materiales'] })
+  }
+
+  const editarMutation = useMutation({
+    mutationFn: () =>
+      remitosService.actualizar(editandoRemito!.id, {
+        fecha: formEdicion.fecha || undefined,
+        destinatario_texto: formEdicion.destinatario_texto.trim() || null,
+        responsable_retira: formEdicion.responsable_retira.trim() || null,
+        direccion_entrega: formEdicion.direccion_entrega.trim() || null,
+        transportista: formEdicion.transportista.trim() || null,
+        observaciones: formEdicion.observaciones.trim() || null,
+      }),
+    onSuccess: () => {
+      invalidateRemitos()
+      toast({ title: 'Remito actualizado' })
+      setEditandoRemito(null)
+    },
+    onError: (e: any) => {
+      toast({
+        variant: 'destructive',
+        title: 'Error al editar',
+        description: e?.response?.data?.detail || '',
+      })
+    },
+  })
+
+  const anularMutation = useMutation({
+    mutationFn: () =>
+      remitosService.anular(anulandoRemito!.id, motivoAnulacion.trim()),
+    onSuccess: () => {
+      invalidateRemitos()
+      toast({ title: 'Remito anulado, stock revertido' })
+      setAnulandoRemito(null)
+      setMotivoAnulacion('')
+    },
+    onError: (e: any) => {
+      toast({
+        variant: 'destructive',
+        title: 'Error al anular',
+        description: e?.response?.data?.detail || '',
+      })
+    },
+  })
 
   const { data: remitos, isLoading } = useQuery({
     queryKey: ['remitos', { busqueda: search, fechaDesde, fechaHasta }],
@@ -130,9 +212,25 @@ export function RemitosPage() {
             </TableHeader>
             <TableBody>
               {remitos.map((r) => (
-                <TableRow key={r.id}>
+                <TableRow key={r.id} className={r.anulado ? 'opacity-60' : ''}>
                   <TableCell className="font-mono font-semibold text-sm">
-                    {r.numero_formateado}
+                    <div className="flex flex-col gap-1">
+                      <span className={r.anulado ? 'line-through' : ''}>
+                        {r.numero_formateado}
+                      </span>
+                      <div className="flex gap-1">
+                        {r.anulado && (
+                          <Badge variant="destructive" className="text-[10px] px-1 py-0">
+                            ANULADO
+                          </Badge>
+                        )}
+                        {r.editado && !r.anulado && (
+                          <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-500 text-amber-700">
+                            EDITADO
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
                   </TableCell>
                   <TableCell>{formatDate(r.fecha)}</TableCell>
                   <TableCell>
@@ -215,8 +313,152 @@ export function RemitosPage() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <DetalleRemito remito={remitoDetalle} onDescargar={handleDescargar} downloading={downloadingId === remitoDetalle.id} />
+            <DetalleRemito
+              remito={remitoDetalle}
+              onDescargar={handleDescargar}
+              downloading={downloadingId === remitoDetalle.id}
+              onEditar={() => setEditandoRemito(remitoDetalle)}
+              onAnular={() => setAnulandoRemito(remitoDetalle)}
+            />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de edicion de datos generales */}
+      <Dialog open={!!editandoRemito} onOpenChange={(o) => !o && setEditandoRemito(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Editar remito {editandoRemito?.numero_formateado}
+            </DialogTitle>
+            <DialogDescription>
+              Solo se editan datos generales. Para cambiar materiales o cantidades,
+              anulá este remito y creá uno nuevo.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              editarMutation.mutate()
+            }}
+            className="space-y-3"
+          >
+            <div className="space-y-1">
+              <Label>Fecha</Label>
+              <Input
+                type="date"
+                value={formEdicion.fecha}
+                onChange={(e) => setFormEdicion({ ...formEdicion, fecha: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Destinatario (texto libre)</Label>
+              <Input
+                value={formEdicion.destinatario_texto}
+                onChange={(e) => setFormEdicion({ ...formEdicion, destinatario_texto: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Responsable que retira</Label>
+              <Input
+                value={formEdicion.responsable_retira}
+                onChange={(e) => setFormEdicion({ ...formEdicion, responsable_retira: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Dirección de entrega</Label>
+                <Input
+                  value={formEdicion.direccion_entrega}
+                  onChange={(e) => setFormEdicion({ ...formEdicion, direccion_entrega: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Transportista</Label>
+                <Input
+                  value={formEdicion.transportista}
+                  onChange={(e) => setFormEdicion({ ...formEdicion, transportista: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Observaciones</Label>
+              <Textarea
+                rows={2}
+                value={formEdicion.observaciones}
+                onChange={(e) => setFormEdicion({ ...formEdicion, observaciones: e.target.value })}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditandoRemito(null)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={editarMutation.isPending}>
+                {editarMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Guardar cambios
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de anulacion */}
+      <Dialog open={!!anulandoRemito} onOpenChange={(o) => !o && setAnulandoRemito(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Anular remito {anulandoRemito?.numero_formateado}
+            </DialogTitle>
+            <DialogDescription>
+              Esta acción revierte el stock que se había descontado (de todos los
+              depósitos donde se haya descontado). El remito queda visible en el
+              historial como ANULADO. No se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (motivoAnulacion.trim().length < 3) {
+                toast({ variant: 'destructive', title: 'El motivo es obligatorio' })
+                return
+              }
+              anularMutation.mutate()
+            }}
+            className="space-y-3"
+          >
+            <div className="space-y-1">
+              <Label>Motivo de anulación *</Label>
+              <Textarea
+                rows={3}
+                value={motivoAnulacion}
+                onChange={(e) => setMotivoAnulacion(e.target.value)}
+                placeholder="Ej: Cantidad cargada incorrecta, los materiales no salieron, etc."
+                required
+              />
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setAnulandoRemito(null)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={anularMutation.isPending || motivoAnulacion.trim().length < 3}
+              >
+                {anularMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Anular y revertir stock
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
@@ -227,13 +469,43 @@ function DetalleRemito({
   remito,
   onDescargar,
   downloading,
+  onEditar,
+  onAnular,
 }: {
   remito: Remito
   onDescargar: (r: { id: string; numero_formateado: string }) => void
   downloading: boolean
+  onEditar: () => void
+  onAnular: () => void
 }) {
   return (
     <div className="space-y-4">
+      {/* Badges de estado */}
+      {remito.anulado && (
+        <div className="p-3 rounded-md border border-destructive bg-destructive/10 text-sm space-y-1">
+          <div className="flex items-center gap-2 text-destructive font-semibold">
+            <Ban className="h-4 w-4" />
+            Remito ANULADO
+          </div>
+          {remito.motivo_anulacion && (
+            <p className="text-xs"><strong>Motivo:</strong> {remito.motivo_anulacion}</p>
+          )}
+          {remito.anulado_at && (
+            <p className="text-xs text-muted-foreground">
+              {formatDate(remito.anulado_at)}
+              {remito.anulado_por_nombre ? ` — por ${remito.anulado_por_nombre}` : ''}
+            </p>
+          )}
+        </div>
+      )}
+      {remito.editado && !remito.anulado && (
+        <div className="p-2 rounded-md border border-amber-500 bg-amber-50 text-xs">
+          <strong className="text-amber-700">Editado</strong>{' '}
+          {remito.editado_at && formatDate(remito.editado_at)}
+          {remito.editado_por_nombre ? ` por ${remito.editado_por_nombre}` : ''}
+        </div>
+      )}
+
       <div className="grid gap-3 md:grid-cols-2 text-sm">
         <Field
           label="Depósito"
@@ -283,18 +555,35 @@ function DetalleRemito({
         </Table>
       </div>
 
-      <Button
-        onClick={() => onDescargar(remito)}
-        disabled={downloading}
-        className="w-full"
-      >
-        {downloading ? (
-          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-        ) : (
-          <Download className="h-4 w-4 mr-2" />
-        )}
-        Descargar PDF
-      </Button>
+      <div className="grid grid-cols-3 gap-2">
+        <Button
+          variant="outline"
+          onClick={onEditar}
+          disabled={remito.anulado}
+          title={remito.anulado ? 'No se puede editar un remito anulado' : ''}
+        >
+          <Edit className="h-4 w-4 mr-2" />
+          Editar
+        </Button>
+        <Button
+          variant="outline"
+          onClick={onAnular}
+          disabled={remito.anulado}
+          className="text-destructive hover:text-destructive"
+          title={remito.anulado ? 'Ya está anulado' : ''}
+        >
+          <Ban className="h-4 w-4 mr-2" />
+          Anular
+        </Button>
+        <Button onClick={() => onDescargar(remito)} disabled={downloading}>
+          {downloading ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4 mr-2" />
+          )}
+          PDF
+        </Button>
+      </div>
     </div>
   )
 }

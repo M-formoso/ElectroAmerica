@@ -34,6 +34,26 @@ class RemitoCreate(BaseModel):
     items: List[RemitoItemCreate] = Field(..., min_length=1)
 
 
+class RemitoUpdate(BaseModel):
+    """Edicion de datos generales del remito (no toca items ni stock)."""
+    fecha: Optional[date] = None
+    proyecto_id: Optional[UUID] = None
+    destinatario_texto: Optional[str] = Field(None, max_length=255)
+    responsable_retira: Optional[str] = Field(None, max_length=255)
+    direccion_entrega: Optional[str] = Field(None, max_length=255)
+    transportista: Optional[str] = Field(None, max_length=255)
+    observaciones: Optional[str] = None
+
+
+class RemitoItemsUpdate(BaseModel):
+    """Reemplazo completo de los items del remito (revierte y reaplica stock)."""
+    items: List[RemitoItemCreate] = Field(..., min_length=1)
+
+
+class RemitoAnular(BaseModel):
+    motivo: str = Field(..., min_length=3, max_length=1000)
+
+
 class RemitoResponse(BaseModel):
     id: UUID
     numero: int
@@ -54,6 +74,13 @@ class RemitoResponse(BaseModel):
     usuario_nombre: Optional[str] = None
     items: List[RemitoItemResponse] = []
     created_at: datetime
+    anulado: bool = False
+    anulado_at: Optional[datetime] = None
+    anulado_por_nombre: Optional[str] = None
+    motivo_anulacion: Optional[str] = None
+    editado: bool = False
+    editado_at: Optional[datetime] = None
+    editado_por_nombre: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -75,6 +102,8 @@ class RemitoListResponse(BaseModel):
     usuario_nombre: Optional[str] = None
     cantidad_items: int = 0
     created_at: datetime
+    anulado: bool = False
+    editado: bool = False
 
     class Config:
         from_attributes = True

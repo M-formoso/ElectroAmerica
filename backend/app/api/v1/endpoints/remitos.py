@@ -10,6 +10,7 @@ from app.core.deps import get_db, get_usuario_actual, require_admin_or_superviso
 from app.models.usuario import Usuario
 from app.schemas.remito import (
     RemitoCreate, RemitoResponse, RemitoListResponse,
+    RemitoUpdate, RemitoItemsUpdate, RemitoAnular,
 )
 from app.services import remito_service
 from app.services.remito_pdf_service import generar_pdf_remito
@@ -85,3 +86,40 @@ def descargar_pdf_remito(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@router.put("/{remito_id}", response_model=RemitoResponse)
+def actualizar_remito(
+    remito_id: UUID,
+    data: RemitoUpdate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Edita datos generales del remito (no afecta items ni stock)."""
+    remito = remito_service.editar_remito_general(db, remito_id, data, usuario.id)
+    return remito_service.to_response_dict(remito)
+
+
+@router.put("/{remito_id}/items", response_model=RemitoResponse)
+def actualizar_items_remito(
+    remito_id: UUID,
+    data: RemitoItemsUpdate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Reemplaza los items del remito: revierte el stock viejo y aplica
+    el nuevo en cascada."""
+    remito = remito_service.editar_remito_items(db, remito_id, data, usuario.id)
+    return remito_service.to_response_dict(remito)
+
+
+@router.post("/{remito_id}/anular", response_model=RemitoResponse)
+def anular_remito(
+    remito_id: UUID,
+    data: RemitoAnular,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Anula el remito: revierte el stock y deja registro de quien y por que."""
+    remito = remito_service.anular_remito(db, remito_id, data, usuario.id)
+    return remito_service.to_response_dict(remito)
