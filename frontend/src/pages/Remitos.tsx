@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Download, Search, Loader2, FileText, Eye, Edit, Ban, AlertTriangle,
+  Download, Search, Loader2, FileText, Eye, Edit, Ban, AlertTriangle, Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,9 +39,10 @@ export function RemitosPage() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [verRemitoId, setVerRemitoId] = useState<string | null>(null)
 
-  // Dialogs de edicion / anulacion
+  // Dialogs de edicion / anulacion / borrado
   const [editandoRemito, setEditandoRemito] = useState<Remito | null>(null)
   const [anulandoRemito, setAnulandoRemito] = useState<Remito | null>(null)
+  const [borrandoRemito, setBorrandoRemito] = useState<Remito | null>(null)
   const [motivoAnulacion, setMotivoAnulacion] = useState('')
   const [formEdicion, setFormEdicion] = useState({
     fecha: '',
@@ -110,6 +111,24 @@ export function RemitosPage() {
       toast({
         variant: 'destructive',
         title: 'Error al anular',
+        description: e?.response?.data?.detail || '',
+      })
+    },
+  })
+
+  const borrarMutation = useMutation({
+    mutationFn: () => remitosService.borrar(borrandoRemito!.id),
+    onSuccess: () => {
+      invalidateRemitos()
+      toast({ title: 'Remito eliminado del historial' })
+      setBorrandoRemito(null)
+      // Si el detalle abierto era ese, cerralo
+      if (verRemitoId === borrandoRemito?.id) setVerRemitoId(null)
+    },
+    onError: (e: any) => {
+      toast({
+        variant: 'destructive',
+        title: 'Error al eliminar',
         description: e?.response?.data?.detail || '',
       })
     },
@@ -319,6 +338,7 @@ export function RemitosPage() {
               downloading={downloadingId === remitoDetalle.id}
               onEditar={() => setEditandoRemito(remitoDetalle)}
               onAnular={() => setAnulandoRemito(remitoDetalle)}
+              onBorrar={() => setBorrandoRemito(remitoDetalle)}
             />
           )}
         </DialogContent>
@@ -404,6 +424,37 @@ export function RemitosPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Dialog de confirmacion de borrado */}
+      <Dialog open={!!borrandoRemito} onOpenChange={(o) => !o && setBorrandoRemito(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-destructive" />
+              Eliminar remito {borrandoRemito?.numero_formateado}
+            </DialogTitle>
+            <DialogDescription>
+              {borrandoRemito?.anulado
+                ? 'El remito ya está anulado y se va a eliminar del historial. Esta acción no se puede deshacer.'
+                : 'El remito se va a eliminar del historial. Como no estaba anulado, el stock que había descontado se va a devolver primero. Esta acción no se puede deshacer.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBorrandoRemito(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => borrarMutation.mutate()}
+              disabled={borrarMutation.isPending}
+            >
+              {borrarMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Eliminar definitivamente
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Dialog de anulacion */}
       <Dialog open={!!anulandoRemito} onOpenChange={(o) => !o && setAnulandoRemito(null)}>
         <DialogContent>
@@ -471,12 +522,14 @@ function DetalleRemito({
   downloading,
   onEditar,
   onAnular,
+  onBorrar,
 }: {
   remito: Remito
   onDescargar: (r: { id: string; numero_formateado: string }) => void
   downloading: boolean
   onEditar: () => void
   onAnular: () => void
+  onBorrar: () => void
 }) {
   return (
     <div className="space-y-4">
@@ -584,6 +637,14 @@ function DetalleRemito({
           PDF
         </Button>
       </div>
+      <Button
+        variant="ghost"
+        onClick={onBorrar}
+        className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+      >
+        <Trash2 className="h-4 w-4 mr-2" />
+        Eliminar definitivamente del historial
+      </Button>
     </div>
   )
 }

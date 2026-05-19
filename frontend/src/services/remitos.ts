@@ -141,4 +141,8 @@ export const remitosService = {
     const res = await api.post<Remito>(`/remitos/${id}/anular`, { motivo })
     return res.data
   },
+
+  async borrar(id: string): Promise<void> {
+    await api.delete(`/remitos/${id}`)
+  },
 }

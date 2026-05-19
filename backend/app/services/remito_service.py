@@ -438,6 +438,30 @@ def anular_remito(
     return remito
 
 
+def borrar_remito(
+    db: Session,
+    remito_id: UUID,
+    usuario_id: Optional[UUID],
+) -> None:
+    """Elimina definitivamente el remito del historial. Si no estaba
+    anulado, primero revierte el stock que habia descontado. Es un soft
+    delete (activo=False) pero el listado ya filtra por activo, asi que
+    desaparece de la UI.
+    """
+    remito = obtener_remito(db, remito_id)
+    if not remito:
+        raise HTTPException(status_code=404, detail="Remito no encontrado")
+
+    if remito.anulado_at is None:
+        # Todavia tiene stock descontado, hay que devolverlo
+        _revertir_descuentos(db, remito, usuario_id)
+        for desc in list(remito.descuentos):
+            db.delete(desc)
+
+    remito.activo = False
+    db.commit()
+
+
 def editar_remito_general(
     db: Session,
     remito_id: UUID,

@@ -123,3 +123,14 @@ def anular_remito(
     """Anula el remito: revierte el stock y deja registro de quien y por que."""
     remito = remito_service.anular_remito(db, remito_id, data, usuario.id)
     return remito_service.to_response_dict(remito)
+
+
+@router.delete("/{remito_id}", status_code=status.HTTP_204_NO_CONTENT)
+def borrar_remito(
+    remito_id: UUID,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Borra el remito del historial. Si no estaba anulado, revierte
+    primero el stock que habia descontado. No se puede recuperar."""
+    remito_service.borrar_remito(db, remito_id, usuario.id)
