@@ -1,5 +1,7 @@
 """Endpoints para depositos por cliente y su stock de materiales."""
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
@@ -18,6 +20,7 @@ from app.schemas.deposito import (
     DepositoMovimientoCreate, MaterialAgregado,
 )
 from app.schemas.material import MovimientoStockResponse
+from app.services.deposito_pdf_service import generar_pdf_stock_deposito
 from decimal import Decimal
 from collections import defaultdict
 import re
@@ -242,6 +245,74 @@ def obtener_deposito(
         materiales=materiales,
         subdepositos=subdepositos_resp,
         materiales_totales=materiales_totales,
+    )
+
+
+@router.get("/{deposito_id}/stock/pdf")
+def descargar_pdf_stock_deposito(
+    deposito_id: UUID,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_usuario_actual),
+):
+    """PDF imprimible del stock consolidado del deposito (incluye sus
+    subdepositos). Pensado para control fisico contra gondola."""
+    deposito = db.query(Deposito).filter(
+        Deposito.id == deposito_id, Deposito.activo == True
+    ).first()
+    if not deposito:
+        raise HTTPException(status_code=404, detail="Deposito no encontrado")
+
+    subdep_objs = [s for s in deposito.subdepositos if s.activo]
+
+    # Agregar stocks: materiales directos + materiales de subdepositos
+    agg: dict = defaultdict(lambda: {"stock": Decimal("0"), "mat": None})
+    for dm in deposito.materiales:
+        if not dm.activo:
+            continue
+        agg[dm.material_id]["stock"] += Decimal(str(dm.stock_actual or 0))
+        agg[dm.material_id]["mat"] = dm.material
+
+    if subdep_objs:
+        sub_ids = [s.id for s in subdep_objs]
+        rows_sub = db.query(DepositoMaterial).filter(
+            DepositoMaterial.deposito_id.in_(sub_ids),
+            DepositoMaterial.activo == True,
+        ).all()
+        for dm in rows_sub:
+            agg[dm.material_id]["stock"] += Decimal(str(dm.stock_actual or 0))
+            if agg[dm.material_id]["mat"] is None:
+                agg[dm.material_id]["mat"] = dm.material
+
+    items = sorted(
+        [
+            {
+                "material_codigo": info["mat"].codigo if info["mat"] else None,
+                "material_nombre": info["mat"].nombre if info["mat"] else "-",
+                "material_unidad": info["mat"].unidad if info["mat"] else "",
+                "stock_total": float(info["stock"]),
+            }
+            for info in agg.values()
+        ],
+        key=lambda x: (x["material_nombre"] or "").lower(),
+    )
+
+    cliente_nombre = deposito.cliente.nombre_display if deposito.cliente else None
+    data_pdf = {
+        "deposito_nombre": deposito.nombre,
+        "cliente_nombre": cliente_nombre,
+        "fecha": datetime.now(),
+        "usuario_nombre": usuario.nombre if usuario else None,
+        "subdepositos": [s.nombre for s in subdep_objs],
+        "items": items,
+    }
+
+    pdf_bytes = generar_pdf_stock_deposito(data_pdf)
+    nombre_seguro = re.sub(r"[^A-Za-z0-9_-]+", "_", deposito.nombre)[:40] or "deposito"
+    filename = f"stock_{nombre_seguro}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 

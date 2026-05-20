@@ -118,6 +118,19 @@ export const depositosService = {
     await api.delete(`/depositos/${id}`)
   },
 
+  async descargarPdfStock(id: string, nombre: string): Promise<void> {
+    const res = await api.get(`/depositos/${id}/stock/pdf`, { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([res.data]))
+    const link = document.createElement('a')
+    link.href = url
+    const safe = (nombre || 'deposito').replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 40)
+    link.download = `stock_${safe}.pdf`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  },
+
   async listMateriales(depositoId: string): Promise<DepositoMaterial[]> {
     const response = await api.get<DepositoMaterial[]>(
       `/depositos/${depositoId}/materiales`

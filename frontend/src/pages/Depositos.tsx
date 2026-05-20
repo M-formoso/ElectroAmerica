@@ -653,21 +653,45 @@ export function DepositosPage() {
       >
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Warehouse className="h-5 w-5 text-primary" />
-              {depositoDetail ? depositoDetail.nombre : 'Cargando...'}
-              {depositoDetail?.parent_id && (
-                <Badge variant="outline" className="text-xs">subdeposito</Badge>
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1">
+                <DialogTitle className="flex items-center gap-2">
+                  <Warehouse className="h-5 w-5 text-primary" />
+                  {depositoDetail ? depositoDetail.nombre : 'Cargando...'}
+                  {depositoDetail?.parent_id && (
+                    <Badge variant="outline" className="text-xs">subdeposito</Badge>
+                  )}
+                </DialogTitle>
+                <DialogDescription>
+                  {depositoDetail?.cliente_nombre && (
+                    <span className="flex items-center gap-1">
+                      <Building2 className="h-3 w-3" />
+                      {depositoDetail.cliente_nombre}
+                    </span>
+                  )}
+                </DialogDescription>
+              </div>
+              {depositoDetail && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 mr-8"
+                  onClick={async () => {
+                    try {
+                      await depositosService.descargarPdfStock(
+                        depositoDetail.id,
+                        depositoDetail.nombre,
+                      )
+                    } catch {
+                      toast({ variant: 'destructive', title: 'Error al descargar PDF' })
+                    }
+                  }}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  PDF stock
+                </Button>
               )}
-            </DialogTitle>
-            <DialogDescription>
-              {depositoDetail?.cliente_nombre && (
-                <span className="flex items-center gap-1">
-                  <Building2 className="h-3 w-3" />
-                  {depositoDetail.cliente_nombre}
-                </span>
-              )}
-            </DialogDescription>
+            </div>
           </DialogHeader>
 
           {/* Subdepositos */}
@@ -932,13 +956,32 @@ export function DepositosPage() {
           {/* Resumen total agregado (deposito + subdepositos) */}
           {depositoDetail && depositoDetail.subdepositos.length > 0 && (
             <div className="border rounded-md p-3 bg-muted/30 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium">
-                  Resumen total (deposito + subdepositos)
-                </p>
-                <Badge variant="secondary">
-                  {depositoDetail.materiales_totales.length} materiales
-                </Badge>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium">
+                    Resumen total (deposito + subdepositos)
+                  </p>
+                  <Badge variant="secondary">
+                    {depositoDetail.materiales_totales.length} materiales
+                  </Badge>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      await depositosService.descargarPdfStock(
+                        depositoDetail.id,
+                        depositoDetail.nombre,
+                      )
+                    } catch {
+                      toast({ variant: 'destructive', title: 'Error al descargar PDF' })
+                    }
+                  }}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  PDF (control físico)
+                </Button>
               </div>
               {depositoDetail.materiales_totales.length > 0 ? (
                 <Table>
