@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 from typing import List
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.platypus import (
@@ -33,13 +33,15 @@ def generar_pdf_stock_deposito(data: dict) -> bytes:
       - items: list[dict] {material_codigo, material_nombre, material_unidad, stock_total}
     """
     buffer = io.BytesIO()
+    # Landscape A4 (29.7cm x 21cm) para dar mas ancho a las celdas y
+    # evitar que codigos/nombres largos se superpongan.
     doc = SimpleDocTemplate(
         buffer,
-        pagesize=A4,
-        rightMargin=1.8 * cm,
-        leftMargin=1.8 * cm,
-        topMargin=1.5 * cm,
-        bottomMargin=1.8 * cm,
+        pagesize=landscape(A4),
+        rightMargin=1.5 * cm,
+        leftMargin=1.5 * cm,
+        topMargin=1.2 * cm,
+        bottomMargin=1.5 * cm,
     )
 
     styles = getSampleStyleSheet()
@@ -111,11 +113,13 @@ def generar_pdf_stock_deposito(data: dict) -> bytes:
                            spaceAfter=10),
         ))
     else:
-        # Estilos para celdas con wrap automatico (clave para que textos
-        # largos no se superpongan con la columna siguiente)
+        # Estilos para celdas con wrap automatico. wordWrap='CJK' fuerza
+        # a partir palabras aunque no haya espacio, asi codigos largos
+        # como 'PRENSACABLE C/TUERCA' nunca se desbordan.
         cell_left = ParagraphStyle(
             "CellLeft", parent=styles["Normal"],
             fontSize=9, textColor=NEGRO, leading=11, alignment=TA_LEFT,
+            wordWrap="CJK",
         )
         cell_code = ParagraphStyle(
             "CellCode", parent=cell_left,
@@ -145,9 +149,10 @@ def generar_pdf_stock_deposito(data: dict) -> bytes:
                 "",
             ])
 
+        # Landscape A4 util ~26.7cm: codigo + nombre + unidad + stock + conteo
         tbl = Table(
             data_tbl,
-            colWidths=[3.2 * cm, 7.3 * cm, 1.8 * cm, 2.6 * cm, 2.6 * cm],
+            colWidths=[5 * cm, 10 * cm, 2 * cm, 3.4 * cm, 4 * cm],
             repeatRows=1,
         )
         tbl.setStyle(TableStyle([
