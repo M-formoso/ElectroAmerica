@@ -24,6 +24,7 @@ export interface RemitoCreate {
   transportista?: string
   observaciones?: string
   items: RemitoItemCreate[]
+  descontar_de_cualquier_deposito?: boolean
 }
 
 export interface Remito {
@@ -86,6 +87,7 @@ export interface RemitoUpdate {
 
 export interface RemitoItemsUpdate {
   items: RemitoItemCreate[]
+  descontar_de_cualquier_deposito?: boolean
 }
 
 export interface RemitosFilters {

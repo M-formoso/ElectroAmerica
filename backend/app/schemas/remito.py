@@ -32,6 +32,10 @@ class RemitoCreate(BaseModel):
     transportista: Optional[str] = Field(None, max_length=255)
     observaciones: Optional[str] = None
     items: List[RemitoItemCreate] = Field(..., min_length=1)
+    # Si True, el descuento de stock puede continuar en cualquier
+    # deposito activo con stock real (no solo el grupo del origen).
+    # Util cuando se eligio el modo 'Catalogo completo' en el modal.
+    descontar_de_cualquier_deposito: bool = False
 
 
 class RemitoUpdate(BaseModel):
@@ -48,6 +52,7 @@ class RemitoUpdate(BaseModel):
 class RemitoItemsUpdate(BaseModel):
     """Reemplazo completo de los items del remito (revierte y reaplica stock)."""
     items: List[RemitoItemCreate] = Field(..., min_length=1)
+    descontar_de_cualquier_deposito: bool = False
 
 
 class RemitoAnular(BaseModel):

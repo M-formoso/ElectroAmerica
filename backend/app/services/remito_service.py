@@ -37,11 +37,18 @@ def _get_or_create_deposito_material(
     return dm
 
 
-def _depositos_relacionados(db: Session, origen: Deposito) -> List[Deposito]:
+def _depositos_relacionados(
+    db: Session,
+    origen: Deposito,
+    incluir_todos: bool = False,
+) -> List[Deposito]:
     """Devuelve [origen, ...resto] donde 'resto' son los otros depositos
-    del mismo grupo (padre + hermanos si origen es subdeposito, o hijos
-    si origen es root). Sirve para que la salida pueda 'tomar' stock
-    de otros lados del mismo grupo logico.
+    candidatos para tomar stock. Por defecto solo el grupo del origen
+    (padre + hermanos si origen es subdeposito, o hijos si es root).
+
+    Si `incluir_todos=True`, agrega ademas todos los demas depositos
+    activos del sistema (luego del grupo del origen, para que el
+    descuento siga priorizando lo local).
     """
     if origen.parent_id:
         padre = db.query(Deposito).filter(
@@ -65,7 +72,22 @@ def _depositos_relacionados(db: Session, origen: Deposito) -> List[Deposito]:
             .all()
         )
         resto = hijos
-    return [origen, *resto]
+
+    candidatos: List[Deposito] = [origen, *resto]
+
+    if incluir_todos:
+        ids_actuales = {d.id for d in candidatos}
+        otros = (
+            db.query(Deposito)
+            .filter(
+                Deposito.activo == True,
+                ~Deposito.id.in_(ids_actuales),
+            )
+            .all()
+        )
+        candidatos.extend(otros)
+
+    return candidatos
 
 
 def _descontar_material_cascada(
@@ -77,15 +99,21 @@ def _descontar_material_cascada(
     motivo_prefix: str,
     proyecto_id: Optional[UUID],
     usuario_id: Optional[UUID],
+    descontar_de_cualquier_deposito: bool = False,
 ) -> None:
     """Descuenta `cantidad` de `material` empezando por `origen` y
     siguiendo con los depositos del mismo grupo (padre+hermanos o hijos).
-    Si despues de recorrerlos queda restante, lo descuenta del `origen`
+    Si `descontar_de_cualquier_deposito=True`, despues del grupo del
+    origen tambien se puede tomar stock de cualquier otro deposito
+    activo (ordenado por stock disponible descendente).
+    Si despues de recorrer todo queda restante, lo descuenta del `origen`
     dejandolo en negativo. Cada descuento real se registra en
     `RemitoDescuento` para poder revertirlo despues.
     """
     restante = cantidad
-    candidatos = _depositos_relacionados(db, origen)
+    candidatos = _depositos_relacionados(
+        db, origen, incluir_todos=descontar_de_cualquier_deposito
+    )
 
     for dep in candidatos:
         if restante <= 0:
@@ -201,9 +229,10 @@ def crear_remito(
         ))
 
         # Descontar en cascada: primero del origen, despues de hermanos/padre
-        # (o hijos si origen es root). Si nada alcanza, deja el origen
-        # en negativo. Cada descuento real genera un MovimientoStock y un
-        # RemitoDescuento para poder revertirlo.
+        # (o hijos si origen es root). Si `descontar_de_cualquier_deposito`
+        # esta activo, sigue con todos los demas depositos activos. Si nada
+        # alcanza, deja el origen en negativo. Cada descuento real genera
+        # un MovimientoStock y un RemitoDescuento para poder revertirlo.
         _descontar_material_cascada(
             db,
             remito_id=remito.id,
@@ -213,6 +242,7 @@ def crear_remito(
             motivo_prefix=f"Salida por remito {remito.numero_formateado}",
             proyecto_id=data.proyecto_id,
             usuario_id=usuario_id,
+            descontar_de_cualquier_deposito=data.descontar_de_cualquier_deposito,
         )
 
     db.commit()
@@ -551,6 +581,7 @@ def editar_remito_items(
             motivo_prefix=f"Edicion de remito {remito.numero_formateado}",
             proyecto_id=remito.proyecto_id,
             usuario_id=usuario_id,
+            descontar_de_cualquier_deposito=data.descontar_de_cualquier_deposito,
         )
 
     remito.editado_at = datetime.utcnow()

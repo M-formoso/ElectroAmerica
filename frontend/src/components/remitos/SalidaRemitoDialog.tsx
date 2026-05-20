@@ -25,6 +25,7 @@ import { useToast } from '@/hooks/use-toast'
 import { depositosService } from '@/services/depositos'
 import { proyectosService } from '@/services/proyectos'
 import { remitosService } from '@/services/remitos'
+import { materialesService } from '@/services/materiales'
 
 interface SalidaRemitoDialogProps {
   open: boolean
@@ -58,6 +59,8 @@ export function SalidaRemitoDialog({
   const [observaciones, setObservaciones] = useState('')
   const [search, setSearch] = useState('')
   const [items, setItems] = useState<Record<string, ItemForm>>({})
+  // Fuente del catalogo: 'deposito' = solo lo del grupo; 'catalogo' = todo.
+  const [fuente, setFuente] = useState<'deposito' | 'catalogo'>('deposito')
 
   const { data: deposito, isLoading: loadingDeposito } = useQuery({
     queryKey: ['deposito-detail', depositoId],
@@ -81,6 +84,14 @@ export function SalidaRemitoDialog({
     enabled: open,
   })
 
+  // Catalogo completo de materiales (solo se trae si el usuario eligio
+  // 'Catalogo completo')
+  const { data: catalogoCompleto, isLoading: loadingCatalogo } = useQuery({
+    queryKey: ['materiales-catalogo-min'],
+    queryFn: () => materialesService.getMateriales(),
+    enabled: open && fuente === 'catalogo',
+  })
+
   useEffect(() => {
     if (!open) return
     setFecha(today)
@@ -92,23 +103,37 @@ export function SalidaRemitoDialog({
     setObservaciones('')
     setSearch('')
     setItems({})
+    setFuente('deposito')
   }, [open, defaultProyectoId])
 
-  // Fuente de materiales para mostrar en la tabla:
-  //  - Si origen es subdeposito: consolidado del padre (todo el grupo).
-  //  - Si origen es root: su propio consolidado (incluye sus subdepositos).
-  //  - Fallback: materiales directos del origen.
+  // Fuente de materiales segun el modo elegido:
+  //  - 'deposito': consolidado del grupo del origen (subdep -> padre).
+  //  - 'catalogo': TODOS los materiales activos del sistema con su
+  //    stock global. Util para sacar algo que no esta en el grupo.
   const materialesFuente = useMemo(() => {
-    const fuente = padreDeposito || deposito
-    if (!fuente) return [] as Array<{
+    type Fila = {
       material_id: string
       material_codigo?: string
       material_nombre?: string
       material_unidad?: string
       stock_actual: number
-    }>
-    if (fuente.materiales_totales && fuente.materiales_totales.length > 0) {
-      return fuente.materiales_totales.map((m) => ({
+    }
+
+    if (fuente === 'catalogo') {
+      if (!catalogoCompleto) return [] as Fila[]
+      return catalogoCompleto.map((m) => ({
+        material_id: m.id,
+        material_codigo: m.codigo,
+        material_nombre: m.nombre,
+        material_unidad: m.unidad,
+        stock_actual: Number(m.stock_actual ?? 0),
+      }))
+    }
+
+    const ref = padreDeposito || deposito
+    if (!ref) return [] as Fila[]
+    if (ref.materiales_totales && ref.materiales_totales.length > 0) {
+      return ref.materiales_totales.map((m) => ({
         material_id: m.material_id,
         material_codigo: m.material_codigo,
         material_nombre: m.material_nombre,
@@ -116,14 +141,14 @@ export function SalidaRemitoDialog({
         stock_actual: Number(m.stock_total),
       }))
     }
-    return fuente.materiales.map((m) => ({
+    return ref.materiales.map((m) => ({
       material_id: m.material_id,
       material_codigo: m.material_codigo,
       material_nombre: m.material_nombre,
       material_unidad: m.material_unidad,
       stock_actual: Number(m.stock_actual),
     }))
-  }, [deposito, padreDeposito])
+  }, [deposito, padreDeposito, fuente, catalogoCompleto])
 
   const materialesFiltrados = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -156,6 +181,7 @@ export function SalidaRemitoDialog({
         transportista: transportista.trim() || undefined,
         observaciones: observaciones.trim() || undefined,
         items: itemsArmados,
+        descontar_de_cualquier_deposito: fuente === 'catalogo',
       }),
     onSuccess: async (remito) => {
       queryClient.invalidateQueries({ queryKey: ['deposito-detail', depositoId] })
@@ -264,6 +290,38 @@ export function SalidaRemitoDialog({
                 {itemsArmados.length} seleccionado(s)
               </span>
             </div>
+
+            {/* Selector de fuente del catalogo */}
+            <div className="flex flex-wrap items-center gap-2 p-2 rounded-md border bg-muted/30">
+              <Label className="text-xs text-muted-foreground mr-1">
+                Mostrar materiales de:
+              </Label>
+              <label className="flex items-center gap-1 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="fuente-materiales"
+                  checked={fuente === 'deposito'}
+                  onChange={() => {
+                    setFuente('deposito')
+                    setItems({})
+                  }}
+                />
+                Este depósito
+              </label>
+              <label className="flex items-center gap-1 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="fuente-materiales"
+                  checked={fuente === 'catalogo'}
+                  onChange={() => {
+                    setFuente('catalogo')
+                    setItems({})
+                  }}
+                />
+                Catálogo completo (todos los depósitos)
+              </label>
+            </div>
+
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -274,15 +332,22 @@ export function SalidaRemitoDialog({
               />
             </div>
 
-            {padreDeposito && (
+            {fuente === 'deposito' && padreDeposito && (
               <p className="text-xs text-muted-foreground">
                 Mostrando el inventario consolidado de <strong>{padreDeposito.nombre}</strong>
                 {' '}(todos sus subdepósitos). El descuento prioriza el origen y luego
                 los demás del mismo grupo.
               </p>
             )}
+            {fuente === 'catalogo' && (
+              <p className="text-xs text-amber-700">
+                Modo catálogo completo: stock mostrado es el <strong>global del material</strong>.
+                El descuento prioriza el depósito de origen y su grupo, y si no alcanza
+                sigue por cualquier otro depósito con stock real.
+              </p>
+            )}
 
-            {loadingDeposito || loadingPadre ? (
+            {loadingDeposito || loadingPadre || (fuente === 'catalogo' && loadingCatalogo) ? (
               <div className="flex justify-center py-6">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
