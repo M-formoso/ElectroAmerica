@@ -111,12 +111,35 @@ def generar_pdf_stock_deposito(data: dict) -> bytes:
                            spaceAfter=10),
         ))
     else:
-        # Tabla con columna 'Conteo fisico' a la derecha para llenar a mano
-        data_tbl = [["Codigo", "Material", "Unidad", "Stock sistema", "Conteo fisico"]]
+        # Estilos para celdas con wrap automatico (clave para que textos
+        # largos no se superpongan con la columna siguiente)
+        cell_left = ParagraphStyle(
+            "CellLeft", parent=styles["Normal"],
+            fontSize=9, textColor=NEGRO, leading=11, alignment=TA_LEFT,
+        )
+        cell_code = ParagraphStyle(
+            "CellCode", parent=cell_left,
+            fontName="Helvetica-Bold",
+        )
+
+        def _escape(s):
+            return (str(s or "-")
+                    .replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;"))
+
+        header = [
+            Paragraph("<b>Codigo</b>", ParagraphStyle("H", parent=cell_left, textColor=colors.white, alignment=TA_CENTER)),
+            Paragraph("<b>Material</b>", ParagraphStyle("H", parent=cell_left, textColor=colors.white, alignment=TA_CENTER)),
+            Paragraph("<b>Unidad</b>", ParagraphStyle("H", parent=cell_left, textColor=colors.white, alignment=TA_CENTER)),
+            Paragraph("<b>Stock sistema</b>", ParagraphStyle("H", parent=cell_left, textColor=colors.white, alignment=TA_CENTER)),
+            Paragraph("<b>Conteo fisico</b>", ParagraphStyle("H", parent=cell_left, textColor=colors.white, alignment=TA_CENTER)),
+        ]
+        data_tbl = [header]
         for it in items:
             data_tbl.append([
-                it.get("material_codigo") or "-",
-                it.get("material_nombre") or "-",
+                Paragraph(_escape(it.get("material_codigo")), cell_code),
+                Paragraph(_escape(it.get("material_nombre")), cell_left),
                 it.get("material_unidad") or "-",
                 f"{float(it.get('stock_total', 0)):.2f}",
                 "",
@@ -124,16 +147,14 @@ def generar_pdf_stock_deposito(data: dict) -> bytes:
 
         tbl = Table(
             data_tbl,
-            colWidths=[3 * cm, 7.5 * cm, 1.8 * cm, 2.6 * cm, 2.6 * cm],
+            colWidths=[3.2 * cm, 7.3 * cm, 1.8 * cm, 2.6 * cm, 2.6 * cm],
             repeatRows=1,
         )
         tbl.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), ROJO),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
             ("FONTSIZE", (0, 0), (-1, 0), 9),
             ("ALIGN", (0, 0), (-1, 0), "CENTER"),
-            ("FONTSIZE", (0, 1), (-1, -1), 9),
+            ("FONTSIZE", (2, 1), (-1, -1), 9),
             ("ALIGN", (2, 1), (4, -1), "CENTER"),
             ("ALIGN", (3, 1), (3, -1), "RIGHT"),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -143,7 +164,7 @@ def generar_pdf_stock_deposito(data: dict) -> bytes:
             ("RIGHTPADDING", (0, 0), (-1, -1), 4),
             ("TOPPADDING", (0, 0), (-1, -1), 5),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            # La ultima columna queda vacia (alta) para escribir a mano
+            # Asegura espacio minimo para escribir a mano en 'Conteo fisico'
             ("MINROWHEIGHT", (0, 1), (-1, -1), 22),
         ]))
         elements.append(tbl)
