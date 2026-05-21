@@ -258,18 +258,23 @@ def crear_remito_ingreso(
     data: RemitoIngresoCreate,
     usuario_id: Optional[UUID],
 ) -> Remito:
-    """Crea un remito de INGRESO: suma stock al deposito indicado.
+    """Crea un remito de INGRESO.
 
-    Cada item registra un MovimientoStock tipo entrada y un
-    RemitoDescuento (cantidad positiva = lo que se sumo al deposito,
-    util despues para revertir).
+    - Si data.deposito_id esta seteado: suma stock al deposito.
+    - Si data.deposito_id es None: suma stock al global (Material.stock_actual).
+      El remito queda sin deposito asociado.
+
+    Cada item registra un MovimientoStock tipo entrada. Si hay deposito,
+    tambien registra un RemitoDescuento para poder revertirlo.
     """
-    deposito = db.query(Deposito).filter(
-        Deposito.id == data.deposito_id,
-        Deposito.activo == True,
-    ).first()
-    if not deposito:
-        raise HTTPException(status_code=404, detail="Deposito no encontrado")
+    deposito = None
+    if data.deposito_id:
+        deposito = db.query(Deposito).filter(
+            Deposito.id == data.deposito_id,
+            Deposito.activo == True,
+        ).first()
+        if not deposito:
+            raise HTTPException(status_code=404, detail="Deposito no encontrado")
 
     if not data.items:
         raise HTTPException(status_code=400, detail="El remito necesita al menos un item")
@@ -309,33 +314,42 @@ def crear_remito_ingreso(
             cantidad=item_data.cantidad,
         ))
 
-        # Sumar stock al deposito de destino (crear DepositoMaterial si no existe)
-        dm = _get_or_create_deposito_material(db, deposito.id, material.id)
-        stock_anterior = dm.stock_actual
-        dm.stock_actual = stock_anterior + item_data.cantidad
+        if deposito:
+            # Suma al stock del deposito
+            dm = _get_or_create_deposito_material(db, deposito.id, material.id)
+            stock_anterior = dm.stock_actual
+            dm.stock_actual = stock_anterior + item_data.cantidad
+            destino_label = f"deposito {deposito.nombre}"
+            mov_deposito_id = deposito.id
+        else:
+            # Suma al stock global del material
+            stock_anterior = material.stock_actual
+            material.stock_actual = stock_anterior + item_data.cantidad
+            destino_label = "stock global"
+            mov_deposito_id = None
 
-        # Trazabilidad: movimiento de entrada
         db.add(MovimientoStock(
             material_id=material.id,
             tipo=TipoMovimiento.entrada,
             cantidad=item_data.cantidad,
             stock_anterior=stock_anterior,
             stock_nuevo=stock_anterior + item_data.cantidad,
-            motivo=f"Ingreso por remito {remito.numero_formateado} (deposito {deposito.nombre})",
+            motivo=f"Ingreso por remito {remito.numero_formateado} ({destino_label})",
             proyecto_id=data.proyecto_id,
-            deposito_id=deposito.id,
+            deposito_id=mov_deposito_id,
             usuario_id=usuario_id,
         ))
 
-        # RemitoDescuento aca representa el movimiento aplicado: para
-        # ingresos guarda lo que se SUMO al deposito (para revertir
-        # despues al anular).
-        db.add(RemitoDescuento(
-            remito_id=remito.id,
-            deposito_id=deposito.id,
-            material_id=material.id,
-            cantidad=item_data.cantidad,
-        ))
+        # Solo guardo RemitoDescuento si hay deposito (la reversion para
+        # ingreso global se hace tocando Material.stock_actual directamente
+        # en _revertir_descuentos via los RemitoItem si no hay descuentos).
+        if deposito:
+            db.add(RemitoDescuento(
+                remito_id=remito.id,
+                deposito_id=deposito.id,
+                material_id=material.id,
+                cantidad=item_data.cantidad,
+            ))
 
     db.commit()
     db.refresh(remito)
@@ -520,10 +534,36 @@ def _revertir_descuentos(db: Session, remito: Remito, usuario_id: Optional[UUID]
                 usuario_id=usuario_id,
             ))
     else:
-        # Fallback para remitos creados antes de tener RemitoDescuento:
-        # asumimos que todo se descontó del deposito de origen.
+        # Fallback: remitos sin RemitoDescuento.
+        # - Egresos viejos: asumimos que se descontó del deposito de origen
+        #   (suma de vuelta).
+        # - Ingresos sin deposito (al stock global): resta del
+        #   Material.stock_actual.
         for item in remito.items:
             if not item.material_id or item.cantidad <= 0:
+                continue
+            material = db.query(Material).filter(Material.id == item.material_id).first()
+            if not material:
+                continue
+
+            if es_ingreso and not remito.deposito_id:
+                # Ingreso global: restar del stock global
+                stock_anterior = material.stock_actual
+                material.stock_actual = stock_anterior - item.cantidad
+                db.add(MovimientoStock(
+                    material_id=item.material_id,
+                    tipo=TipoMovimiento.salida,
+                    cantidad=item.cantidad,
+                    stock_anterior=stock_anterior,
+                    stock_nuevo=stock_anterior - item.cantidad,
+                    motivo=f"Reversion de remito {remito.numero_formateado} (ingreso global)",
+                    proyecto_id=remito.proyecto_id,
+                    deposito_id=None,
+                    usuario_id=usuario_id,
+                ))
+                continue
+
+            if not remito.deposito_id:
                 continue
             dm = db.query(DepositoMaterial).filter(
                 DepositoMaterial.deposito_id == remito.deposito_id,
@@ -533,13 +573,20 @@ def _revertir_descuentos(db: Session, remito: Remito, usuario_id: Optional[UUID]
             if not dm:
                 continue
             stock_anterior = dm.stock_actual
-            dm.stock_actual = stock_anterior + item.cantidad
+            if es_ingreso:
+                dm.stock_actual = stock_anterior - item.cantidad
+                tipo_mov = TipoMovimiento.salida
+                signo = -1
+            else:
+                dm.stock_actual = stock_anterior + item.cantidad
+                tipo_mov = TipoMovimiento.devolucion
+                signo = 1
             db.add(MovimientoStock(
                 material_id=item.material_id,
-                tipo=TipoMovimiento.devolucion,
+                tipo=tipo_mov,
                 cantidad=item.cantidad,
                 stock_anterior=stock_anterior,
-                stock_nuevo=stock_anterior + item.cantidad,
+                stock_nuevo=stock_anterior + signo * item.cantidad,
                 motivo=f"Reversion de remito {remito.numero_formateado} (fallback origen)",
                 proyecto_id=remito.proyecto_id,
                 deposito_id=remito.deposito_id,

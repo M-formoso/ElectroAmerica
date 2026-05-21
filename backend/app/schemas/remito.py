@@ -42,14 +42,15 @@ class RemitoCreate(BaseModel):
 
 
 class RemitoIngresoCreate(BaseModel):
-    """Schema para crear un remito de INGRESO de materiales a un deposito.
+    """Schema para crear un remito de INGRESO de materiales.
 
-    Para ingresos: el 'destinatario' representa el proveedor/origen del
-    material, y el 'responsable' es quien recibe. La cantidad SUMA al
-    stock del deposito indicado.
+    Si `deposito_id` esta seteado, la cantidad suma al stock de ese
+    deposito. Si es None, suma al stock global del material (Material.
+    stock_actual). Esto ultimo es lo que ocurre cuando el ingreso se
+    registra desde el modulo Materiales sin elegir deposito.
     """
     fecha: date
-    deposito_id: UUID
+    deposito_id: Optional[UUID] = None
     proyecto_id: Optional[UUID] = None
     destinatario_texto: Optional[str] = Field(None, max_length=255, description="Proveedor / origen del material")
     responsable_retira: Optional[str] = Field(None, max_length=255, description="Responsable que recibe")

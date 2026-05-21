@@ -645,7 +645,14 @@ def entrada_material_deposito(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(require_admin_or_supervisor),
 ):
-    """Registra una entrada (suma) de stock para un material en el deposito."""
+    """Registra una entrada (suma) de stock para un material en el deposito.
+
+    Ademas del MovimientoStock, genera automaticamente un Remito de
+    INGRESO asociado al deposito (visible en /remitos con PDF).
+    """
+    from app.models.remito import Remito, RemitoItem, RemitoDescuento, TipoRemito
+    from app.models.material import Material as MaterialModel
+
     dm = db.query(DepositoMaterial).filter(
         DepositoMaterial.deposito_id == deposito_id,
         DepositoMaterial.material_id == material_id,
@@ -654,8 +661,38 @@ def entrada_material_deposito(
     if not dm:
         raise HTTPException(status_code=404, detail="Material no encontrado en deposito")
 
+    deposito = db.query(Deposito).filter(Deposito.id == deposito_id).first()
+    material = db.query(MaterialModel).filter(MaterialModel.id == material_id).first()
+
     stock_anterior = Decimal(dm.stock_actual or 0)
     dm.stock_actual = stock_anterior + data.cantidad
+
+    # Crear remito de ingreso
+    remito = Remito(
+        tipo=TipoRemito.ingreso,
+        fecha=datetime.now().date(),
+        deposito_id=deposito_id,
+        observaciones=data.motivo,
+        usuario_id=usuario.id,
+    )
+    db.add(remito)
+    db.flush()
+    db.refresh(remito)
+
+    db.add(RemitoItem(
+        remito_id=remito.id,
+        material_id=material_id,
+        material_codigo=material.codigo if material else None,
+        material_nombre=material.nombre if material else "-",
+        material_unidad=material.unidad if material else "",
+        cantidad=data.cantidad,
+    ))
+    db.add(RemitoDescuento(
+        remito_id=remito.id,
+        deposito_id=deposito_id,
+        material_id=material_id,
+        cantidad=data.cantidad,
+    ))
 
     mov = MovimientoStock(
         material_id=material_id,
@@ -663,7 +700,9 @@ def entrada_material_deposito(
         cantidad=data.cantidad,
         stock_anterior=stock_anterior,
         stock_nuevo=dm.stock_actual,
-        motivo=data.motivo,
+        motivo=f"Ingreso por remito {remito.numero_formateado}"
+               + (f" - {data.motivo}" if data.motivo else ""),
+        deposito_id=deposito_id,
         deposito_destino_id=deposito_id,
         usuario_id=usuario.id,
     )

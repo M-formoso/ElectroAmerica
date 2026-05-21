@@ -286,8 +286,14 @@ export function RemitosPage() {
                           ↳ {r.deposito_nombre}
                         </span>
                       </div>
+                    ) : r.deposito_nombre ? (
+                      r.deposito_nombre
+                    ) : r.tipo === 'ingreso' ? (
+                      <span className="text-xs text-muted-foreground italic">
+                        Stock global / Catálogo
+                      </span>
                     ) : (
-                      r.deposito_nombre || '-'
+                      '-'
                     )}
                   </TableCell>
                   <TableCell>

@@ -258,7 +258,15 @@ def registrar_ingreso_stock(
     ingreso: IngresoStockCreate,
     usuario_id: UUID
 ) -> MovimientoStock:
-    """Registra una compra/ingreso de material al stock."""
+    """Registra una compra/ingreso de material al stock global.
+
+    Ademas del MovimientoStock, genera automaticamente un Remito de
+    INGRESO sin deposito asociado (suma al stock global), asi queda
+    visible en la seccion /remitos con su PDF descargable.
+    """
+    from datetime import date
+    from app.models.remito import Remito, RemitoItem, TipoRemito
+
     material = obtener_material(db, ingreso.material_id)
     if not material:
         raise HTTPException(status_code=404, detail="Material no encontrado")
@@ -271,14 +279,36 @@ def registrar_ingreso_stock(
     if ingreso.precio_unitario:
         material.precio_unitario = ingreso.precio_unitario
 
-    # Registrar movimiento
+    # 1) Crear el remito de ingreso (sin deposito, suma al stock global)
+    remito = Remito(
+        tipo=TipoRemito.ingreso,
+        fecha=date.today(),
+        deposito_id=None,
+        observaciones=ingreso.motivo,
+        usuario_id=usuario_id,
+    )
+    db.add(remito)
+    db.flush()
+    db.refresh(remito)
+
+    db.add(RemitoItem(
+        remito_id=remito.id,
+        material_id=material.id,
+        material_codigo=material.codigo,
+        material_nombre=material.nombre,
+        material_unidad=material.unidad,
+        cantidad=ingreso.cantidad,
+    ))
+
+    # 2) Movimiento de stock con referencia al remito en el motivo
     movimiento = MovimientoStock(
         material_id=ingreso.material_id,
         tipo=TipoMovimiento.entrada,
         cantidad=ingreso.cantidad,
         stock_anterior=stock_anterior,
         stock_nuevo=material.stock_actual,
-        motivo=ingreso.motivo,
+        motivo=f"Ingreso por remito {remito.numero_formateado}"
+               + (f" - {ingreso.motivo}" if ingreso.motivo else ""),
         usuario_id=usuario_id
     )
     db.add(movimiento)

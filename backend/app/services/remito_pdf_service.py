@@ -94,7 +94,9 @@ def generar_pdf_remito(remito_data: dict) -> bytes:
     creado = remito_data.get("created_at")
     creado_str = creado.strftime("%d/%m/%Y %H:%M") if creado else "-"
 
-    deposito_label = remito_data.get("deposito_nombre") or "-"
+    deposito_label = remito_data.get("deposito_nombre") or (
+        "Stock global / Catálogo" if es_ingreso else "-"
+    )
     if remito_data.get("deposito_padre_nombre"):
         deposito_label = f"{remito_data['deposito_padre_nombre']} → {deposito_label}"
 

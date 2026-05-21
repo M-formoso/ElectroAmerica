@@ -46,7 +46,9 @@ class Remito(Base, BaseModel):
     deposito_id = Column(
         UUID(as_uuid=True),
         ForeignKey("depositos.id", ondelete="RESTRICT"),
-        nullable=False,
+        # Nullable: cuando un remito de ingreso se genera desde el modulo
+        # Materiales y solo suma al stock global, no hay deposito asignado.
+        nullable=True,
         index=True,
     )
     proyecto_id = Column(
