@@ -72,6 +72,7 @@ import { getClientes, type ClienteListItem } from '@/services/clientes'
 import { materialesService } from '@/services/materiales'
 import { formatDate } from '@/lib/utils'
 import { SalidaRemitoDialog } from '@/components/remitos/SalidaRemitoDialog'
+import { IngresoRemitoDialog } from '@/components/remitos/IngresoRemitoDialog'
 
 interface DepositoFormData {
   cliente_id: string
@@ -109,6 +110,8 @@ export function DepositosPage() {
 
   // Salida (remito) desde un deposito
   const [salidaDeposito, setSalidaDeposito] = useState<{ id: string; nombre: string } | null>(null)
+  // Ingreso (remito) a un deposito
+  const [ingresoDeposito, setIngresoDeposito] = useState<{ id: string; nombre: string } | null>(null)
 
   // Form para agregar materiales al deposito (multi-select / nuevo)
   const [addMaterialOpen, setAddMaterialOpen] = useState(false)
@@ -500,7 +503,16 @@ export function DepositosPage() {
                       </Badge>
                     )}
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-green-700 border-green-300 hover:bg-green-50"
+                      onClick={() => setIngresoDeposito({ id: d.id, nombre: d.nombre })}
+                    >
+                      <ArrowDownCircle className="h-3 w-3 mr-1" />
+                      Ingreso
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -791,7 +803,18 @@ export function DepositosPage() {
                 </span>
               )}
             </p>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              {depositoDetail && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-green-700 border-green-300 hover:bg-green-50"
+                  onClick={() => setIngresoDeposito({ id: depositoDetail.id, nombre: depositoDetail.nombre })}
+                >
+                  <ArrowDownCircle className="h-4 w-4 mr-2" />
+                  Ingreso (remito)
+                </Button>
+              )}
               {depositoDetail && (
                 <Button
                   size="sm"
@@ -1469,6 +1492,16 @@ export function DepositosPage() {
           onOpenChange={(o) => !o && setSalidaDeposito(null)}
           depositoId={salidaDeposito.id}
           depositoNombre={salidaDeposito.nombre}
+        />
+      )}
+
+      {/* Dialog de ingreso (remito) */}
+      {ingresoDeposito && (
+        <IngresoRemitoDialog
+          open={!!ingresoDeposito}
+          onOpenChange={(o) => !o && setIngresoDeposito(null)}
+          depositoId={ingresoDeposito.id}
+          depositoNombre={ingresoDeposito.nombre}
         />
       )}
     </div>

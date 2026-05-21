@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { remitosService, type Remito } from '@/services/remitos'
+import { remitosService, type Remito, type TipoRemito } from '@/services/remitos'
 import { useToast } from '@/hooks/use-toast'
 import { formatDate } from '@/lib/utils'
 
@@ -36,6 +36,7 @@ export function RemitosPage() {
   const [search, setSearch] = useState('')
   const [fechaDesde, setFechaDesde] = useState('')
   const [fechaHasta, setFechaHasta] = useState('')
+  const [tipoFiltro, setTipoFiltro] = useState<'todos' | TipoRemito>('todos')
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [verRemitoId, setVerRemitoId] = useState<string | null>(null)
 
@@ -135,12 +136,13 @@ export function RemitosPage() {
   })
 
   const { data: remitos, isLoading } = useQuery({
-    queryKey: ['remitos', { busqueda: search, fechaDesde, fechaHasta }],
+    queryKey: ['remitos', { busqueda: search, fechaDesde, fechaHasta, tipo: tipoFiltro }],
     queryFn: () =>
       remitosService.listar({
         busqueda: search || undefined,
         fecha_desde: fechaDesde || undefined,
         fecha_hasta: fechaHasta || undefined,
+        tipo: tipoFiltro === 'todos' ? undefined : tipoFiltro,
       }),
   })
 
@@ -174,6 +176,18 @@ export function RemitosPage() {
 
       <Card>
         <CardContent className="pt-4 space-y-3">
+          <div className="flex gap-2">
+            {(['todos', 'egreso', 'ingreso'] as const).map((t) => (
+              <Button
+                key={t}
+                size="sm"
+                variant={tipoFiltro === t ? 'default' : 'outline'}
+                onClick={() => setTipoFiltro(t)}
+              >
+                {t === 'todos' ? 'Todos' : t === 'egreso' ? 'Egresos' : 'Ingresos'}
+              </Button>
+            ))}
+          </div>
           <div className="grid gap-3 md:grid-cols-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -237,7 +251,17 @@ export function RemitosPage() {
                       <span className={r.anulado ? 'line-through' : ''}>
                         {r.numero_formateado}
                       </span>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 flex-wrap">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] px-1 py-0 ${
+                            r.tipo === 'ingreso'
+                              ? 'border-green-500 text-green-700 bg-green-50'
+                              : 'border-blue-500 text-blue-700 bg-blue-50'
+                          }`}
+                        >
+                          {r.tipo === 'ingreso' ? 'INGRESO' : 'EGRESO'}
+                        </Badge>
                         {r.anulado && (
                           <Badge variant="destructive" className="text-[10px] px-1 py-0">
                             ANULADO

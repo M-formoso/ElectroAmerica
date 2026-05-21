@@ -1,9 +1,11 @@
 from sqlalchemy import (
     Column, String, Text, Numeric, ForeignKey, Integer, Sequence, Date, DateTime,
+    Enum,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.db.base_class import Base, BaseModel
+import enum
 
 
 # Secuencia PostgreSQL para numero correlativo de remitos.
@@ -11,14 +13,26 @@ from app.db.base_class import Base, BaseModel
 remito_numero_seq = Sequence("remito_numero_seq", start=1, increment=1)
 
 
-class Remito(Base, BaseModel):
-    """Remito de salida de materiales desde un deposito o subdeposito.
+class TipoRemito(str, enum.Enum):
+    """Tipo de remito segun la direccion del movimiento de stock."""
+    egreso = "egreso"
+    ingreso = "ingreso"
 
-    El numero es correlativo y se formatea como REM-XXXX al exponer.
-    El destinatario es opcional (proyecto por defecto, o texto libre).
+
+class Remito(Base, BaseModel):
+    """Remito de movimiento de materiales (egreso o ingreso) desde/hacia un deposito.
+
+    El numero es correlativo (compartido entre egresos e ingresos) y se
+    formatea como REM-XXXX. El tipo determina la direccion del movimiento.
     """
     __tablename__ = "remitos"
 
+    tipo = Column(
+        Enum(TipoRemito, name="tiporemito"),
+        nullable=False,
+        server_default="egreso",
+        index=True,
+    )
     numero = Column(
         Integer,
         remito_numero_seq,

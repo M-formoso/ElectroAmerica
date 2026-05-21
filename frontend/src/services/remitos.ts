@@ -27,8 +27,11 @@ export interface RemitoCreate {
   descontar_de_cualquier_deposito?: boolean
 }
 
+export type TipoRemito = 'egreso' | 'ingreso'
+
 export interface Remito {
   id: string
+  tipo: TipoRemito
   numero: number
   numero_formateado: string
   fecha: string
@@ -58,6 +61,7 @@ export interface Remito {
 
 export interface RemitoListItem {
   id: string
+  tipo: TipoRemito
   numero: number
   numero_formateado: string
   fecha: string
@@ -91,12 +95,25 @@ export interface RemitoItemsUpdate {
 }
 
 export interface RemitosFilters {
+  tipo?: TipoRemito
   deposito_id?: string
   proyecto_id?: string
   fecha_desde?: string
   fecha_hasta?: string
   busqueda?: string
   limit?: number
+}
+
+export interface RemitoIngresoCreate {
+  fecha: string
+  deposito_id: string
+  proyecto_id?: string
+  destinatario_texto?: string
+  responsable_retira?: string
+  direccion_entrega?: string
+  transportista?: string
+  observaciones?: string
+  items: RemitoItemCreate[]
 }
 
 export const remitosService = {
@@ -114,6 +131,11 @@ export const remitosService = {
 
   async crear(data: RemitoCreate): Promise<Remito> {
     const res = await api.post<Remito>('/remitos', data)
+    return res.data
+  },
+
+  async crearIngreso(data: RemitoIngresoCreate): Promise<Remito> {
+    const res = await api.post<Remito>('/remitos/ingreso', data)
     return res.data
   },
 

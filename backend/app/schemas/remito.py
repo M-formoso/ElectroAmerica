@@ -1,8 +1,11 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
+
+
+TipoRemitoLiteral = Literal["egreso", "ingreso"]
 
 
 class RemitoItemCreate(BaseModel):
@@ -38,6 +41,24 @@ class RemitoCreate(BaseModel):
     descontar_de_cualquier_deposito: bool = False
 
 
+class RemitoIngresoCreate(BaseModel):
+    """Schema para crear un remito de INGRESO de materiales a un deposito.
+
+    Para ingresos: el 'destinatario' representa el proveedor/origen del
+    material, y el 'responsable' es quien recibe. La cantidad SUMA al
+    stock del deposito indicado.
+    """
+    fecha: date
+    deposito_id: UUID
+    proyecto_id: Optional[UUID] = None
+    destinatario_texto: Optional[str] = Field(None, max_length=255, description="Proveedor / origen del material")
+    responsable_retira: Optional[str] = Field(None, max_length=255, description="Responsable que recibe")
+    direccion_entrega: Optional[str] = Field(None, max_length=255)
+    transportista: Optional[str] = Field(None, max_length=255)
+    observaciones: Optional[str] = None
+    items: List[RemitoItemCreate] = Field(..., min_length=1)
+
+
 class RemitoUpdate(BaseModel):
     """Edicion de datos generales del remito (no toca items ni stock)."""
     fecha: Optional[date] = None
@@ -61,6 +82,7 @@ class RemitoAnular(BaseModel):
 
 class RemitoResponse(BaseModel):
     id: UUID
+    tipo: TipoRemitoLiteral = "egreso"
     numero: int
     numero_formateado: str
     fecha: date
@@ -94,6 +116,7 @@ class RemitoResponse(BaseModel):
 class RemitoListResponse(BaseModel):
     """Schema reducido para el listado."""
     id: UUID
+    tipo: TipoRemitoLiteral = "egreso"
     numero: int
     numero_formateado: str
     fecha: date

@@ -10,7 +10,7 @@ from app.core.deps import get_db, get_usuario_actual, require_admin_or_superviso
 from app.models.usuario import Usuario
 from app.schemas.remito import (
     RemitoCreate, RemitoResponse, RemitoListResponse,
-    RemitoUpdate, RemitoItemsUpdate, RemitoAnular,
+    RemitoUpdate, RemitoItemsUpdate, RemitoAnular, RemitoIngresoCreate,
 )
 from app.services import remito_service
 from app.services.remito_pdf_service import generar_pdf_remito
@@ -25,8 +25,19 @@ def crear_remito(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(require_admin_or_supervisor),
 ):
-    """Crea un remito y descuenta stock del deposito indicado."""
+    """Crea un remito de EGRESO y descuenta stock del deposito indicado."""
     remito = remito_service.crear_remito(db, data, usuario.id)
+    return remito_service.to_response_dict(remito)
+
+
+@router.post("/ingreso", response_model=RemitoResponse, status_code=status.HTTP_201_CREATED)
+def crear_remito_ingreso(
+    data: RemitoIngresoCreate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Crea un remito de INGRESO y suma stock al deposito indicado."""
+    remito = remito_service.crear_remito_ingreso(db, data, usuario.id)
     return remito_service.to_response_dict(remito)
 
 
@@ -34,6 +45,7 @@ def crear_remito(
 def listar_remitos(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
+    tipo: Optional[str] = Query(None, pattern="^(egreso|ingreso)$"),
     deposito_id: Optional[UUID] = None,
     proyecto_id: Optional[UUID] = None,
     fecha_desde: Optional[date] = None,
@@ -42,7 +54,7 @@ def listar_remitos(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_usuario_actual),
 ):
-    """Lista remitos con filtros opcionales."""
+    """Lista remitos con filtros opcionales (incluye egresos e ingresos)."""
     remitos = remito_service.listar_remitos(
         db,
         skip=skip,
@@ -52,6 +64,7 @@ def listar_remitos(
         fecha_desde=fecha_desde,
         fecha_hasta=fecha_hasta,
         busqueda=busqueda,
+        tipo=tipo,
     )
     return [remito_service.to_list_dict(r) for r in remitos]
 

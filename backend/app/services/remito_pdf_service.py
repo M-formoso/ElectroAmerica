@@ -78,7 +78,9 @@ def generar_pdf_remito(remito_data: dict) -> bytes:
         # Fallback si por algun motivo no esta el logo
         elements.append(Paragraph("ELECTRO AMERICA", h_titulo))
 
-    elements.append(Paragraph("REMITO DE SALIDA", ParagraphStyle(
+    es_ingreso = (remito_data.get("tipo") or "egreso") == "ingreso"
+    subtitulo = "REMITO DE INGRESO" if es_ingreso else "REMITO DE SALIDA"
+    elements.append(Paragraph(subtitulo, ParagraphStyle(
         "Subtitle", parent=styles["Normal"], fontSize=11, textColor=NEGRO,
         alignment=TA_CENTER, spaceAfter=4,
     )))
@@ -96,11 +98,14 @@ def generar_pdf_remito(remito_data: dict) -> bytes:
     if remito_data.get("deposito_padre_nombre"):
         deposito_label = f"{remito_data['deposito_padre_nombre']} → {deposito_label}"
 
+    label_destinatario = "Proveedor:" if es_ingreso else "Destinatario:"
+    label_responsable = "Responsable recibe:" if es_ingreso else "Responsable retira:"
+
     info_rows = [
         ["Fecha:", fecha_str, "Depósito:", deposito_label],
         ["Proyecto:", remito_data.get("proyecto_nombre") or "-",
-         "Destinatario:", remito_data.get("destinatario_texto") or "-"],
-        ["Responsable retira:", remito_data.get("responsable_retira") or "-",
+         label_destinatario, remito_data.get("destinatario_texto") or "-"],
+        [label_responsable, remito_data.get("responsable_retira") or "-",
          "Transportista:", remito_data.get("transportista") or "-"],
     ]
     direccion = remito_data.get("direccion_entrega")
@@ -122,7 +127,8 @@ def generar_pdf_remito(remito_data: dict) -> bytes:
     elements.append(Spacer(1, 8))
 
     # Tabla de items
-    elements.append(Paragraph("Materiales entregados", h_seccion))
+    titulo_items = "Materiales recibidos" if es_ingreso else "Materiales entregados"
+    elements.append(Paragraph(titulo_items, h_seccion))
 
     items = remito_data.get("items", [])
     data_tbl = [["Código", "Material", "Cantidad", "Unidad"]]
@@ -164,6 +170,9 @@ def generar_pdf_remito(remito_data: dict) -> bytes:
     # Firmas
     elements.append(Spacer(1, 30))
     firma_rows = [["", ""], ["Firma quien entrega", "Firma quien recibe"]]
+    # Para ingresos invierto los roles solo visualmente
+    if es_ingreso:
+        firma_rows = [["", ""], ["Firma del proveedor", "Firma quien recibe"]]
     tbl_firmas = Table(firma_rows, colWidths=[8 * cm, 8 * cm])
     tbl_firmas.setStyle(TableStyle([
         ("LINEABOVE", (0, 1), (-1, 1), 0.5, NEGRO),

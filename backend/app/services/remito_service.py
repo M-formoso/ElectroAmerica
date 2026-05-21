@@ -7,11 +7,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from fastapi import HTTPException
 
-from app.models.remito import Remito, RemitoItem, RemitoDescuento
+from app.models.remito import Remito, RemitoItem, RemitoDescuento, TipoRemito
 from app.models.deposito import Deposito, DepositoMaterial
 from app.models.material import Material
 from app.models.movimiento_stock import MovimientoStock, TipoMovimiento
-from app.schemas.remito import RemitoCreate, RemitoUpdate, RemitoItemsUpdate, RemitoAnular
+from app.schemas.remito import (
+    RemitoCreate, RemitoUpdate, RemitoItemsUpdate, RemitoAnular,
+    RemitoIngresoCreate,
+)
 
 
 def _get_or_create_deposito_material(
@@ -250,6 +253,95 @@ def crear_remito(
     return remito
 
 
+def crear_remito_ingreso(
+    db: Session,
+    data: RemitoIngresoCreate,
+    usuario_id: Optional[UUID],
+) -> Remito:
+    """Crea un remito de INGRESO: suma stock al deposito indicado.
+
+    Cada item registra un MovimientoStock tipo entrada y un
+    RemitoDescuento (cantidad positiva = lo que se sumo al deposito,
+    util despues para revertir).
+    """
+    deposito = db.query(Deposito).filter(
+        Deposito.id == data.deposito_id,
+        Deposito.activo == True,
+    ).first()
+    if not deposito:
+        raise HTTPException(status_code=404, detail="Deposito no encontrado")
+
+    if not data.items:
+        raise HTTPException(status_code=400, detail="El remito necesita al menos un item")
+
+    remito = Remito(
+        tipo=TipoRemito.ingreso,
+        fecha=data.fecha,
+        deposito_id=data.deposito_id,
+        proyecto_id=data.proyecto_id,
+        destinatario_texto=data.destinatario_texto,
+        responsable_retira=data.responsable_retira,
+        direccion_entrega=data.direccion_entrega,
+        transportista=data.transportista,
+        observaciones=data.observaciones,
+        usuario_id=usuario_id,
+    )
+    db.add(remito)
+    db.flush()
+    db.refresh(remito)
+
+    for item_data in data.items:
+        if item_data.cantidad <= 0:
+            continue
+        material = db.query(Material).filter(Material.id == item_data.material_id).first()
+        if not material:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Material {item_data.material_id} no encontrado",
+            )
+
+        db.add(RemitoItem(
+            remito_id=remito.id,
+            material_id=material.id,
+            material_codigo=material.codigo,
+            material_nombre=material.nombre,
+            material_unidad=material.unidad,
+            cantidad=item_data.cantidad,
+        ))
+
+        # Sumar stock al deposito de destino (crear DepositoMaterial si no existe)
+        dm = _get_or_create_deposito_material(db, deposito.id, material.id)
+        stock_anterior = dm.stock_actual
+        dm.stock_actual = stock_anterior + item_data.cantidad
+
+        # Trazabilidad: movimiento de entrada
+        db.add(MovimientoStock(
+            material_id=material.id,
+            tipo=TipoMovimiento.entrada,
+            cantidad=item_data.cantidad,
+            stock_anterior=stock_anterior,
+            stock_nuevo=stock_anterior + item_data.cantidad,
+            motivo=f"Ingreso por remito {remito.numero_formateado} (deposito {deposito.nombre})",
+            proyecto_id=data.proyecto_id,
+            deposito_id=deposito.id,
+            usuario_id=usuario_id,
+        ))
+
+        # RemitoDescuento aca representa el movimiento aplicado: para
+        # ingresos guarda lo que se SUMO al deposito (para revertir
+        # despues al anular).
+        db.add(RemitoDescuento(
+            remito_id=remito.id,
+            deposito_id=deposito.id,
+            material_id=material.id,
+            cantidad=item_data.cantidad,
+        ))
+
+    db.commit()
+    db.refresh(remito)
+    return remito
+
+
 def obtener_remito(db: Session, remito_id: UUID) -> Optional[Remito]:
     return db.query(Remito).filter(
         Remito.id == remito_id,
@@ -266,9 +358,12 @@ def listar_remitos(
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
     busqueda: Optional[str] = None,
+    tipo: Optional[str] = None,
 ) -> List[Remito]:
     query = db.query(Remito).filter(Remito.activo == True)
 
+    if tipo in ("egreso", "ingreso"):
+        query = query.filter(Remito.tipo == tipo)
     if deposito_id:
         query = query.filter(Remito.deposito_id == deposito_id)
     if proyecto_id:
@@ -312,6 +407,7 @@ def to_response_dict(remito: Remito) -> dict:
     propio, padre, es_sub = _deposito_path(remito)
     return {
         "id": remito.id,
+        "tipo": remito.tipo.value if hasattr(remito.tipo, "value") else str(remito.tipo or "egreso"),
         "numero": remito.numero,
         "numero_formateado": remito.numero_formateado,
         "fecha": remito.fecha,
@@ -354,6 +450,7 @@ def to_list_dict(remito: Remito) -> dict:
     propio, padre, es_sub = _deposito_path(remito)
     return {
         "id": remito.id,
+        "tipo": remito.tipo.value if hasattr(remito.tipo, "value") else str(remito.tipo or "egreso"),
         "numero": remito.numero,
         "numero_formateado": remito.numero_formateado,
         "fecha": remito.fecha,
@@ -375,11 +472,16 @@ def to_list_dict(remito: Remito) -> dict:
 # ============ Anulacion / Edicion ============
 
 def _revertir_descuentos(db: Session, remito: Remito, usuario_id: Optional[UUID]) -> None:
-    """Suma de vuelta a cada DepositoMaterial las cantidades descontadas
-    por el remito, y registra un MovimientoStock tipo `devolucion` por
-    cada uno. No borra los registros de RemitoDescuento (eso lo decide
-    el caller segun corresponda anular o reaplicar).
+    """Revierte el efecto del remito sobre el stock.
+
+    - En remitos de EGRESO: cada RemitoDescuento representa lo que se
+      sacó; al revertir, se suma de vuelta al deposito de origen.
+    - En remitos de INGRESO: cada RemitoDescuento representa lo que se
+      sumó; al revertir, se resta del deposito de destino (puede dejarlo
+      en negativo si ya se consumió).
     """
+    es_ingreso = remito.tipo == TipoRemito.ingreso
+
     if remito.descuentos:
         for desc in remito.descuentos:
             dm = db.query(DepositoMaterial).filter(
@@ -398,13 +500,20 @@ def _revertir_descuentos(db: Session, remito: Remito, usuario_id: Optional[UUID]
                 db.add(dm)
                 db.flush()
             stock_anterior = dm.stock_actual
-            dm.stock_actual = stock_anterior + desc.cantidad
+            if es_ingreso:
+                dm.stock_actual = stock_anterior - desc.cantidad
+                tipo_mov = TipoMovimiento.salida
+                signo = -1
+            else:
+                dm.stock_actual = stock_anterior + desc.cantidad
+                tipo_mov = TipoMovimiento.devolucion
+                signo = 1
             db.add(MovimientoStock(
                 material_id=desc.material_id,
-                tipo=TipoMovimiento.devolucion,
+                tipo=tipo_mov,
                 cantidad=desc.cantidad,
                 stock_anterior=stock_anterior,
-                stock_nuevo=stock_anterior + desc.cantidad,
+                stock_nuevo=stock_anterior + signo * desc.cantidad,
                 motivo=f"Reversion de remito {remito.numero_formateado}",
                 proyecto_id=remito.proyecto_id,
                 deposito_id=desc.deposito_id,
@@ -546,7 +655,9 @@ def editar_remito_items(
     if not deposito:
         raise HTTPException(status_code=404, detail="Deposito no encontrado")
 
-    # 1) Revertir descuentos viejos
+    es_ingreso = remito.tipo == TipoRemito.ingreso
+
+    # 1) Revertir el efecto viejo (resta para egresos al reverso, etc.)
     _revertir_descuentos(db, remito, usuario_id)
     for desc in list(remito.descuentos):
         db.delete(desc)
@@ -554,7 +665,7 @@ def editar_remito_items(
         db.delete(item)
     db.flush()
 
-    # 2) Aplicar los items nuevos
+    # 2) Aplicar los items nuevos segun el tipo
     for item_data in data.items:
         if item_data.cantidad <= 0:
             continue
@@ -572,17 +683,40 @@ def editar_remito_items(
             material_unidad=material.unidad,
             cantidad=item_data.cantidad,
         ))
-        _descontar_material_cascada(
-            db,
-            remito_id=remito.id,
-            origen=deposito,
-            material=material,
-            cantidad=item_data.cantidad,
-            motivo_prefix=f"Edicion de remito {remito.numero_formateado}",
-            proyecto_id=remito.proyecto_id,
-            usuario_id=usuario_id,
-            descontar_de_cualquier_deposito=data.descontar_de_cualquier_deposito,
-        )
+        if es_ingreso:
+            # Suma directa al deposito de destino
+            dm = _get_or_create_deposito_material(db, deposito.id, material.id)
+            stock_anterior = dm.stock_actual
+            dm.stock_actual = stock_anterior + item_data.cantidad
+            db.add(MovimientoStock(
+                material_id=material.id,
+                tipo=TipoMovimiento.entrada,
+                cantidad=item_data.cantidad,
+                stock_anterior=stock_anterior,
+                stock_nuevo=stock_anterior + item_data.cantidad,
+                motivo=f"Edicion de remito {remito.numero_formateado} (deposito {deposito.nombre})",
+                proyecto_id=remito.proyecto_id,
+                deposito_id=deposito.id,
+                usuario_id=usuario_id,
+            ))
+            db.add(RemitoDescuento(
+                remito_id=remito.id,
+                deposito_id=deposito.id,
+                material_id=material.id,
+                cantidad=item_data.cantidad,
+            ))
+        else:
+            _descontar_material_cascada(
+                db,
+                remito_id=remito.id,
+                origen=deposito,
+                material=material,
+                cantidad=item_data.cantidad,
+                motivo_prefix=f"Edicion de remito {remito.numero_formateado}",
+                proyecto_id=remito.proyecto_id,
+                usuario_id=usuario_id,
+                descontar_de_cualquier_deposito=data.descontar_de_cualquier_deposito,
+            )
 
     remito.editado_at = datetime.utcnow()
     remito.editado_por_id = usuario_id

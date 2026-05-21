@@ -43,5 +43,5 @@ from app.models.requerimiento_material import (
 # Actividades de Proyecto y Avances
 from app.models.proyecto_actividad import ProyectoActividad, AvanceActividad, ProyectoHerramienta
 
-# Remitos de salida
-from app.models.remito import Remito, RemitoItem, RemitoDescuento
+# Remitos de salida e ingreso
+from app.models.remito import Remito, RemitoItem, RemitoDescuento, TipoRemito
