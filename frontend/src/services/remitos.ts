@@ -35,7 +35,7 @@ export interface Remito {
   numero: number
   numero_formateado: string
   fecha: string
-  deposito_id: string
+  deposito_id?: string | null
   deposito_nombre?: string
   deposito_padre_nombre?: string
   es_subdeposito?: boolean
@@ -65,7 +65,7 @@ export interface RemitoListItem {
   numero: number
   numero_formateado: string
   fecha: string
-  deposito_id: string
+  deposito_id?: string | null
   deposito_nombre?: string
   deposito_padre_nombre?: string
   es_subdeposito?: boolean

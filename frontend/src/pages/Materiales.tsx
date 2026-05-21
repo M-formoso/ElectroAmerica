@@ -128,12 +128,18 @@ export function MaterialesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['materiales'] })
       queryClient.invalidateQueries({ queryKey: ['materiales-stock-bajo'] })
-      toast({ title: 'Entrada registrada correctamente' })
+      queryClient.invalidateQueries({ queryKey: ['movimientos'] })
+      queryClient.invalidateQueries({ queryKey: ['remitos'] })
+      toast({ title: 'Entrada registrada y remito generado' })
       setIsMovimientoOpen(false)
       resetMovimientoForm()
     },
-    onError: () => {
-      toast({ variant: 'destructive', title: 'Error al registrar entrada' })
+    onError: (error: any) => {
+      toast({
+        variant: 'destructive',
+        title: 'Error al registrar entrada',
+        description: error?.response?.data?.detail || error?.message || 'Revisá los logs del backend',
+      })
     },
   })
 

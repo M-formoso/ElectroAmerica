@@ -87,7 +87,7 @@ class RemitoResponse(BaseModel):
     numero: int
     numero_formateado: str
     fecha: date
-    deposito_id: UUID
+    deposito_id: Optional[UUID] = None
     deposito_nombre: Optional[str] = None
     deposito_padre_nombre: Optional[str] = None
     es_subdeposito: bool = False
@@ -121,7 +121,7 @@ class RemitoListResponse(BaseModel):
     numero: int
     numero_formateado: str
     fecha: date
-    deposito_id: UUID
+    deposito_id: Optional[UUID] = None
     deposito_nombre: Optional[str] = None
     deposito_padre_nombre: Optional[str] = None
     es_subdeposito: bool = False
