@@ -104,6 +104,7 @@ export function DepositosPage() {
 
   // Eliminar deposito
   const [depositoToDelete, setDepositoToDelete] = useState<Deposito | null>(null)
+  const [confirmDeleteText, setConfirmDeleteText] = useState('')
 
   // Ver/gestionar materiales del deposito
   const [openDepositoId, setOpenDepositoId] = useState<string | null>(null)
@@ -200,8 +201,11 @@ export function DepositosPage() {
     mutationFn: depositosService.remove,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['depositos'] })
+      qc.invalidateQueries({ queryKey: ['deposito'] })
+      qc.invalidateQueries({ queryKey: ['remitos'] })
       toast({ title: 'Deposito eliminado' })
       setDepositoToDelete(null)
+      setConfirmDeleteText('')
     },
     onError: () => toast({ variant: 'destructive', title: 'Error al eliminar' }),
   })
@@ -628,18 +632,67 @@ export function DepositosPage() {
       {/* Dialog confirmar eliminacion */}
       <Dialog
         open={!!depositoToDelete}
-        onOpenChange={(o) => !o && setDepositoToDelete(null)}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDepositoToDelete(null)
+            setConfirmDeleteText('')
+          }
+        }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Eliminar deposito</DialogTitle>
-            <DialogDescription>
-              Vas a eliminar <strong>{depositoToDelete?.nombre}</strong>. Esta accion
-              tambien elimina sus materiales y stock asociado.
+            <DialogTitle className="text-destructive">
+              Eliminar deposito
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-3 pt-2">
+                <p>
+                  Vas a eliminar <strong>{depositoToDelete?.nombre}</strong>.
+                  Esta accion no se puede deshacer.
+                </p>
+                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
+                  <p className="font-medium text-destructive mb-2">
+                    Se va a eliminar TODO lo asociado a este deposito:
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1 text-foreground">
+                    <li>Todos los subdepositos</li>
+                    <li>
+                      Todos los materiales y su stock
+                      {typeof depositoToDelete?.cantidad_materiales === 'number' &&
+                        depositoToDelete.cantidad_materiales > 0 && (
+                          <span className="text-muted-foreground">
+                            {' '}
+                            ({depositoToDelete.cantidad_materiales} cargados)
+                          </span>
+                        )}
+                    </li>
+                    <li>Todos los remitos (ingresos y egresos) emitidos desde este deposito</li>
+                  </ul>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-delete" className="text-sm">
+                    Para confirmar, escribi el nombre del deposito:{' '}
+                    <strong>{depositoToDelete?.nombre}</strong>
+                  </Label>
+                  <Input
+                    id="confirm-delete"
+                    value={confirmDeleteText}
+                    onChange={(e) => setConfirmDeleteText(e.target.value)}
+                    placeholder={depositoToDelete?.nombre}
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDepositoToDelete(null)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDepositoToDelete(null)
+                setConfirmDeleteText('')
+              }}
+            >
               Cancelar
             </Button>
             <Button
@@ -647,12 +700,15 @@ export function DepositosPage() {
               onClick={() =>
                 depositoToDelete && deleteMutation.mutate(depositoToDelete.id)
               }
-              disabled={deleteMutation.isPending}
+              disabled={
+                deleteMutation.isPending ||
+                confirmDeleteText.trim() !== (depositoToDelete?.nombre ?? '').trim()
+              }
             >
               {deleteMutation.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              Eliminar
+              Eliminar todo
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -13,6 +13,7 @@ from app.models.deposito import Deposito, DepositoMaterial
 from app.models.cliente import Cliente
 from app.models.material import Material
 from app.models.movimiento_stock import MovimientoStock, TipoMovimiento
+from app.models.remito import Remito, RemitoItem, RemitoDescuento
 from app.schemas.deposito import (
     DepositoCreate, DepositoUpdate, DepositoResponse, DepositoDetailResponse,
     DepositoMaterialCreate, DepositoMaterialUpdate, DepositoMaterialResponse,
@@ -343,17 +344,65 @@ def actualizar_deposito(
     return _serializar_deposito(deposito, cantidad)
 
 
+def _eliminar_deposito_cascada(db: Session, deposito: Deposito) -> None:
+    """Soft-delete recursivo: marca como inactivo el deposito, sus
+    subdepositos, su stock (DepositoMaterial) y sus remitos (con items
+    y descuentos). No revierte stock porque el deposito tambien se borra.
+    """
+    # Subdepositos primero (recursivo)
+    for sub in list(deposito.subdepositos):
+        if sub.activo:
+            _eliminar_deposito_cascada(db, sub)
+
+    # Stock del deposito
+    db.query(DepositoMaterial).filter(
+        DepositoMaterial.deposito_id == deposito.id,
+        DepositoMaterial.activo == True,
+    ).update({"activo": False}, synchronize_session=False)
+
+    # Remitos del deposito + sus items y descuentos
+    remito_ids = [
+        r.id for r in db.query(Remito.id).filter(
+            Remito.deposito_id == deposito.id,
+            Remito.activo == True,
+        ).all()
+    ]
+    if remito_ids:
+        db.query(RemitoItem).filter(
+            RemitoItem.remito_id.in_(remito_ids),
+            RemitoItem.activo == True,
+        ).update({"activo": False}, synchronize_session=False)
+        db.query(RemitoDescuento).filter(
+            RemitoDescuento.remito_id.in_(remito_ids),
+            RemitoDescuento.activo == True,
+        ).update({"activo": False}, synchronize_session=False)
+        db.query(Remito).filter(Remito.id.in_(remito_ids)).update(
+            {"activo": False}, synchronize_session=False
+        )
+
+    # Descuentos huerfanos: remitos de OTROS depositos que descontaron de este
+    db.query(RemitoDescuento).filter(
+        RemitoDescuento.deposito_id == deposito.id,
+        RemitoDescuento.activo == True,
+    ).update({"activo": False}, synchronize_session=False)
+
+    deposito.activo = False
+
+
 @router.delete("/{deposito_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar_deposito(
     deposito_id: UUID,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(require_admin_or_supervisor),
 ):
-    """Elimina (soft delete) un deposito."""
-    deposito = db.query(Deposito).filter(Deposito.id == deposito_id).first()
+    """Elimina (soft delete) un deposito y todo lo asociado:
+    subdepositos, stock y remitos (con sus items y descuentos)."""
+    deposito = db.query(Deposito).filter(
+        Deposito.id == deposito_id, Deposito.activo == True
+    ).first()
     if not deposito:
         raise HTTPException(status_code=404, detail="Deposito no encontrado")
-    deposito.activo = False
+    _eliminar_deposito_cascada(db, deposito)
     db.commit()
 
 
