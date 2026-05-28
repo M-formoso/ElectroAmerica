@@ -39,6 +39,7 @@ export interface Remito {
   deposito_nombre?: string
   deposito_padre_nombre?: string
   es_subdeposito?: boolean
+  deposito_eliminado?: boolean
   proyecto_id?: string
   proyecto_nombre?: string
   destinatario_texto?: string
@@ -69,6 +70,7 @@ export interface RemitoListItem {
   deposito_nombre?: string
   deposito_padre_nombre?: string
   es_subdeposito?: boolean
+  deposito_eliminado?: boolean
   proyecto_id?: string
   proyecto_nombre?: string
   destinatario_texto?: string

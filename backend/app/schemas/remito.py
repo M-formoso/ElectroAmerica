@@ -91,6 +91,7 @@ class RemitoResponse(BaseModel):
     deposito_nombre: Optional[str] = None
     deposito_padre_nombre: Optional[str] = None
     es_subdeposito: bool = False
+    deposito_eliminado: bool = False
     proyecto_id: Optional[UUID] = None
     proyecto_nombre: Optional[str] = None
     destinatario_texto: Optional[str] = None
@@ -125,6 +126,7 @@ class RemitoListResponse(BaseModel):
     deposito_nombre: Optional[str] = None
     deposito_padre_nombre: Optional[str] = None
     es_subdeposito: bool = False
+    deposito_eliminado: bool = False
     proyecto_id: Optional[UUID] = None
     proyecto_nombre: Optional[str] = None
     destinatario_texto: Optional[str] = None

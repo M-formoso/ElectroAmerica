@@ -277,24 +277,34 @@ export function RemitosPage() {
                   </TableCell>
                   <TableCell>{formatDate(r.fecha)}</TableCell>
                   <TableCell>
-                    {r.es_subdeposito && r.deposito_padre_nombre ? (
-                      <div className="flex flex-col">
-                        <span className="text-xs text-muted-foreground">
-                          {r.deposito_padre_nombre}
+                    <div className="flex flex-col gap-1">
+                      {r.es_subdeposito && r.deposito_padre_nombre ? (
+                        <div className="flex flex-col">
+                          <span className="text-xs text-muted-foreground">
+                            {r.deposito_padre_nombre}
+                          </span>
+                          <span className="font-medium text-sm">
+                            ↳ {r.deposito_nombre}
+                          </span>
+                        </div>
+                      ) : r.deposito_nombre ? (
+                        <span>{r.deposito_nombre}</span>
+                      ) : r.tipo === 'ingreso' ? (
+                        <span className="text-xs text-muted-foreground italic">
+                          Stock global / Catálogo
                         </span>
-                        <span className="font-medium text-sm">
-                          ↳ {r.deposito_nombre}
-                        </span>
-                      </div>
-                    ) : r.deposito_nombre ? (
-                      r.deposito_nombre
-                    ) : r.tipo === 'ingreso' ? (
-                      <span className="text-xs text-muted-foreground italic">
-                        Stock global / Catálogo
-                      </span>
-                    ) : (
-                      '-'
-                    )}
+                      ) : (
+                        <span>-</span>
+                      )}
+                      {r.deposito_eliminado && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1 py-0 border-amber-500 text-amber-700 bg-amber-50 self-start"
+                        >
+                          DEPÓSITO ELIMINADO
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     {r.proyecto_nombre ? (
@@ -335,6 +345,15 @@ export function RemitosPage() {
                         ) : (
                           <Download className="h-4 w-4" />
                         )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => setBorrandoRemito(r as unknown as Remito)}
+                        title="Eliminar remito"
+                      >
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>

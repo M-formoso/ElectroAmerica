@@ -402,23 +402,26 @@ def listar_remitos(
     )
 
 
-def _deposito_path(remito: Remito) -> tuple[str | None, str | None, bool]:
-    """Devuelve (nombre_propio, nombre_padre, es_subdeposito) del deposito.
+def _deposito_path(remito: Remito) -> tuple[str | None, str | None, bool, bool]:
+    """Devuelve (nombre_propio, nombre_padre, es_subdeposito, eliminado) del deposito.
 
     Cuando el remito sale de un subdeposito, queremos saber tambien el
-    nombre del padre para dar contexto en la UI y en el PDF.
+    nombre del padre para dar contexto en la UI y en el PDF. Si el
+    deposito ya fue borrado (activo=False), `eliminado=True` para que
+    el frontend lo distinga.
     """
     if not remito.deposito:
-        return None, None, False
+        return None, None, False, False
     propio = remito.deposito.nombre
     es_sub = remito.deposito.parent_id is not None
     padre_nombre = remito.deposito.parent.nombre if es_sub and remito.deposito.parent else None
-    return propio, padre_nombre, es_sub
+    eliminado = not remito.deposito.activo
+    return propio, padre_nombre, es_sub, eliminado
 
 
 def to_response_dict(remito: Remito) -> dict:
     """Helper para construir el dict de RemitoResponse con campos derivados."""
-    propio, padre, es_sub = _deposito_path(remito)
+    propio, padre, es_sub, eliminado = _deposito_path(remito)
     return {
         "id": remito.id,
         "tipo": remito.tipo.value if hasattr(remito.tipo, "value") else str(remito.tipo or "egreso"),
@@ -429,6 +432,7 @@ def to_response_dict(remito: Remito) -> dict:
         "deposito_nombre": propio,
         "deposito_padre_nombre": padre,
         "es_subdeposito": es_sub,
+        "deposito_eliminado": eliminado,
         "proyecto_id": remito.proyecto_id,
         "proyecto_nombre": remito.proyecto.nombre if remito.proyecto else None,
         "destinatario_texto": remito.destinatario_texto,
@@ -461,7 +465,7 @@ def to_response_dict(remito: Remito) -> dict:
 
 
 def to_list_dict(remito: Remito) -> dict:
-    propio, padre, es_sub = _deposito_path(remito)
+    propio, padre, es_sub, eliminado = _deposito_path(remito)
     return {
         "id": remito.id,
         "tipo": remito.tipo.value if hasattr(remito.tipo, "value") else str(remito.tipo or "egreso"),
@@ -472,6 +476,7 @@ def to_list_dict(remito: Remito) -> dict:
         "deposito_nombre": propio,
         "deposito_padre_nombre": padre,
         "es_subdeposito": es_sub,
+        "deposito_eliminado": eliminado,
         "proyecto_id": remito.proyecto_id,
         "proyecto_nombre": remito.proyecto.nombre if remito.proyecto else None,
         "destinatario_texto": remito.destinatario_texto,
