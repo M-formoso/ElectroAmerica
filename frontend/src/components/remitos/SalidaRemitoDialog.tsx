@@ -152,11 +152,17 @@ export function SalidaRemitoDialog({
 
   const materialesFiltrados = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return materialesFuente
-    return materialesFuente.filter(
-      (m) =>
-        m.material_nombre?.toLowerCase().includes(q) ||
-        m.material_codigo?.toLowerCase().includes(q),
+    const base = q
+      ? materialesFuente.filter(
+          (m) =>
+            m.material_nombre?.toLowerCase().includes(q) ||
+            m.material_codigo?.toLowerCase().includes(q),
+        )
+      : materialesFuente
+    return [...base].sort((a, b) =>
+      (a.material_nombre ?? '').localeCompare(b.material_nombre ?? '', 'es', {
+        sensitivity: 'base',
+      }),
     )
   }, [materialesFuente, search])
 

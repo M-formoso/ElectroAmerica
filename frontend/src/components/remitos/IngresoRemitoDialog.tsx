@@ -87,11 +87,15 @@ export function IngresoRemitoDialog({
   const materialesFiltrados = useMemo(() => {
     if (!catalogo) return []
     const q = search.trim().toLowerCase()
-    if (!q) return catalogo
-    return catalogo.filter(
-      (m) =>
-        m.nombre?.toLowerCase().includes(q) ||
-        m.codigo?.toLowerCase().includes(q),
+    const base = q
+      ? catalogo.filter(
+          (m) =>
+            m.nombre?.toLowerCase().includes(q) ||
+            m.codigo?.toLowerCase().includes(q),
+        )
+      : catalogo
+    return [...base].sort((a, b) =>
+      (a.nombre ?? '').localeCompare(b.nombre ?? '', 'es', { sensitivity: 'base' }),
     )
   }, [catalogo, search])
 
