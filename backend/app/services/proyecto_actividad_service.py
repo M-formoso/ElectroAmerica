@@ -12,6 +12,7 @@ from fastapi import HTTPException
 from app.models.proyecto_actividad import ProyectoActividad, AvanceActividad, ProyectoHerramienta
 from app.models.actividad_tipo import ActividadTipo, MaterialActividadTipo
 from app.models.proyecto import Proyecto
+from app.models.lista_precio import PrecioListaActividad
 from app.models.herramienta import Herramienta
 from app.models.material import Material
 from app.models.deposito import DepositoMaterial
@@ -113,6 +114,18 @@ class ProyectoActividadService:
             actividad_data.cantidad_planificada
         )
 
+        # Snapshot del precio: si el proyecto tiene lista_precio_id y hay
+        # precio cargado para esta actividad, lo congelamos aca.
+        precio_snapshot = None
+        if proyecto.lista_precio_id:
+            precio_row = self.db.query(PrecioListaActividad).filter(
+                PrecioListaActividad.lista_precio_id == proyecto.lista_precio_id,
+                PrecioListaActividad.actividad_tipo_id == actividad_data.actividad_tipo_id,
+                PrecioListaActividad.activo == True,
+            ).first()
+            if precio_row:
+                precio_snapshot = precio_row.precio_unitario
+
         # Crear la actividad de proyecto
         actividad = ProyectoActividad(
             proyecto_id=proyecto_id,
@@ -121,7 +134,8 @@ class ProyectoActividadService:
             cantidad_ejecutada=Decimal("0"),
             orden=actividad_data.orden or 0,
             observaciones=actividad_data.observaciones,
-            materiales_calculados=[m.model_dump(mode='json') for m in materiales_calculados] if materiales_calculados else None
+            materiales_calculados=[m.model_dump(mode='json') for m in materiales_calculados] if materiales_calculados else None,
+            precio_unitario_snapshot=precio_snapshot,
         )
 
         self.db.add(actividad)

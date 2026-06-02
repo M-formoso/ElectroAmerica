@@ -37,6 +37,11 @@ class ProyectoActividad(Base, BaseModel):
     # Estructura: [{"material_id": "uuid", "material_nombre": "Cemento", "cantidad_total": 71.4, "unidad": "kg"}]
     materiales_calculados = Column(JSONB, nullable=True)
 
+    # Precio congelado al momento de cargar la actividad al proyecto.
+    # Tomado de PrecioListaActividad segun la lista del proyecto. Editable
+    # manualmente despues. Nullable para no romper proyectos historicos.
+    precio_unitario_snapshot = Column(Numeric(12, 2), nullable=True)
+
     # Relaciones
     proyecto = relationship("Proyecto", backref="actividades")
     actividad_tipo = relationship("ActividadTipo")

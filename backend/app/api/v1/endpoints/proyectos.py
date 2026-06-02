@@ -94,6 +94,8 @@ def obtener_proyecto(
         supervisor_id=proyecto.supervisor_id,
         deposito_id=proyecto.deposito_id,
         deposito_nombre=proyecto.deposito.nombre if proyecto.deposito else None,
+        lista_precio_id=proyecto.lista_precio_id,
+        lista_precio_nombre=proyecto.lista_precio.nombre if proyecto.lista_precio else None,
         total_etapas=stats.get("total_etapas", 0),
         etapas_completadas=stats.get("etapas_completadas", 0),
         cliente_nombre=proyecto.cliente.nombre_display if proyecto.cliente else None

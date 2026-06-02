@@ -30,6 +30,14 @@ class Proyecto(Base, BaseModel):
     supervisor_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     # Fuente de materiales: null = stock global, valor = deposito especifico
     deposito_id = Column(UUID(as_uuid=True), ForeignKey("depositos.id"), nullable=True)
+    # Lista de precios usada por el proyecto. Al cargar una actividad, el
+    # precio se congela en ProyectoActividad.precio_unitario_snapshot.
+    lista_precio_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("listas_precio.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     # Relaciones
     cliente = relationship(
@@ -44,6 +52,10 @@ class Proyecto(Base, BaseModel):
     deposito = relationship(
         "Deposito",
         foreign_keys=[deposito_id]
+    )
+    lista_precio = relationship(
+        "ListaPrecio",
+        foreign_keys=[lista_precio_id]
     )
     etapas = relationship(
         "Etapa",

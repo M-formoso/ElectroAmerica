@@ -15,6 +15,7 @@ from app.models.categoria_gasto import CategoriaGasto
 from app.models.foto import Foto
 from app.models.reporte import Reporte
 from app.models.precio_item import PrecioItem
+from app.models.lista_precio import ListaPrecio, PrecioListaActividad
 from app.models.transaccion import (
     Transaccion, TipoTransaccion, MetodoPago, EstadoTransaccion,
     Cuenta, TipoCuenta,
