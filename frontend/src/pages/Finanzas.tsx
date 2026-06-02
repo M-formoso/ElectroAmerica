@@ -24,7 +24,10 @@ import {
   FileText,
   Receipt,
   PiggyBank,
+  ListOrdered,
 } from 'lucide-react'
+import { ListasPrecioTab } from '@/components/finanzas/ListasPrecioTab'
+import { PresupuestosTab } from '@/components/finanzas/PresupuestosTab'
 import {
   BarChart,
   Bar,
@@ -348,7 +351,7 @@ export function FinanzasPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             <span className="hidden sm:inline">Dashboard</span>
@@ -368,6 +371,14 @@ export function FinanzasPage() {
           <TabsTrigger value="reportes" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
             <span className="hidden sm:inline">Reportes</span>
+          </TabsTrigger>
+          <TabsTrigger value="listas-precio" className="flex items-center gap-2">
+            <ListOrdered className="h-4 w-4" />
+            <span className="hidden sm:inline">Listas precio</span>
+          </TabsTrigger>
+          <TabsTrigger value="presupuestos" className="flex items-center gap-2">
+            <PiggyBank className="h-4 w-4" />
+            <span className="hidden sm:inline">Presupuestos</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1043,6 +1054,14 @@ export function FinanzasPage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="listas-precio" className="space-y-4">
+          <ListasPrecioTab />
+        </TabsContent>
+
+        <TabsContent value="presupuestos" className="space-y-4">
+          <PresupuestosTab />
         </TabsContent>
       </Tabs>
 

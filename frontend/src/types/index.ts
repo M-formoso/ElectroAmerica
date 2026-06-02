@@ -46,6 +46,8 @@ export interface Proyecto {
   supervisor?: Usuario
   deposito_id?: string | null
   deposito_nombre?: string
+  lista_precio_id?: string | null
+  lista_precio_nombre?: string | null
   activo: boolean
   created_at: string
 }

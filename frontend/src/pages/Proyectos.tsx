@@ -61,6 +61,7 @@ import { proyectoActividadesService } from '@/services/proyectoActividades'
 import { herramientasService, type Herramienta } from '@/services/herramientas'
 import { getClientes, type ClienteListItem } from '@/services/clientes'
 import { depositosService } from '@/services/depositos'
+import { listasPrecioService } from '@/services/listasPrecio'
 import { formatDate } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useIsAdmin } from '@/store/auth'
@@ -81,6 +82,7 @@ interface ProyectoForm {
   cliente_id: string
   fuente_materiales: 'ninguna' | 'global' | 'deposito'
   deposito_id: string
+  lista_precio_id: string
   actividades: ActividadSeleccionada[]
   herramientas_ids: string[]
 }
@@ -95,6 +97,7 @@ const formInicial: ProyectoForm = {
   cliente_id: '',
   fuente_materiales: 'ninguna',
   deposito_id: '',
+  lista_precio_id: '',
   actividades: [],
   herramientas_ids: [],
 }
@@ -150,6 +153,12 @@ export function ProyectosPage() {
   const { data: clientes = [] } = useQuery({
     queryKey: ['clientes'],
     queryFn: () => getClientes(),
+  })
+
+  const { data: listasPrecio = [] } = useQuery({
+    queryKey: ['listas-precio'],
+    queryFn: () => listasPrecioService.listar(),
+    enabled: isCreateOpen,
   })
 
   // Depositos del cliente seleccionado (para elegir fuente de materiales)
@@ -255,6 +264,7 @@ export function ProyectosPage() {
           formData.fuente_materiales === 'deposito' && formData.deposito_id
             ? formData.deposito_id
             : undefined,
+        lista_precio_id: formData.lista_precio_id || undefined,
       },
       actividades: formData.actividades,
     })
@@ -670,6 +680,29 @@ export function ProyectosPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Lista de precios</Label>
+                  <Select
+                    value={formData.lista_precio_id}
+                    onValueChange={(v) =>
+                      setFormData({ ...formData, lista_precio_id: v })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sin lista (cargar precios manualmente despues)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {listasPrecio.map((l) => (
+                        <SelectItem key={l.id} value={l.id}>
+                          {l.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Los precios de las actividades se congelan al cargarlas en este proyecto.
+                  </p>
                 </div>
               </div>
 
