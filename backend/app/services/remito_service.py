@@ -104,19 +104,43 @@ def _descontar_material_cascada(
     usuario_id: Optional[UUID],
     descontar_de_cualquier_deposito: bool = False,
 ) -> None:
-    """Descuenta `cantidad` de `material` empezando por `origen` y
-    siguiendo con los depositos del mismo grupo (padre+hermanos o hijos).
-    Si `descontar_de_cualquier_deposito=True`, despues del grupo del
-    origen tambien se puede tomar stock de cualquier otro deposito
-    activo (ordenado por stock disponible descendente).
-    Si despues de recorrer todo queda restante, lo descuenta del `origen`
-    dejandolo en negativo. Cada descuento real se registra en
-    `RemitoDescuento` para poder revertirlo despues.
+    """Descuenta `cantidad` de `material` del deposito `origen`.
+
+    Por defecto (descontar_de_cualquier_deposito=False): descuenta TODO
+    del `origen`, dejandolo en negativo si no alcanza. Es lo que esperamos
+    en un egreso normal: si el operario dice "salio del subdeposito X",
+    el stock de X tiene que reflejar la salida, aunque quede en rojo.
+
+    Si `descontar_de_cualquier_deposito=True` (toggle "Catalogo completo"):
+    redistribuye buscando stock primero en el origen, despues en sus
+    hermanos/padre y, por ultimo, en cualquier otro deposito activo. Lo
+    que falte al final queda como negativo en el origen.
     """
+    if not descontar_de_cualquier_deposito:
+        dm = _get_or_create_deposito_material(db, origen.id, material.id)
+        stock_anterior = dm.stock_actual
+        dm.stock_actual = stock_anterior - cantidad
+        db.add(MovimientoStock(
+            material_id=material.id,
+            tipo=TipoMovimiento.salida,
+            cantidad=cantidad,
+            stock_anterior=stock_anterior,
+            stock_nuevo=stock_anterior - cantidad,
+            motivo=f"{motivo_prefix} (deposito {origen.nombre})",
+            proyecto_id=proyecto_id,
+            deposito_id=origen.id,
+            usuario_id=usuario_id,
+        ))
+        db.add(RemitoDescuento(
+            remito_id=remito_id,
+            deposito_id=origen.id,
+            material_id=material.id,
+            cantidad=cantidad,
+        ))
+        return
+
     restante = cantidad
-    candidatos = _depositos_relacionados(
-        db, origen, incluir_todos=descontar_de_cualquier_deposito
-    )
+    candidatos = _depositos_relacionados(db, origen, incluir_todos=True)
 
     for dep in candidatos:
         if restante <= 0:
