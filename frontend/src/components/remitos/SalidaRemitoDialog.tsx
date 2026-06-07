@@ -189,17 +189,15 @@ export function SalidaRemitoDialog({
         items: itemsArmados,
         descontar_de_cualquier_deposito: fuente === 'catalogo',
       }),
-    onSuccess: async (remito) => {
+    onSuccess: (remito) => {
       queryClient.invalidateQueries({ queryKey: ['deposito-detail', depositoId] })
       queryClient.invalidateQueries({ queryKey: ['depositos'] })
       queryClient.invalidateQueries({ queryKey: ['materiales'] })
       queryClient.invalidateQueries({ queryKey: ['remitos'] })
-      toast({ title: `Remito ${remito.numero_formateado} generado`, description: 'Descargando PDF...' })
-      try {
-        await remitosService.descargarPdf(remito.id, remito.numero_formateado)
-      } catch {
-        toast({ variant: 'destructive', title: 'No se pudo descargar el PDF' })
-      }
+      toast({
+        title: `Remito ${remito.numero_formateado} generado`,
+        description: 'Lo podes descargar desde el listado de remitos.',
+      })
       onOpenChange(false)
     },
     onError: (e: any) => {

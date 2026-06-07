@@ -121,20 +121,15 @@ export function IngresoRemitoDialog({
         observaciones: observaciones.trim() || undefined,
         items: itemsArmados,
       }),
-    onSuccess: async (remito) => {
+    onSuccess: (remito) => {
       queryClient.invalidateQueries({ queryKey: ['deposito-detail', depositoId] })
       queryClient.invalidateQueries({ queryKey: ['depositos'] })
       queryClient.invalidateQueries({ queryKey: ['materiales'] })
       queryClient.invalidateQueries({ queryKey: ['remitos'] })
       toast({
         title: `Remito de ingreso ${remito.numero_formateado} generado`,
-        description: 'Descargando PDF...',
+        description: 'Lo podes descargar desde el listado de remitos.',
       })
-      try {
-        await remitosService.descargarPdf(remito.id, remito.numero_formateado)
-      } catch {
-        toast({ variant: 'destructive', title: 'No se pudo descargar el PDF' })
-      }
       onOpenChange(false)
     },
     onError: (e: any) => {
