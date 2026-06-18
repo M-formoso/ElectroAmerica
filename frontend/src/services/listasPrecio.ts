@@ -38,6 +38,29 @@ export interface TotalProyectoItem {
   total_ejecutado: number
 }
 
+export interface DetalleActividadPresupuesto {
+  proyecto_actividad_id: string
+  actividad_tipo_id: string
+  actividad_codigo?: string | null
+  actividad_nombre: string
+  unidad?: string | null
+  cantidad_planificada: number
+  cantidad_ejecutada: number
+  precio_unitario_snapshot: number
+  subtotal_presupuestado: number
+  subtotal_ejecutado: number
+}
+
+export interface DetallePresupuestoProyecto {
+  proyecto_id: string
+  proyecto_nombre: string
+  cliente_nombre?: string | null
+  lista_precio_nombre?: string | null
+  total_presupuestado: number
+  total_ejecutado: number
+  items: DetalleActividadPresupuesto[]
+}
+
 export const listasPrecioService = {
   async listar(): Promise<ListaPrecio[]> {
     const res = await api.get<ListaPrecio[]>('/listas-precio')
@@ -73,6 +96,15 @@ export const listasPrecioService = {
 
   async getTotalesProyectos(): Promise<TotalProyectoItem[]> {
     const res = await api.get<TotalProyectoItem[]>('/listas-precio/finanzas/totales-proyectos')
+    return res.data
+  },
+
+  async getDetallePresupuestoProyecto(
+    proyectoId: string,
+  ): Promise<DetallePresupuestoProyecto> {
+    const res = await api.get<DetallePresupuestoProyecto>(
+      `/listas-precio/finanzas/totales-proyectos/${proyectoId}/detalle`,
+    )
     return res.data
   },
 }

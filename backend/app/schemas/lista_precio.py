@@ -66,3 +66,28 @@ class TotalProyectoItem(BaseModel):
     cantidad_actividades: int = 0
     total_presupuestado: Decimal = Decimal("0")
     total_ejecutado: Decimal = Decimal("0")
+
+
+class DetalleActividadPresupuesto(BaseModel):
+    """Una linea del detalle del presupuesto de un proyecto."""
+    proyecto_actividad_id: UUID
+    actividad_tipo_id: UUID
+    actividad_codigo: Optional[str] = None
+    actividad_nombre: str
+    unidad: Optional[str] = None
+    cantidad_planificada: Decimal = Decimal("0")
+    cantidad_ejecutada: Decimal = Decimal("0")
+    precio_unitario_snapshot: Decimal = Decimal("0")
+    subtotal_presupuestado: Decimal = Decimal("0")
+    subtotal_ejecutado: Decimal = Decimal("0")
+
+
+class DetallePresupuestoProyecto(BaseModel):
+    """Detalle del presupuesto y ejecutado de un proyecto."""
+    proyecto_id: UUID
+    proyecto_nombre: str
+    cliente_nombre: Optional[str] = None
+    lista_precio_nombre: Optional[str] = None
+    total_presupuestado: Decimal = Decimal("0")
+    total_ejecutado: Decimal = Decimal("0")
+    items: List[DetalleActividadPresupuesto] = []

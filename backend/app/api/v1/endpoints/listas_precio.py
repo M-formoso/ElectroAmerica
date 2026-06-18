@@ -16,7 +16,7 @@ from app.models.cliente import Cliente
 from app.schemas.lista_precio import (
     ListaPrecioCreate, ListaPrecioUpdate, ListaPrecioResponse,
     ListaPrecioDetailResponse, PrecioActividadItem, PrecioBulkSet,
-    TotalProyectoItem,
+    TotalProyectoItem, DetallePresupuestoProyecto, DetalleActividadPresupuesto,
 )
 
 router = APIRouter()
@@ -252,3 +252,66 @@ def listar_totales_proyectos(
         )
         for p in proyectos
     ]
+
+
+@router.get(
+    "/finanzas/totales-proyectos/{proyecto_id}/detalle",
+    response_model=DetallePresupuestoProyecto,
+)
+def detalle_presupuesto_proyecto(
+    proyecto_id: UUID,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Detalle del presupuesto de un proyecto: linea por actividad con
+    cantidad planificada/ejecutada, precio snapshot y subtotales.
+    """
+    proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    actividades = (
+        db.query(ProyectoActividad)
+        .filter(
+            ProyectoActividad.proyecto_id == proyecto_id,
+            ProyectoActividad.activo == True,
+        )
+        .order_by(ProyectoActividad.orden.asc(), ProyectoActividad.created_at.asc())
+        .all()
+    )
+
+    items: List[DetalleActividadPresupuesto] = []
+    total_presup = Decimal("0")
+    total_ejec = Decimal("0")
+    for a in actividades:
+        precio = a.precio_unitario_snapshot or Decimal("0")
+        cant_plan = a.cantidad_planificada or Decimal("0")
+        cant_ejec = a.cantidad_ejecutada or Decimal("0")
+        sub_presup = precio * cant_plan
+        sub_ejec = precio * cant_ejec
+        total_presup += sub_presup
+        total_ejec += sub_ejec
+        items.append(
+            DetalleActividadPresupuesto(
+                proyecto_actividad_id=a.id,
+                actividad_tipo_id=a.actividad_tipo_id,
+                actividad_codigo=a.actividad_tipo.codigo if a.actividad_tipo else None,
+                actividad_nombre=a.actividad_tipo.nombre if a.actividad_tipo else "(sin nombre)",
+                unidad=a.actividad_tipo.unidad_trabajo if a.actividad_tipo else None,
+                cantidad_planificada=cant_plan,
+                cantidad_ejecutada=cant_ejec,
+                precio_unitario_snapshot=precio,
+                subtotal_presupuestado=sub_presup,
+                subtotal_ejecutado=sub_ejec,
+            )
+        )
+
+    return DetallePresupuestoProyecto(
+        proyecto_id=proyecto.id,
+        proyecto_nombre=proyecto.nombre,
+        cliente_nombre=proyecto.cliente.nombre_display if proyecto.cliente else None,
+        lista_precio_nombre=proyecto.lista_precio.nombre if proyecto.lista_precio else None,
+        total_presupuestado=total_presup,
+        total_ejecutado=total_ejec,
+        items=items,
+    )

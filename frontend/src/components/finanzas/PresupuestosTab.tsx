@@ -1,25 +1,65 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Loader2, Search, BarChart3 } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Loader2, Search, BarChart3, Trash2, Eye } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { listasPrecioService } from '@/services/listasPrecio'
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { listasPrecioService, type TotalProyectoItem } from '@/services/listasPrecio'
+import { proyectosService } from '@/services/proyectos'
+import { useToast } from '@/hooks/use-toast'
+import { useIsAdmin, useIsSupervisor } from '@/store/auth'
 
 const formatARS = (n: number) =>
   new Intl.NumberFormat('es-AR', {
     style: 'currency', currency: 'ARS', maximumFractionDigits: 2,
   }).format(Number(n || 0))
 
+const formatNumber = (n: number) =>
+  new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(Number(n || 0))
+
 export function PresupuestosTab() {
   const [search, setSearch] = useState('')
+  const [proyectoDetalle, setProyectoDetalle] = useState<TotalProyectoItem | null>(null)
+  const [proyectoEliminar, setProyectoEliminar] = useState<TotalProyectoItem | null>(null)
+  const { toast } = useToast()
+  const queryClient = useQueryClient()
+  const isAdmin = useIsAdmin()
+  const isSupervisor = useIsSupervisor()
+  const puedeEliminar = isAdmin || isSupervisor
 
   const { data: totales, isLoading } = useQuery({
     queryKey: ['totales-proyectos'],
     queryFn: () => listasPrecioService.getTotalesProyectos(),
+  })
+
+  const { data: detalle, isLoading: loadingDetalle } = useQuery({
+    queryKey: ['detalle-presupuesto', proyectoDetalle?.proyecto_id],
+    queryFn: () => listasPrecioService.getDetallePresupuestoProyecto(proyectoDetalle!.proyecto_id),
+    enabled: !!proyectoDetalle,
+  })
+
+  const eliminarMutation = useMutation({
+    mutationFn: (id: string) => proyectosService.deleteProyecto(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['totales-proyectos'] })
+      queryClient.invalidateQueries({ queryKey: ['proyectos'] })
+      toast({ title: 'Proyecto eliminado' })
+      setProyectoEliminar(null)
+    },
+    onError: () => {
+      toast({ variant: 'destructive', title: 'Error al eliminar proyecto' })
+    },
   })
 
   const filtrados = useMemo(() => {
@@ -100,6 +140,7 @@ export function PresupuestosTab() {
                 <TableHead className="text-right">Presupuestado</TableHead>
                 <TableHead className="text-right">Ejecutado</TableHead>
                 <TableHead className="text-right">% ejec.</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -134,6 +175,29 @@ export function PresupuestosTab() {
                       {formatARS(Number(t.total_ejecutado))}
                     </TableCell>
                     <TableCell className="text-right text-sm">{pct.toFixed(1)}%</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Ver detalle"
+                          onClick={() => setProyectoDetalle(t)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        {puedeEliminar && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Eliminar proyecto"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setProyectoEliminar(t)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 )
               })}
@@ -141,6 +205,147 @@ export function PresupuestosTab() {
           </Table>
         </Card>
       )}
+
+      <Dialog
+        open={!!proyectoDetalle}
+        onOpenChange={(open) => !open && setProyectoDetalle(null)}
+      >
+        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalle de presupuesto</DialogTitle>
+            <DialogDescription>
+              {proyectoDetalle?.proyecto_nombre}
+              {proyectoDetalle?.cliente_nombre ? ` — ${proyectoDetalle.cliente_nombre}` : ''}
+              {proyectoDetalle?.lista_precio_nombre
+                ? ` · Lista: ${proyectoDetalle.lista_precio_nombre}`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingDetalle || !detalle ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : detalle.items.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground text-sm">
+              Este proyecto no tiene actividades cargadas.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Actividad</TableHead>
+                      <TableHead className="text-right">Cant. planif.</TableHead>
+                      <TableHead className="text-right">Cant. ejec.</TableHead>
+                      <TableHead className="text-right">Precio unit.</TableHead>
+                      <TableHead className="text-right">Subtotal presup.</TableHead>
+                      <TableHead className="text-right">Subtotal ejec.</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detalle.items.map((it) => (
+                      <TableRow key={it.proyecto_actividad_id}>
+                        <TableCell>
+                          <div className="font-medium text-sm">
+                            {it.actividad_codigo ? `${it.actividad_codigo} · ` : ''}
+                            {it.actividad_nombre}
+                          </div>
+                          {it.unidad && (
+                            <div className="text-xs text-muted-foreground">
+                              Unidad: {it.unidad}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-sm">
+                          {formatNumber(Number(it.cantidad_planificada))}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-sm">
+                          {formatNumber(Number(it.cantidad_ejecutada))}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-sm">
+                          {formatARS(Number(it.precio_unitario_snapshot))}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-sm">
+                          {formatARS(Number(it.subtotal_presupuestado))}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-sm text-primary">
+                          {formatARS(Number(it.subtotal_ejecutado))}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground">Total presupuestado</p>
+                    <p className="text-xl font-bold">
+                      {formatARS(Number(detalle.total_presupuestado))}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground">Total ejecutado</p>
+                    <p className="text-xl font-bold text-primary">
+                      {formatARS(Number(detalle.total_ejecutado))}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProyectoDetalle(null)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={!!proyectoEliminar}
+        onOpenChange={(open) => !open && setProyectoEliminar(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar proyecto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Vas a eliminar el proyecto <strong>{proyectoEliminar?.proyecto_nombre}</strong>.
+              Esto da de baja el proyecto y sus actividades asociadas. Esta acción no se puede deshacer desde acá.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={eliminarMutation.isPending}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={eliminarMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault()
+                if (proyectoEliminar) {
+                  eliminarMutation.mutate(proyectoEliminar.proyecto_id)
+                }
+              }}
+            >
+              {eliminarMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Eliminando...
+                </>
+              ) : (
+                'Eliminar'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
