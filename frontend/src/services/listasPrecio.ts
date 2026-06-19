@@ -172,4 +172,12 @@ export const listasPrecioService = {
     )
     return res.data
   },
+
+  async descargarPdfFacturacion(proyectoId: string): Promise<Blob> {
+    const res = await api.get<Blob>(
+      `/listas-precio/finanzas/facturacion/${proyectoId}/pdf`,
+      { responseType: 'blob' },
+    )
+    return res.data
+  },
 }

@@ -438,3 +438,281 @@ def generar_pdf_resumen_actividades(datos: dict) -> bytes:
     buffer.close()
 
     return pdf_bytes
+
+
+def generar_pdf_facturacion_proyecto(datos: dict) -> bytes:
+    """Genera el "super remito" / detalle del proyecto finalizado para
+    facturación. Incluye datos de la empresa, cliente, proyecto, lista
+    de actividades ejecutadas con precios y subtotales, total y estado
+    de facturación / cobro.
+    """
+    ROJO = colors.HexColor('#E53935')
+    ROJO_OSCURO = colors.HexColor('#C62828')
+    GRIS_FONDO = colors.HexColor('#F5F5F5')
+    GRIS_BORDE = colors.HexColor('#E0E0E0')
+    NEGRO = colors.HexColor('#1A1A1A')
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=1.8 * cm,
+        leftMargin=1.8 * cm,
+        topMargin=1.8 * cm,
+        bottomMargin=1.8 * cm,
+        title=f"Detalle proyecto {datos.get('proyecto_nombre', '')}",
+    )
+
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(
+        name='HeaderTitle',
+        parent=styles['Title'],
+        fontSize=20,
+        textColor=ROJO,
+        alignment=TA_LEFT,
+        spaceAfter=2,
+    ))
+    styles.add(ParagraphStyle(
+        name='HeaderSub',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.HexColor('#666666'),
+        spaceAfter=12,
+    ))
+    styles.add(ParagraphStyle(
+        name='Section',
+        parent=styles['Heading2'],
+        fontSize=11,
+        textColor=colors.white,
+        backColor=ROJO,
+        borderPadding=6,
+        spaceBefore=14,
+        spaceAfter=10,
+        leading=14,
+    ))
+    styles.add(ParagraphStyle(
+        name='Body',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=NEGRO,
+        leading=12,
+    ))
+    styles.add(ParagraphStyle(
+        name='SmallCenter',
+        parent=styles['Normal'],
+        fontSize=8,
+        textColor=colors.HexColor('#9ca3af'),
+        alignment=TA_CENTER,
+    ))
+
+    def fmt_money(v):
+        try:
+            return f"$ {float(v or 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+        except Exception:
+            return "$ 0,00"
+
+    def fmt_qty(v):
+        try:
+            return f"{float(v or 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+        except Exception:
+            return "0,00"
+
+    def fmt_date(v):
+        if not v:
+            return '-'
+        if hasattr(v, 'strftime'):
+            return v.strftime('%d/%m/%Y')
+        s = str(v)
+        if len(s) >= 10 and s[4] == '-':
+            return f"{s[8:10]}/{s[5:7]}/{s[0:4]}"
+        return s
+
+    estado_label = {
+        'pendiente': 'PENDIENTE DE FACTURAR',
+        'facturado': 'FACTURADO',
+        'cobrado': 'COBRADO',
+    }.get(datos.get('estado_facturacion', 'pendiente'), 'PENDIENTE')
+    estado_color = {
+        'pendiente': colors.HexColor('#F59E0B'),
+        'facturado': colors.HexColor('#3B82F6'),
+        'cobrado': colors.HexColor('#10B981'),
+    }.get(datos.get('estado_facturacion', 'pendiente'), colors.HexColor('#9CA3AF'))
+
+    elements = []
+
+    # ============ Header ============
+    header_left = [
+        Paragraph('ELECTRO AMERICA', styles['HeaderTitle']),
+        Paragraph('Servicios de Ingeniería y Construcción', styles['HeaderSub']),
+    ]
+    header_right_text = (
+        f"<b>DETALLE DE PROYECTO</b><br/>"
+        f"Fecha de emisión: {fmt_date(datos.get('fecha_emision'))}"
+    )
+    header_right = [Paragraph(header_right_text, ParagraphStyle(
+        name='HeaderRightDoc',
+        parent=styles['Normal'],
+        fontSize=9,
+        alignment=TA_RIGHT,
+        leading=12,
+    ))]
+    header_table = Table(
+        [[header_left, header_right]],
+        colWidths=[10 * cm, 7.4 * cm],
+    )
+    header_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LINEBELOW', (0, 0), (-1, -1), 1.5, ROJO),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    elements.append(header_table)
+    elements.append(Spacer(1, 6))
+
+    # ============ Estado ============
+    estado_table = Table(
+        [[Paragraph(f"<b>ESTADO:</b> {estado_label}", ParagraphStyle(
+            name='Estado', parent=styles['Normal'], fontSize=11,
+            textColor=colors.white, alignment=TA_CENTER,
+        ))]],
+        colWidths=[17.4 * cm],
+    )
+    estado_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), estado_color),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    elements.append(estado_table)
+
+    # ============ Cliente / Proyecto ============
+    elements.append(Paragraph('CLIENTE Y PROYECTO', styles['Section']))
+    info_data = [
+        ['Proyecto', datos.get('proyecto_nombre', '-')],
+        ['Cliente', datos.get('cliente_nombre') or '-'],
+        ['Ubicación', datos.get('ubicacion') or '-'],
+        ['Lista de precios', datos.get('lista_precio_nombre') or '-'],
+        ['Fecha inicio', fmt_date(datos.get('fecha_inicio'))],
+        ['Fecha finalización', fmt_date(datos.get('fecha_fin_real'))],
+    ]
+    info_table = Table(info_data, colWidths=[4.5 * cm, 12.9 * cm])
+    info_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#424242')),
+        ('BACKGROUND', (0, 0), (0, -1), GRIS_FONDO),
+        ('GRID', (0, 0), (-1, -1), 0.4, GRIS_BORDE),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    elements.append(info_table)
+
+    # ============ Facturación ============
+    if datos.get('estado_facturacion') != 'pendiente':
+        elements.append(Paragraph('FACTURACIÓN', styles['Section']))
+        fact_data = [
+            ['Nº de factura', datos.get('numero_factura') or '-'],
+            ['Fecha de facturación', fmt_date(datos.get('fecha_facturacion'))],
+            ['Monto facturado', fmt_money(datos.get('monto_facturado'))],
+        ]
+        if datos.get('estado_facturacion') == 'cobrado':
+            fact_data.append(['Fecha de cobro', fmt_date(datos.get('fecha_cobro'))])
+        fact_table = Table(fact_data, colWidths=[4.5 * cm, 12.9 * cm])
+        fact_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#424242')),
+            ('BACKGROUND', (0, 0), (0, -1), GRIS_FONDO),
+            ('GRID', (0, 0), (-1, -1), 0.4, GRIS_BORDE),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        elements.append(fact_table)
+
+    # ============ Detalle de actividades ============
+    elements.append(Paragraph('DETALLE DE ACTIVIDADES EJECUTADAS', styles['Section']))
+    items = datos.get('items', [])
+
+    detalle_data = [[
+        Paragraph('<b>Actividad</b>', styles['Body']),
+        Paragraph('<b>Unidad</b>', styles['Body']),
+        Paragraph('<b>Planif.</b>', styles['Body']),
+        Paragraph('<b>Ejec.</b>', styles['Body']),
+        Paragraph('<b>P. unit.</b>', styles['Body']),
+        Paragraph('<b>Subtotal</b>', styles['Body']),
+    ]]
+    for it in items:
+        nombre = it.get('actividad_nombre') or '-'
+        if it.get('actividad_codigo'):
+            nombre = f"{it['actividad_codigo']} · {nombre}"
+        detalle_data.append([
+            Paragraph(nombre, styles['Body']),
+            Paragraph(it.get('unidad') or '-', styles['Body']),
+            Paragraph(fmt_qty(it.get('cantidad_planificada')), styles['Body']),
+            Paragraph(fmt_qty(it.get('cantidad_ejecutada')), styles['Body']),
+            Paragraph(fmt_money(it.get('precio_unitario_snapshot')), styles['Body']),
+            Paragraph(fmt_money(it.get('subtotal_ejecutado')), styles['Body']),
+        ])
+
+    if len(detalle_data) == 1:
+        detalle_data.append([
+            Paragraph('<i>El proyecto no tiene actividades cargadas.</i>', styles['Body']),
+            '', '', '', '', '',
+        ])
+
+    detalle_table = Table(
+        detalle_data,
+        colWidths=[6.0 * cm, 1.8 * cm, 1.8 * cm, 1.8 * cm, 2.8 * cm, 3.2 * cm],
+        repeatRows=1,
+    )
+    detalle_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), ROJO),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -1), 0.4, GRIS_BORDE),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, GRIS_FONDO]),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    elements.append(detalle_table)
+
+    # ============ Totales ============
+    elements.append(Spacer(1, 8))
+    totales_data = [
+        ['Total presupuestado', fmt_money(datos.get('total_presupuestado'))],
+        ['Total ejecutado', fmt_money(datos.get('total_ejecutado'))],
+    ]
+    totales_table = Table(totales_data, colWidths=[12.4 * cm, 5.0 * cm])
+    totales_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTSIZE', (0, 1), (-1, 1), 12),
+        ('TEXTCOLOR', (0, 1), (-1, 1), ROJO_OSCURO),
+        ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+        ('BACKGROUND', (0, 1), (-1, 1), GRIS_FONDO),
+        ('LINEABOVE', (0, 1), (-1, 1), 1.5, ROJO),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 10),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+    ]))
+    elements.append(totales_table)
+
+    # ============ Footer ============
+    elements.append(Spacer(1, 24))
+    elements.append(Paragraph(
+        f"Documento generado el {datetime.now().strftime('%d/%m/%Y %H:%M')} — Electro América",
+        styles['SmallCenter'],
+    ))
+
+    doc.build(elements)
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    return pdf_bytes

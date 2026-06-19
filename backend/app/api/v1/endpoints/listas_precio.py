@@ -1,10 +1,11 @@
 """Endpoints para listas de precios y precios por actividad."""
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 from uuid import UUID
 from decimal import Decimal
+from datetime import date
 
 from app.core.deps import get_db, get_usuario_actual, require_admin_or_supervisor
 from app.models.usuario import Usuario
@@ -19,6 +20,7 @@ from app.schemas.lista_precio import (
     TotalProyectoItem, DetallePresupuestoProyecto, DetalleActividadPresupuesto,
     FacturacionProyectoItem, FacturarProyectoBody, CobrarProyectoBody,
 )
+from app.services.pdf_service import generar_pdf_facturacion_proyecto
 
 router = APIRouter()
 
@@ -245,6 +247,24 @@ def listar_totales_proyectos(
         for r in agg_rows
     }
 
+    # Auto-finalizar proyectos que ya estan al 100% (ejecutado >= presupuestado).
+    # Esto cubre proyectos que se cargaron al 100% antes de tener la logica
+    # de auto-finalizacion en _actualizar_avance_proyecto.
+    autofinalizados = set()
+    for p in proyectos:
+        info = agg.get(p.id, {})
+        presup = Decimal(info.get("presup", 0) or 0)
+        ejec = Decimal(info.get("ejec", 0) or 0)
+        if presup > 0 and ejec >= presup:
+            p.estado = EstadoProyecto.finalizado
+            if not p.fecha_fin_real:
+                p.fecha_fin_real = date.today()
+            if p.porcentaje_avance is None or p.porcentaje_avance < Decimal("100"):
+                p.porcentaje_avance = Decimal("100")
+            autofinalizados.add(p.id)
+    if autofinalizados:
+        db.commit()
+
     return [
         TotalProyectoItem(
             proyecto_id=p.id,
@@ -258,6 +278,7 @@ def listar_totales_proyectos(
             total_ejecutado=agg.get(p.id, {}).get("ejec", Decimal("0")),
         )
         for p in proyectos
+        if p.id not in autofinalizados
     ]
 
 
@@ -516,4 +537,80 @@ def revertir_facturacion(
         monto_facturado=proyecto.monto_facturado,
         total_presupuestado=agg.get(proyecto.id, {}).get("presup", Decimal("0")),
         total_ejecutado=agg.get(proyecto.id, {}).get("ejec", Decimal("0")),
+    )
+
+
+@router.get("/finanzas/facturacion/{proyecto_id}/pdf")
+def descargar_pdf_facturacion(
+    proyecto_id: UUID,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Genera el PDF "super remito" del proyecto: datos del cliente,
+    listado de actividades ejecutadas con precios snapshot, totales y
+    estado de facturación / cobro.
+    """
+    proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    actividades = (
+        db.query(ProyectoActividad)
+        .filter(
+            ProyectoActividad.proyecto_id == proyecto_id,
+            ProyectoActividad.activo == True,
+        )
+        .order_by(ProyectoActividad.orden.asc(), ProyectoActividad.created_at.asc())
+        .all()
+    )
+
+    items = []
+    total_presup = Decimal("0")
+    total_ejec = Decimal("0")
+    for a in actividades:
+        precio = a.precio_unitario_snapshot or Decimal("0")
+        cant_plan = a.cantidad_planificada or Decimal("0")
+        cant_ejec = a.cantidad_ejecutada or Decimal("0")
+        sub_presup = precio * cant_plan
+        sub_ejec = precio * cant_ejec
+        total_presup += sub_presup
+        total_ejec += sub_ejec
+        items.append({
+            "actividad_codigo": a.actividad_tipo.codigo if a.actividad_tipo else None,
+            "actividad_nombre": a.actividad_tipo.nombre if a.actividad_tipo else "(sin nombre)",
+            "unidad": a.actividad_tipo.unidad_trabajo if a.actividad_tipo else None,
+            "cantidad_planificada": cant_plan,
+            "cantidad_ejecutada": cant_ejec,
+            "precio_unitario_snapshot": precio,
+            "subtotal_presupuestado": sub_presup,
+            "subtotal_ejecutado": sub_ejec,
+        })
+
+    datos = {
+        "fecha_emision": date.today(),
+        "proyecto_nombre": proyecto.nombre,
+        "cliente_nombre": (proyecto.cliente.nombre_display if proyecto.cliente else None),
+        "ubicacion": proyecto.ubicacion,
+        "lista_precio_nombre": proyecto.lista_precio.nombre if proyecto.lista_precio else None,
+        "fecha_inicio": proyecto.fecha_inicio,
+        "fecha_fin_real": proyecto.fecha_fin_real,
+        "estado_facturacion": (
+            proyecto.estado_facturacion.value if proyecto.estado_facturacion else "pendiente"
+        ),
+        "numero_factura": proyecto.numero_factura,
+        "fecha_facturacion": proyecto.fecha_facturacion,
+        "monto_facturado": proyecto.monto_facturado,
+        "fecha_cobro": proyecto.fecha_cobro,
+        "items": items,
+        "total_presupuestado": total_presup,
+        "total_ejecutado": total_ejec,
+    }
+
+    pdf_bytes = generar_pdf_facturacion_proyecto(datos)
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in proyecto.nombre)[:60]
+    filename = f"detalle_{safe_name}_{date.today().isoformat()}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

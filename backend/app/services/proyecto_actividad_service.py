@@ -11,7 +11,7 @@ from fastapi import HTTPException
 
 from app.models.proyecto_actividad import ProyectoActividad, AvanceActividad, ProyectoHerramienta
 from app.models.actividad_tipo import ActividadTipo, MaterialActividadTipo
-from app.models.proyecto import Proyecto
+from app.models.proyecto import Proyecto, EstadoProyecto
 from app.models.lista_precio import PrecioListaActividad
 from app.models.herramienta import Herramienta
 from app.models.material import Material
@@ -406,6 +406,15 @@ class ProyectoActividadService:
         proyecto = self.db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
         if proyecto:
             proyecto.porcentaje_avance = min(porcentaje, Decimal("100"))
+            # Auto-finalizar cuando el proyecto llega al 100% para que
+            # pase automaticamente al tab de Facturacion.
+            if (
+                porcentaje >= Decimal("100")
+                and proyecto.estado != EstadoProyecto.finalizado
+            ):
+                proyecto.estado = EstadoProyecto.finalizado
+                if not proyecto.fecha_fin_real:
+                    proyecto.fecha_fin_real = date.today()
             self.db.commit()
 
     def obtener_resumen_proyecto(self, proyecto_id: UUID) -> ResumenActividadesProyecto:

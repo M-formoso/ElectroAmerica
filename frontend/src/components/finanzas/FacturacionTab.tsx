@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Loader2, Search, FileText, DollarSign, CheckCircle2, RotateCcw,
+  Loader2, Search, FileText, DollarSign, CheckCircle2, RotateCcw, Eye, Download,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
@@ -17,6 +17,9 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
 import {
   listasPrecioService,
   type FacturacionProyectoItem,
@@ -40,6 +43,7 @@ const hoyISO = () => new Date().toISOString().split('T')[0]
 type FacturarDialogState =
   | { kind: 'facturar'; item: FacturacionProyectoItem }
   | { kind: 'cobrar'; item: FacturacionProyectoItem }
+  | { kind: 'detalle'; item: FacturacionProyectoItem }
   | null
 
 export function FacturacionTab() {
@@ -56,6 +60,13 @@ export function FacturacionTab() {
   const { data: items, isLoading } = useQuery({
     queryKey: ['facturacion-proyectos', tab],
     queryFn: () => listasPrecioService.getFacturacionProyectos(tab),
+  })
+
+  const proyectoDetalleId = dialogState?.kind === 'detalle' ? dialogState.item.proyecto_id : null
+  const { data: detalle, isLoading: loadingDetalle } = useQuery({
+    queryKey: ['detalle-presupuesto', proyectoDetalleId],
+    queryFn: () => listasPrecioService.getDetallePresupuestoProyecto(proyectoDetalleId!),
+    enabled: !!proyectoDetalleId,
   })
 
   const filtrados = useMemo(() => {
@@ -144,6 +155,67 @@ export function FacturacionTab() {
   const abrirCobrar = (item: FacturacionProyectoItem) => {
     setFechaCobro(item.fecha_cobro || hoyISO())
     setDialogState({ kind: 'cobrar', item })
+  }
+
+  const abrirDetalle = (item: FacturacionProyectoItem) => {
+    setDialogState({ kind: 'detalle', item })
+  }
+
+  const descargarPdf = async (item: FacturacionProyectoItem) => {
+    try {
+      const blob = await listasPrecioService.descargarPdfFacturacion(item.proyecto_id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const safe = item.proyecto_nombre.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60)
+      a.download = `detalle_${safe}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch {
+      toast({ variant: 'destructive', title: 'Error al descargar PDF' })
+    }
+  }
+
+  const cambiarEstadoDesdeDetalle = async (nuevo: EstadoFacturacion) => {
+    if (!dialogState || dialogState.kind !== 'detalle') return
+    const item = dialogState.item
+    if (nuevo === item.estado_facturacion) return
+    if (nuevo === 'facturado') {
+      if (item.estado_facturacion === 'cobrado') {
+        await revertirMutation.mutateAsync(item.proyecto_id)
+        cerrarDialog()
+      } else {
+        cerrarDialog()
+        abrirFacturar(item)
+      }
+      return
+    }
+    if (nuevo === 'cobrado') {
+      if (item.estado_facturacion === 'pendiente') {
+        toast({
+          variant: 'destructive',
+          title: 'Primero hay que facturar',
+          description: 'Marcá facturado antes de registrar el cobro.',
+        })
+        return
+      }
+      cerrarDialog()
+      abrirCobrar(item)
+      return
+    }
+    if (nuevo === 'pendiente') {
+      try {
+        if (item.estado_facturacion === 'cobrado') {
+          await revertirMutation.mutateAsync(item.proyecto_id)
+        }
+        await revertirMutation.mutateAsync(item.proyecto_id)
+        cerrarDialog()
+      } catch {
+        // el onError del mutation ya muestra el toast
+      }
+    }
   }
 
   const cerrarDialog = () => setDialogState(null)
@@ -278,6 +350,146 @@ export function FacturacionTab() {
       </Dialog>
 
       <Dialog
+        open={dialogState?.kind === 'detalle'}
+        onOpenChange={(o) => !o && cerrarDialog()}
+      >
+        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalle del proyecto</DialogTitle>
+            <DialogDescription>
+              {dialogState?.kind === 'detalle' && dialogState.item.proyecto_nombre}
+              {dialogState?.kind === 'detalle' && dialogState.item.cliente_nombre
+                ? ` — ${dialogState.item.cliente_nombre}`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          {dialogState?.kind === 'detalle' && (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Estado</Label>
+                  <Select
+                    value={dialogState.item.estado_facturacion}
+                    onValueChange={(v) => cambiarEstadoDesdeDetalle(v as EstadoFacturacion)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pendiente">Pendiente de facturar</SelectItem>
+                      <SelectItem value="facturado">Facturado</SelectItem>
+                      <SelectItem value="cobrado">Cobrado / Pagado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Nº de factura</Label>
+                  <div className="text-sm font-medium">
+                    {dialogState.item.numero_factura || '-'}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Fecha factura / cobro</Label>
+                  <div className="text-sm font-medium">
+                    {formatFecha(dialogState.item.fecha_facturacion)}
+                    {dialogState.item.fecha_cobro ? ` · cobrado el ${formatFecha(dialogState.item.fecha_cobro)}` : ''}
+                  </div>
+                </div>
+              </div>
+
+              {loadingDetalle || !detalle ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : detalle.items.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground text-sm">
+                  Este proyecto no tiene actividades cargadas.
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Actividad</TableHead>
+                          <TableHead className="text-right">Cant. planif.</TableHead>
+                          <TableHead className="text-right">Cant. ejec.</TableHead>
+                          <TableHead className="text-right">Precio unit.</TableHead>
+                          <TableHead className="text-right">Subtotal ejec.</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {detalle.items.map((it) => (
+                          <TableRow key={it.proyecto_actividad_id}>
+                            <TableCell>
+                              <div className="font-medium text-sm">
+                                {it.actividad_codigo ? `${it.actividad_codigo} · ` : ''}
+                                {it.actividad_nombre}
+                              </div>
+                              {it.unidad && (
+                                <div className="text-xs text-muted-foreground">
+                                  Unidad: {it.unidad}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-sm">
+                              {Number(it.cantidad_planificada).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-sm">
+                              {Number(it.cantidad_ejecutada).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-sm">
+                              {formatARS(Number(it.precio_unitario_snapshot))}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-sm text-primary">
+                              {formatARS(Number(it.subtotal_ejecutado))}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-xs text-muted-foreground">Total presupuestado</p>
+                        <p className="text-xl font-bold">
+                          {formatARS(Number(detalle.total_presupuestado))}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-xs text-muted-foreground">Total ejecutado</p>
+                        <p className="text-xl font-bold text-primary">
+                          {formatARS(Number(detalle.total_ejecutado))}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            {dialogState?.kind === 'detalle' && (
+              <Button
+                variant="outline"
+                onClick={() => descargarPdf(dialogState.item)}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Descargar PDF
+              </Button>
+            )}
+            <Button variant="outline" onClick={cerrarDialog}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
         open={dialogState?.kind === 'cobrar'}
         onOpenChange={(o) => !o && cerrarDialog()}
       >
@@ -377,6 +589,22 @@ export function FacturacionTab() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Ver detalle"
+                        onClick={() => abrirDetalle(t)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Descargar PDF"
+                        onClick={() => descargarPdf(t)}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
                       {estado === 'pendiente' && (
                         <Button
                           variant="outline"
