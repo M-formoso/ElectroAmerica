@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 from uuid import UUID
 
@@ -91,3 +91,29 @@ class DetallePresupuestoProyecto(BaseModel):
     total_presupuestado: Decimal = Decimal("0")
     total_ejecutado: Decimal = Decimal("0")
     items: List[DetalleActividadPresupuesto] = []
+
+
+class FacturacionProyectoItem(BaseModel):
+    """Item de la grilla de facturación: proyecto finalizado con su estado
+    de facturación/cobro y los totales presupuestado y ejecutado."""
+    proyecto_id: UUID
+    proyecto_nombre: str
+    cliente_nombre: Optional[str] = None
+    fecha_fin_real: Optional[date] = None
+    estado_facturacion: str = "pendiente"
+    numero_factura: Optional[str] = None
+    fecha_facturacion: Optional[date] = None
+    fecha_cobro: Optional[date] = None
+    monto_facturado: Optional[Decimal] = None
+    total_presupuestado: Decimal = Decimal("0")
+    total_ejecutado: Decimal = Decimal("0")
+
+
+class FacturarProyectoBody(BaseModel):
+    numero_factura: str = Field(..., min_length=1, max_length=60)
+    fecha_facturacion: date
+    monto_facturado: Optional[Decimal] = Field(None, ge=0)
+
+
+class CobrarProyectoBody(BaseModel):
+    fecha_cobro: date

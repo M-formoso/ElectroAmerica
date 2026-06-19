@@ -13,6 +13,13 @@ class EstadoProyecto(str, enum.Enum):
     finalizado = "finalizado"
 
 
+class EstadoFacturacion(str, enum.Enum):
+    """Estados de facturación/cobro de un proyecto finalizado."""
+    pendiente = "pendiente"
+    facturado = "facturado"
+    cobrado = "cobrado"
+
+
 class Proyecto(Base, BaseModel):
     """Modelo de proyecto/obra."""
     __tablename__ = "proyectos"
@@ -38,6 +45,16 @@ class Proyecto(Base, BaseModel):
         nullable=True,
         index=True,
     )
+    # Facturación y cobro del proyecto finalizado.
+    estado_facturacion = Column(
+        Enum(EstadoFacturacion),
+        default=EstadoFacturacion.pendiente,
+        nullable=False,
+    )
+    numero_factura = Column(String(60), nullable=True)
+    fecha_facturacion = Column(Date, nullable=True)
+    fecha_cobro = Column(Date, nullable=True)
+    monto_facturado = Column(Numeric(15, 2), nullable=True)
 
     # Relaciones
     cliente = relationship(

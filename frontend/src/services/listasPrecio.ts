@@ -61,6 +61,32 @@ export interface DetallePresupuestoProyecto {
   items: DetalleActividadPresupuesto[]
 }
 
+export type EstadoFacturacion = 'pendiente' | 'facturado' | 'cobrado'
+
+export interface FacturacionProyectoItem {
+  proyecto_id: string
+  proyecto_nombre: string
+  cliente_nombre?: string | null
+  fecha_fin_real?: string | null
+  estado_facturacion: EstadoFacturacion
+  numero_factura?: string | null
+  fecha_facturacion?: string | null
+  fecha_cobro?: string | null
+  monto_facturado?: number | null
+  total_presupuestado: number
+  total_ejecutado: number
+}
+
+export interface FacturarProyectoBody {
+  numero_factura: string
+  fecha_facturacion: string
+  monto_facturado?: number | null
+}
+
+export interface CobrarProyectoBody {
+  fecha_cobro: string
+}
+
 export const listasPrecioService = {
   async listar(): Promise<ListaPrecio[]> {
     const res = await api.get<ListaPrecio[]>('/listas-precio')
@@ -104,6 +130,45 @@ export const listasPrecioService = {
   ): Promise<DetallePresupuestoProyecto> {
     const res = await api.get<DetallePresupuestoProyecto>(
       `/listas-precio/finanzas/totales-proyectos/${proyectoId}/detalle`,
+    )
+    return res.data
+  },
+
+  async getFacturacionProyectos(
+    estado?: EstadoFacturacion,
+  ): Promise<FacturacionProyectoItem[]> {
+    const res = await api.get<FacturacionProyectoItem[]>(
+      '/listas-precio/finanzas/facturacion',
+      { params: estado ? { estado } : undefined },
+    )
+    return res.data
+  },
+
+  async marcarFacturado(
+    proyectoId: string,
+    data: FacturarProyectoBody,
+  ): Promise<FacturacionProyectoItem> {
+    const res = await api.patch<FacturacionProyectoItem>(
+      `/listas-precio/finanzas/facturacion/${proyectoId}/facturar`,
+      data,
+    )
+    return res.data
+  },
+
+  async marcarCobrado(
+    proyectoId: string,
+    data: CobrarProyectoBody,
+  ): Promise<FacturacionProyectoItem> {
+    const res = await api.patch<FacturacionProyectoItem>(
+      `/listas-precio/finanzas/facturacion/${proyectoId}/cobrar`,
+      data,
+    )
+    return res.data
+  },
+
+  async revertirFacturacion(proyectoId: string): Promise<FacturacionProyectoItem> {
+    const res = await api.patch<FacturacionProyectoItem>(
+      `/listas-precio/finanzas/facturacion/${proyectoId}/revertir`,
     )
     return res.data
   },

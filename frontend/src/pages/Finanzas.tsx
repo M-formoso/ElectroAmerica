@@ -25,9 +25,11 @@ import {
   Receipt,
   PiggyBank,
   ListOrdered,
+  ClipboardCheck,
 } from 'lucide-react'
 import { ListasPrecioTab } from '@/components/finanzas/ListasPrecioTab'
 import { PresupuestosTab } from '@/components/finanzas/PresupuestosTab'
+import { FacturacionTab } from '@/components/finanzas/FacturacionTab'
 import {
   BarChart,
   Bar,
@@ -351,7 +353,7 @@ export function FinanzasPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             <span className="hidden sm:inline">Dashboard</span>
@@ -379,6 +381,10 @@ export function FinanzasPage() {
           <TabsTrigger value="presupuestos" className="flex items-center gap-2">
             <PiggyBank className="h-4 w-4" />
             <span className="hidden sm:inline">Presupuestos</span>
+          </TabsTrigger>
+          <TabsTrigger value="facturacion" className="flex items-center gap-2">
+            <ClipboardCheck className="h-4 w-4" />
+            <span className="hidden sm:inline">Facturación</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1062,6 +1068,10 @@ export function FinanzasPage() {
 
         <TabsContent value="presupuestos" className="space-y-4">
           <PresupuestosTab />
+        </TabsContent>
+
+        <TabsContent value="facturacion" className="space-y-4">
+          <FacturacionTab />
         </TabsContent>
       </Tabs>
 

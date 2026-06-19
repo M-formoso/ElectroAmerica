@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 from decimal import Decimal
 
@@ -10,13 +10,14 @@ from app.core.deps import get_db, get_usuario_actual, require_admin_or_superviso
 from app.models.usuario import Usuario
 from app.models.lista_precio import ListaPrecio, PrecioListaActividad
 from app.models.actividad_tipo import ActividadTipo
-from app.models.proyecto import Proyecto
+from app.models.proyecto import Proyecto, EstadoProyecto, EstadoFacturacion
 from app.models.proyecto_actividad import ProyectoActividad
 from app.models.cliente import Cliente
 from app.schemas.lista_precio import (
     ListaPrecioCreate, ListaPrecioUpdate, ListaPrecioResponse,
     ListaPrecioDetailResponse, PrecioActividadItem, PrecioBulkSet,
     TotalProyectoItem, DetallePresupuestoProyecto, DetalleActividadPresupuesto,
+    FacturacionProyectoItem, FacturarProyectoBody, CobrarProyectoBody,
 )
 
 router = APIRouter()
@@ -208,9 +209,15 @@ def listar_totales_proyectos(
 ):
     """Total presupuestado por proyecto: SUM(snapshot * cantidad_planificada).
     Total ejecutado: SUM(snapshot * cantidad_ejecutada).
+    Excluye proyectos finalizados (esos se ven en Facturación).
     Solo admin / supervisor.
     """
-    proyectos = db.query(Proyecto).order_by(Proyecto.nombre).all()
+    proyectos = (
+        db.query(Proyecto)
+        .filter(Proyecto.estado != EstadoProyecto.finalizado)
+        .order_by(Proyecto.nombre)
+        .all()
+    )
 
     # Precargar agregados por proyecto
     agg_rows = db.query(
@@ -314,4 +321,199 @@ def detalle_presupuesto_proyecto(
         total_presupuestado=total_presup,
         total_ejecutado=total_ejec,
         items=items,
+    )
+
+
+def _agregados_por_proyecto(db: Session, proyecto_ids):
+    """Devuelve dict {proyecto_id: {presup, ejec}} para los proyectos dados."""
+    if not proyecto_ids:
+        return {}
+    rows = db.query(
+        ProyectoActividad.proyecto_id,
+        func.coalesce(
+            func.sum(
+                func.coalesce(ProyectoActividad.precio_unitario_snapshot, 0)
+                * ProyectoActividad.cantidad_planificada
+            ),
+            0,
+        ).label("presup"),
+        func.coalesce(
+            func.sum(
+                func.coalesce(ProyectoActividad.precio_unitario_snapshot, 0)
+                * ProyectoActividad.cantidad_ejecutada
+            ),
+            0,
+        ).label("ejec"),
+    ).filter(
+        ProyectoActividad.activo == True,
+        ProyectoActividad.proyecto_id.in_(proyecto_ids),
+    ).group_by(ProyectoActividad.proyecto_id).all()
+    return {r.proyecto_id: {"presup": r.presup, "ejec": r.ejec} for r in rows}
+
+
+@router.get("/finanzas/facturacion", response_model=List[FacturacionProyectoItem])
+def listar_facturacion_proyectos(
+    estado: Optional[str] = None,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Proyectos finalizados con su estado de facturación/cobro.
+    Filtro opcional por estado: pendiente | facturado | cobrado.
+    """
+    q = db.query(Proyecto).filter(Proyecto.estado == EstadoProyecto.finalizado)
+    if estado:
+        try:
+            estado_enum = EstadoFacturacion(estado)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Estado de facturación inválido")
+        q = q.filter(Proyecto.estado_facturacion == estado_enum)
+
+    proyectos = q.order_by(Proyecto.fecha_fin_real.desc().nullslast(), Proyecto.nombre).all()
+    agg = _agregados_por_proyecto(db, [p.id for p in proyectos])
+
+    return [
+        FacturacionProyectoItem(
+            proyecto_id=p.id,
+            proyecto_nombre=p.nombre,
+            cliente_nombre=p.cliente.nombre_display if p.cliente else None,
+            fecha_fin_real=p.fecha_fin_real,
+            estado_facturacion=(p.estado_facturacion.value if p.estado_facturacion else "pendiente"),
+            numero_factura=p.numero_factura,
+            fecha_facturacion=p.fecha_facturacion,
+            fecha_cobro=p.fecha_cobro,
+            monto_facturado=p.monto_facturado,
+            total_presupuestado=agg.get(p.id, {}).get("presup", Decimal("0")),
+            total_ejecutado=agg.get(p.id, {}).get("ejec", Decimal("0")),
+        )
+        for p in proyectos
+    ]
+
+
+@router.patch(
+    "/finanzas/facturacion/{proyecto_id}/facturar",
+    response_model=FacturacionProyectoItem,
+)
+def marcar_facturado(
+    proyecto_id: UUID,
+    data: FacturarProyectoBody,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Marca un proyecto finalizado como facturado."""
+    proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    if proyecto.estado != EstadoProyecto.finalizado:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se pueden facturar proyectos finalizados",
+        )
+
+    proyecto.numero_factura = data.numero_factura.strip()
+    proyecto.fecha_facturacion = data.fecha_facturacion
+    proyecto.monto_facturado = data.monto_facturado
+    if proyecto.estado_facturacion != EstadoFacturacion.cobrado:
+        proyecto.estado_facturacion = EstadoFacturacion.facturado
+
+    db.commit()
+    db.refresh(proyecto)
+    agg = _agregados_por_proyecto(db, [proyecto.id])
+    return FacturacionProyectoItem(
+        proyecto_id=proyecto.id,
+        proyecto_nombre=proyecto.nombre,
+        cliente_nombre=proyecto.cliente.nombre_display if proyecto.cliente else None,
+        fecha_fin_real=proyecto.fecha_fin_real,
+        estado_facturacion=proyecto.estado_facturacion.value,
+        numero_factura=proyecto.numero_factura,
+        fecha_facturacion=proyecto.fecha_facturacion,
+        fecha_cobro=proyecto.fecha_cobro,
+        monto_facturado=proyecto.monto_facturado,
+        total_presupuestado=agg.get(proyecto.id, {}).get("presup", Decimal("0")),
+        total_ejecutado=agg.get(proyecto.id, {}).get("ejec", Decimal("0")),
+    )
+
+
+@router.patch(
+    "/finanzas/facturacion/{proyecto_id}/cobrar",
+    response_model=FacturacionProyectoItem,
+)
+def marcar_cobrado(
+    proyecto_id: UUID,
+    data: CobrarProyectoBody,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Marca un proyecto facturado como cobrado."""
+    proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    if proyecto.estado_facturacion != EstadoFacturacion.facturado:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se pueden cobrar proyectos ya facturados",
+        )
+
+    proyecto.fecha_cobro = data.fecha_cobro
+    proyecto.estado_facturacion = EstadoFacturacion.cobrado
+
+    db.commit()
+    db.refresh(proyecto)
+    agg = _agregados_por_proyecto(db, [proyecto.id])
+    return FacturacionProyectoItem(
+        proyecto_id=proyecto.id,
+        proyecto_nombre=proyecto.nombre,
+        cliente_nombre=proyecto.cliente.nombre_display if proyecto.cliente else None,
+        fecha_fin_real=proyecto.fecha_fin_real,
+        estado_facturacion=proyecto.estado_facturacion.value,
+        numero_factura=proyecto.numero_factura,
+        fecha_facturacion=proyecto.fecha_facturacion,
+        fecha_cobro=proyecto.fecha_cobro,
+        monto_facturado=proyecto.monto_facturado,
+        total_presupuestado=agg.get(proyecto.id, {}).get("presup", Decimal("0")),
+        total_ejecutado=agg.get(proyecto.id, {}).get("ejec", Decimal("0")),
+    )
+
+
+@router.patch(
+    "/finanzas/facturacion/{proyecto_id}/revertir",
+    response_model=FacturacionProyectoItem,
+)
+def revertir_facturacion(
+    proyecto_id: UUID,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Revierte el estado de facturación al paso anterior.
+    cobrado -> facturado | facturado -> pendiente (limpia datos del paso revertido).
+    """
+    proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    if proyecto.estado_facturacion == EstadoFacturacion.cobrado:
+        proyecto.estado_facturacion = EstadoFacturacion.facturado
+        proyecto.fecha_cobro = None
+    elif proyecto.estado_facturacion == EstadoFacturacion.facturado:
+        proyecto.estado_facturacion = EstadoFacturacion.pendiente
+        proyecto.numero_factura = None
+        proyecto.fecha_facturacion = None
+        proyecto.monto_facturado = None
+    else:
+        raise HTTPException(status_code=400, detail="Nada para revertir")
+
+    db.commit()
+    db.refresh(proyecto)
+    agg = _agregados_por_proyecto(db, [proyecto.id])
+    return FacturacionProyectoItem(
+        proyecto_id=proyecto.id,
+        proyecto_nombre=proyecto.nombre,
+        cliente_nombre=proyecto.cliente.nombre_display if proyecto.cliente else None,
+        fecha_fin_real=proyecto.fecha_fin_real,
+        estado_facturacion=proyecto.estado_facturacion.value,
+        numero_factura=proyecto.numero_factura,
+        fecha_facturacion=proyecto.fecha_facturacion,
+        fecha_cobro=proyecto.fecha_cobro,
+        monto_facturado=proyecto.monto_facturado,
+        total_presupuestado=agg.get(proyecto.id, {}).get("presup", Decimal("0")),
+        total_ejecutado=agg.get(proyecto.id, {}).get("ejec", Decimal("0")),
     )
