@@ -375,11 +375,19 @@ def get_saldo_cuenta(db: Session, cuenta_id: UUID) -> dict:
 
     saldo_inicial = Decimal(str(cuenta.saldo_inicial or 0))
     saldo_actual = saldo_inicial + total_ingresos - total_egresos
+    tipo_str = cuenta.tipo.value if hasattr(cuenta.tipo, "value") else str(cuenta.tipo)
 
     return {
+        "id": str(cuenta_id),
         "cuenta_id": str(cuenta_id),
         "nombre": cuenta.nombre,
-        "tipo": cuenta.tipo.value,
+        "tipo": tipo_str,
+        "descripcion": cuenta.descripcion,
+        "numero_cuenta": cuenta.numero_cuenta,
+        "banco": cuenta.banco,
+        "cbu": cuenta.cbu,
+        "alias": cuenta.alias,
+        "activo": cuenta.activo,
         "saldo_inicial": float(saldo_inicial),
         "total_ingresos": float(total_ingresos),
         "total_egresos": float(total_egresos),
