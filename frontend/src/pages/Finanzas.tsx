@@ -239,8 +239,13 @@ export function FinanzasPage() {
       setIsCreateCuentaOpen(false)
       cuentaForm.reset()
     },
-    onError: () => {
-      toast({ variant: 'destructive', title: 'Error al crear cuenta' })
+    onError: (e: any) => {
+      const detail = e?.response?.data?.detail
+      toast({
+        variant: 'destructive',
+        title: 'Error al crear cuenta',
+        description: typeof detail === 'string' ? detail : undefined,
+      })
     },
   })
 
@@ -309,7 +314,20 @@ export function FinanzasPage() {
   }
 
   const onSubmitCuenta = (data: CuentaForm) => {
-    createCuentaMutation.mutate(data as CuentaCreate)
+    const payload: CuentaCreate = {
+      nombre: data.nombre.trim(),
+      tipo: data.tipo,
+      descripcion: data.descripcion?.trim() || undefined,
+      numero_cuenta: data.numero_cuenta?.trim() || undefined,
+      banco: data.banco?.trim() || undefined,
+      cbu: data.cbu?.trim() || undefined,
+      alias: data.alias?.trim() || undefined,
+      saldo_inicial:
+        typeof data.saldo_inicial === 'number' && !Number.isNaN(data.saldo_inicial)
+          ? data.saldo_inicial
+          : 0,
+    }
+    createCuentaMutation.mutate(payload)
   }
 
   const onSubmitClienteProveedor = (data: ClienteProveedorForm) => {

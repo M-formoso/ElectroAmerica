@@ -301,11 +301,19 @@ def create_cuenta(
     current_user: Usuario = Depends(require_admin_or_supervisor)
 ):
     """Crea una nueva cuenta (caja, banco, etc.)."""
-    c = finanzas_service.create_cuenta(db, cuenta)
+    try:
+        c = finanzas_service.create_cuenta(db, cuenta)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se pudo crear la cuenta: {str(e)}",
+        )
+    tipo_str = c.tipo.value if hasattr(c.tipo, "value") else str(c.tipo)
     return {
         "id": str(c.id),
         "nombre": c.nombre,
-        "tipo": c.tipo.value,
+        "tipo": tipo_str,
         "message": "Cuenta creada exitosamente"
     }
 
