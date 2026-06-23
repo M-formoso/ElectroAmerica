@@ -145,7 +145,8 @@ export function FacturacionTab() {
       queryClient.invalidateQueries({ queryKey: ['facturacion-proyectos'] })
       queryClient.invalidateQueries({ queryKey: ['transacciones'] })
       queryClient.invalidateQueries({ queryKey: ['cuentas'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard-finanzas'] })
+      queryClient.invalidateQueries({ queryKey: ['finanzas-dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['resumen-mensual'] })
       queryClient.invalidateQueries({ queryKey: ['cuentas-cobro'] })
       toast({
         title: 'Cobro registrado',
@@ -168,7 +169,8 @@ export function FacturacionTab() {
       queryClient.invalidateQueries({ queryKey: ['facturacion-proyectos'] })
       queryClient.invalidateQueries({ queryKey: ['transacciones'] })
       queryClient.invalidateQueries({ queryKey: ['cuentas'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard-finanzas'] })
+      queryClient.invalidateQueries({ queryKey: ['finanzas-dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['resumen-mensual'] })
       toast({ title: 'Estado revertido' })
     },
     onError: (e: any) => {

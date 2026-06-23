@@ -146,14 +146,14 @@ def get_transacciones(
     return [
         {
             "id": str(t.id),
-            "tipo": t.tipo.value,
+            "tipo": finanzas_service.enum_value(t.tipo),
             "concepto": t.concepto,
             "descripcion": t.descripcion,
             "monto": float(t.monto),
             "fecha": t.fecha.isoformat(),
-            "metodo_pago": t.metodo_pago.value if t.metodo_pago else None,
+            "metodo_pago": finanzas_service.enum_value(t.metodo_pago),
             "referencia_pago": t.referencia_pago,
-            "estado": t.estado.value,
+            "estado": finanzas_service.enum_value(t.estado),
             "numero_comprobante": t.numero_comprobante,
             "tipo_comprobante": t.tipo_comprobante,
             "proyecto_id": str(t.proyecto_id) if t.proyecto_id else None,
@@ -184,14 +184,14 @@ def get_transaccion(
 
     return {
         "id": str(t.id),
-        "tipo": t.tipo.value,
+        "tipo": finanzas_service.enum_value(t.tipo),
         "concepto": t.concepto,
         "descripcion": t.descripcion,
         "monto": float(t.monto),
         "fecha": t.fecha.isoformat(),
-        "metodo_pago": t.metodo_pago.value if t.metodo_pago else None,
+        "metodo_pago": finanzas_service.enum_value(t.metodo_pago),
         "referencia_pago": t.referencia_pago,
-        "estado": t.estado.value,
+        "estado": finanzas_service.enum_value(t.estado),
         "numero_comprobante": t.numero_comprobante,
         "tipo_comprobante": t.tipo_comprobante,
         "comprobante_url": t.comprobante_url,
@@ -371,11 +371,16 @@ def get_movimientos_cuenta(
         "movimientos": [
             {
                 "id": str(t.id),
-                "tipo": t.tipo.value,
+                "tipo": finanzas_service.enum_value(t.tipo),
                 "concepto": t.concepto,
+                "descripcion": t.descripcion,
                 "monto": float(t.monto),
                 "fecha": t.fecha.isoformat(),
-                "estado": t.estado.value
+                "metodo_pago": finanzas_service.enum_value(t.metodo_pago),
+                "referencia_pago": t.referencia_pago,
+                "estado": finanzas_service.enum_value(t.estado),
+                "numero_comprobante": t.numero_comprobante,
+                "proyecto_nombre": t.proyecto.nombre if t.proyecto else None,
             }
             for t in transacciones
         ]

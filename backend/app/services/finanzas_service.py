@@ -30,6 +30,13 @@ from app.schemas.transaccion import (
 )
 
 
+def enum_value(v) -> Optional[str]:
+    """Devuelve el valor string de un enum o el propio valor si ya es str/None."""
+    if v is None:
+        return None
+    return v.value if hasattr(v, "value") else str(v)
+
+
 def cargar_precio_item(
     db: Session,
     item_trabajo_id: UUID,
@@ -375,7 +382,7 @@ def get_saldo_cuenta(db: Session, cuenta_id: UUID) -> dict:
 
     saldo_inicial = Decimal(str(cuenta.saldo_inicial or 0))
     saldo_actual = saldo_inicial + total_ingresos - total_egresos
-    tipo_str = cuenta.tipo.value if hasattr(cuenta.tipo, "value") else str(cuenta.tipo)
+    tipo_str = enum_value(cuenta.tipo)
 
     return {
         "id": str(cuenta_id),
@@ -808,11 +815,11 @@ def get_dashboard_finanzas(db: Session) -> dict:
         "ultimas_transacciones": [
             {
                 "id": str(t.id),
-                "tipo": t.tipo.value,
+                "tipo": enum_value(t.tipo),
                 "concepto": t.concepto,
                 "monto": float(t.monto),
                 "fecha": t.fecha.isoformat(),
-                "estado": t.estado.value
+                "estado": enum_value(t.estado)
             }
             for t in ultimas
         ],
