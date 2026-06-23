@@ -117,3 +117,6 @@ class FacturarProyectoBody(BaseModel):
 
 class CobrarProyectoBody(BaseModel):
     fecha_cobro: date
+    cuenta_id: Optional[UUID] = None
+    metodo_pago: Optional[str] = None
+    referencia_pago: Optional[str] = Field(None, max_length=100)

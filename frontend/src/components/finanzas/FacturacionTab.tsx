@@ -25,7 +25,18 @@ import {
   type FacturacionProyectoItem,
   type EstadoFacturacion,
 } from '@/services/listasPrecio'
+import * as finanzasService from '@/services/finanzas'
 import { useToast } from '@/hooks/use-toast'
+
+const METODOS_PAGO: { value: string; label: string }[] = [
+  { value: 'efectivo', label: 'Efectivo' },
+  { value: 'transferencia', label: 'Transferencia' },
+  { value: 'cheque', label: 'Cheque' },
+  { value: 'tarjeta_debito', label: 'Tarjeta débito' },
+  { value: 'tarjeta_credito', label: 'Tarjeta crédito' },
+  { value: 'mercado_pago', label: 'Mercado Pago' },
+  { value: 'otro', label: 'Otro' },
+]
 
 const formatARS = (n: number | null | undefined) =>
   new Intl.NumberFormat('es-AR', {
@@ -54,8 +65,16 @@ export function FacturacionTab() {
   const [fechaFact, setFechaFact] = useState(hoyISO())
   const [montoFact, setMontoFact] = useState<string>('')
   const [fechaCobro, setFechaCobro] = useState(hoyISO())
+  const [cuentaCobroId, setCuentaCobroId] = useState<string>('')
+  const [metodoPagoCobro, setMetodoPagoCobro] = useState<string>('transferencia')
+  const [referenciaCobro, setReferenciaCobro] = useState('')
   const { toast } = useToast()
   const queryClient = useQueryClient()
+
+  const { data: cuentas } = useQuery({
+    queryKey: ['cuentas-cobro'],
+    queryFn: () => finanzasService.getCuentas(),
+  })
 
   const { data: items, isLoading } = useQuery({
     queryKey: ['facturacion-proyectos', tab],
@@ -110,11 +129,28 @@ export function FacturacionTab() {
   })
 
   const cobrarMutation = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: { fecha_cobro: string } }) =>
-      listasPrecioService.marcarCobrado(id, body),
+    mutationFn: ({
+      id,
+      body,
+    }: {
+      id: string
+      body: {
+        fecha_cobro: string
+        cuenta_id?: string | null
+        metodo_pago?: string | null
+        referencia_pago?: string | null
+      }
+    }) => listasPrecioService.marcarCobrado(id, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['facturacion-proyectos'] })
-      toast({ title: 'Cobro registrado' })
+      queryClient.invalidateQueries({ queryKey: ['transacciones'] })
+      queryClient.invalidateQueries({ queryKey: ['cuentas'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-finanzas'] })
+      queryClient.invalidateQueries({ queryKey: ['cuentas-cobro'] })
+      toast({
+        title: 'Cobro registrado',
+        description: 'Se generó automáticamente un ingreso en la cuenta seleccionada.',
+      })
       cerrarDialog()
     },
     onError: (e: any) => {
@@ -130,6 +166,9 @@ export function FacturacionTab() {
     mutationFn: (id: string) => listasPrecioService.revertirFacturacion(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['facturacion-proyectos'] })
+      queryClient.invalidateQueries({ queryKey: ['transacciones'] })
+      queryClient.invalidateQueries({ queryKey: ['cuentas'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-finanzas'] })
       toast({ title: 'Estado revertido' })
     },
     onError: (e: any) => {
@@ -154,6 +193,12 @@ export function FacturacionTab() {
 
   const abrirCobrar = (item: FacturacionProyectoItem) => {
     setFechaCobro(item.fecha_cobro || hoyISO())
+    const cuentaDefault =
+      cuentas?.find((c) => c.tipo === 'caja' && c.activo) ||
+      cuentas?.find((c) => c.activo)
+    setCuentaCobroId(cuentaDefault?.id || '')
+    setMetodoPagoCobro('transferencia')
+    setReferenciaCobro('')
     setDialogState({ kind: 'cobrar', item })
   }
 
@@ -244,7 +289,12 @@ export function FacturacionTab() {
     }
     cobrarMutation.mutate({
       id: dialogState.item.proyecto_id,
-      body: { fecha_cobro: fechaCobro },
+      body: {
+        fecha_cobro: fechaCobro,
+        cuenta_id: cuentaCobroId || null,
+        metodo_pago: metodoPagoCobro || null,
+        referencia_pago: referenciaCobro.trim() || null,
+      },
     })
   }
 
@@ -501,13 +551,60 @@ export function FacturacionTab() {
               {dialogState?.item?.numero_factura ? ` · ${dialogState.item.numero_factura}` : ''}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label>Fecha de cobro *</Label>
-            <Input
-              type="date"
-              value={fechaCobro}
-              onChange={(e) => setFechaCobro(e.target.value)}
-            />
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>Fecha de cobro *</Label>
+              <Input
+                type="date"
+                value={fechaCobro}
+                onChange={(e) => setFechaCobro(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Cuenta destino *</Label>
+              <Select value={cuentaCobroId} onValueChange={setCuentaCobroId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar cuenta" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(cuentas || [])
+                    .filter((c) => c.activo)
+                    .map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nombre} · {c.tipo}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Método de pago</Label>
+                <Select value={metodoPagoCobro} onValueChange={setMetodoPagoCobro}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {METODOS_PAGO.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Referencia</Label>
+                <Input
+                  placeholder="Nº comprobante / transf."
+                  value={referenciaCobro}
+                  onChange={(e) => setReferenciaCobro(e.target.value)}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Se generará automáticamente un ingreso en la cuenta seleccionada por el monto facturado.
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={cerrarDialog}>Cancelar</Button>

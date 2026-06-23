@@ -85,6 +85,9 @@ export interface FacturarProyectoBody {
 
 export interface CobrarProyectoBody {
   fecha_cobro: string
+  cuenta_id?: string | null
+  metodo_pago?: string | null
+  referencia_pago?: string | null
 }
 
 export const listasPrecioService = {

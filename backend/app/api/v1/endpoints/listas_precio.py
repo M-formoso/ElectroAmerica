@@ -14,6 +14,9 @@ from app.models.actividad_tipo import ActividadTipo
 from app.models.proyecto import Proyecto, EstadoProyecto, EstadoFacturacion
 from app.models.proyecto_actividad import ProyectoActividad
 from app.models.cliente import Cliente
+from app.models.transaccion import (
+    Transaccion, Cuenta, TipoTransaccion, MetodoPago, EstadoTransaccion,
+)
 from app.schemas.lista_precio import (
     ListaPrecioCreate, ListaPrecioUpdate, ListaPrecioResponse,
     ListaPrecioDetailResponse, PrecioActividadItem, PrecioBulkSet,
@@ -21,6 +24,31 @@ from app.schemas.lista_precio import (
     FacturacionProyectoItem, FacturarProyectoBody, CobrarProyectoBody,
 )
 from app.services.pdf_service import generar_pdf_facturacion_proyecto
+
+
+_MARCADOR_AUTO_COBRO = "[auto-cobro:proyecto={pid}]"
+
+
+def _marca_auto_cobro(proyecto_id: UUID) -> str:
+    return _MARCADOR_AUTO_COBRO.format(pid=proyecto_id)
+
+
+def _cuenta_default_para_cobro(db: Session) -> Optional[Cuenta]:
+    """Elige la cuenta de caja activa por defecto. Prioriza tipo 'caja'."""
+    cuenta = (
+        db.query(Cuenta)
+        .filter(Cuenta.activo == True, Cuenta.tipo == "caja")
+        .order_by(Cuenta.created_at.asc())
+        .first()
+    )
+    if cuenta:
+        return cuenta
+    return (
+        db.query(Cuenta)
+        .filter(Cuenta.activo == True)
+        .order_by(Cuenta.created_at.asc())
+        .first()
+    )
 
 router = APIRouter()
 
@@ -464,7 +492,7 @@ def marcar_cobrado(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(require_admin_or_supervisor),
 ):
-    """Marca un proyecto facturado como cobrado."""
+    """Marca un proyecto facturado como cobrado y registra el ingreso en caja."""
     proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
     if not proyecto:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
@@ -476,6 +504,60 @@ def marcar_cobrado(
 
     proyecto.fecha_cobro = data.fecha_cobro
     proyecto.estado_facturacion = EstadoFacturacion.cobrado
+
+    monto_ingreso = proyecto.monto_facturado
+    if monto_ingreso is None:
+        agg_pre = _agregados_por_proyecto(db, [proyecto.id])
+        monto_ingreso = agg_pre.get(proyecto.id, {}).get("ejec", Decimal("0"))
+
+    if monto_ingreso and Decimal(monto_ingreso) > 0:
+        cuenta_id = data.cuenta_id
+        if cuenta_id is not None:
+            cuenta = (
+                db.query(Cuenta)
+                .filter(Cuenta.id == cuenta_id, Cuenta.activo == True)
+                .first()
+            )
+            if not cuenta:
+                raise HTTPException(status_code=400, detail="Cuenta no encontrada")
+        else:
+            cuenta = _cuenta_default_para_cobro(db)
+            if not cuenta:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No hay cuentas configuradas para registrar el ingreso",
+                )
+
+        metodo = MetodoPago.TRANSFERENCIA.value
+        if data.metodo_pago:
+            try:
+                metodo = MetodoPago(data.metodo_pago).value
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Método de pago inválido")
+
+        cliente_nombre = proyecto.cliente.nombre_display if proyecto.cliente else "Cliente"
+        concepto = f"Cobro factura {proyecto.numero_factura or ''} - {proyecto.nombre}".strip()
+        descripcion = (
+            f"Cobro automático del proyecto '{proyecto.nombre}' "
+            f"({cliente_nombre}). {_marca_auto_cobro(proyecto.id)}"
+        )
+
+        transaccion = Transaccion(
+            tipo=TipoTransaccion.INGRESO.value,
+            concepto=concepto[:300],
+            descripcion=descripcion,
+            monto=Decimal(monto_ingreso),
+            fecha=data.fecha_cobro,
+            metodo_pago=metodo,
+            referencia_pago=data.referencia_pago,
+            estado=EstadoTransaccion.CONFIRMADA.value,
+            numero_comprobante=proyecto.numero_factura,
+            tipo_comprobante="Factura",
+            proyecto_id=proyecto.id,
+            cuenta_id=cuenta.id,
+            creado_por_id=usuario.id,
+        )
+        db.add(transaccion)
 
     db.commit()
     db.refresh(proyecto)
@@ -514,6 +596,21 @@ def revertir_facturacion(
     if proyecto.estado_facturacion == EstadoFacturacion.cobrado:
         proyecto.estado_facturacion = EstadoFacturacion.facturado
         proyecto.fecha_cobro = None
+
+        marca = _marca_auto_cobro(proyecto.id)
+        transacciones_auto = (
+            db.query(Transaccion)
+            .filter(
+                Transaccion.proyecto_id == proyecto.id,
+                Transaccion.tipo == TipoTransaccion.INGRESO.value,
+                Transaccion.estado != EstadoTransaccion.ANULADA.value,
+                Transaccion.activo == True,
+                Transaccion.descripcion.contains(marca),
+            )
+            .all()
+        )
+        for tx in transacciones_auto:
+            tx.estado = EstadoTransaccion.ANULADA.value
     elif proyecto.estado_facturacion == EstadoFacturacion.facturado:
         proyecto.estado_facturacion = EstadoFacturacion.pendiente
         proyecto.numero_factura = None
