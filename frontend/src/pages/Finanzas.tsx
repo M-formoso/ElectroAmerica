@@ -26,6 +26,7 @@ import {
   PiggyBank,
   ListOrdered,
   ClipboardCheck,
+  Loader2,
 } from 'lucide-react'
 import { ListasPrecioTab } from '@/components/finanzas/ListasPrecioTab'
 import { PresupuestosTab } from '@/components/finanzas/PresupuestosTab'
@@ -154,6 +155,7 @@ export function FinanzasPage() {
   const [isCreateCuentaOpen, setIsCreateCuentaOpen] = useState(false)
   const [isCreateClienteProveedorOpen, setIsCreateClienteProveedorOpen] = useState(false)
   const [transaccionTipo, setTransaccionTipo] = useState<TipoTransaccion>('ingreso')
+  const [movimientosCuentaId, setMovimientosCuentaId] = useState<string | null>(null)
 
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -195,6 +197,12 @@ export function FinanzasPage() {
   const { data: resumenMensual } = useQuery({
     queryKey: ['resumen-mensual'],
     queryFn: () => finanzasService.getResumenMensual(),
+  })
+
+  const { data: movimientosCuenta, isLoading: loadingMovimientos } = useQuery({
+    queryKey: ['movimientos-cuenta', movimientosCuentaId],
+    queryFn: () => finanzasService.getMovimientosCuenta(movimientosCuentaId!),
+    enabled: !!movimientosCuentaId,
   })
 
   // Mutations
@@ -786,7 +794,11 @@ export function FinanzasPage() {
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {cuentas?.map((cuenta) => (
-              <Card key={cuenta.id}>
+              <Card
+                key={cuenta.id}
+                className="cursor-pointer transition hover:shadow-md hover:border-red-300"
+                onClick={() => setMovimientosCuentaId(cuenta.id)}
+              >
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <div className="flex items-center gap-3">
                     {cuenta.tipo === 'banco' ? (
@@ -807,11 +819,15 @@ export function FinanzasPage() {
                   {isAdmin && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenuItem>
                           <Edit className="h-4 w-4 mr-2" />
                           Editar
@@ -819,7 +835,10 @@ export function FinanzasPage() {
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-destructive"
-                          onClick={() => deleteCuentaMutation.mutate(cuenta.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            deleteCuentaMutation.mutate(cuenta.id)
+                          }}
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
                           Eliminar
@@ -1492,6 +1511,149 @@ export function FinanzasPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Movimientos de la cuenta */}
+      <Dialog
+        open={!!movimientosCuentaId}
+        onOpenChange={(o) => !o && setMovimientosCuentaId(null)}
+      >
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Movimientos · {movimientosCuenta?.cuenta?.nombre || 'Cuenta'}
+            </DialogTitle>
+            <DialogDescription>
+              {movimientosCuenta?.cuenta
+                ? `${finanzasService.getTipoCuentaLabel(movimientosCuenta.cuenta.tipo)}${
+                    movimientosCuenta.cuenta.banco ? ` · ${movimientosCuenta.cuenta.banco}` : ''
+                  }`
+                : 'Detalle de todos los ingresos y egresos de la cuenta.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingMovimientos ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {movimientosCuenta?.cuenta && (
+                <div className="grid grid-cols-3 gap-3">
+                  <Card>
+                    <CardContent className="p-3">
+                      <p className="text-xs text-muted-foreground">Saldo actual</p>
+                      <p
+                        className={`text-lg font-bold ${
+                          movimientosCuenta.cuenta.saldo_actual >= 0
+                            ? 'text-green-600'
+                            : 'text-red-600'
+                        }`}
+                      >
+                        {formatCurrency(movimientosCuenta.cuenta.saldo_actual)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-3">
+                      <p className="text-xs text-muted-foreground">Ingresos</p>
+                      <p className="text-lg font-bold text-green-600">
+                        +{formatCurrency(movimientosCuenta.cuenta.total_ingresos)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-3">
+                      <p className="text-xs text-muted-foreground">Egresos</p>
+                      <p className="text-lg font-bold text-red-600">
+                        -{formatCurrency(movimientosCuenta.cuenta.total_egresos)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {!movimientosCuenta?.movimientos?.length ? (
+                <div className="py-12 text-center text-muted-foreground text-sm">
+                  Esta cuenta todavía no tiene movimientos.
+                </div>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Concepto</TableHead>
+                        <TableHead>Método</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead className="text-right">Monto</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {movimientosCuenta.movimientos.map((m) => (
+                        <TableRow key={m.id}>
+                          <TableCell className="text-sm">{formatDate(m.fecha)}</TableCell>
+                          <TableCell>
+                            {m.tipo === 'ingreso' ? (
+                              <Badge className="bg-green-600 hover:bg-green-600">
+                                <ArrowUpRight className="h-3 w-3 mr-1" />
+                                Ingreso
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-red-600 hover:bg-red-600">
+                                <ArrowDownRight className="h-3 w-3 mr-1" />
+                                Egreso
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            <div className="font-medium">{m.concepto}</div>
+                            {m.proyecto_nombre && (
+                              <div className="text-xs text-muted-foreground">
+                                {m.proyecto_nombre}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {m.metodo_pago
+                              ? finanzasService.getMetodoPagoLabel(m.metodo_pago)
+                              : '-'}
+                          </TableCell>
+                          <TableCell>
+                            {m.estado === 'anulada' ? (
+                              <Badge variant="outline" className="text-muted-foreground">
+                                Anulada
+                              </Badge>
+                            ) : m.estado === 'pendiente' ? (
+                              <Badge variant="outline">Pendiente</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-green-700 border-green-300">
+                                Confirmada
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell
+                            className={`text-right font-mono text-sm ${
+                              m.estado === 'anulada'
+                                ? 'line-through text-muted-foreground'
+                                : m.tipo === 'ingreso'
+                                ? 'text-green-600'
+                                : 'text-red-600'
+                            }`}
+                          >
+                            {m.tipo === 'ingreso' ? '+' : '-'}
+                            {formatCurrency(m.monto)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -310,12 +310,31 @@ export const deleteCuenta = async (id: string): Promise<void> => {
   await api.delete(`/finanzas/cuentas/${id}`)
 }
 
+export interface MovimientoCuenta {
+  id: string
+  tipo: TipoTransaccion
+  concepto: string
+  descripcion?: string | null
+  monto: number
+  fecha: string
+  metodo_pago?: string | null
+  referencia_pago?: string | null
+  estado: string
+  numero_comprobante?: string | null
+  proyecto_nombre?: string | null
+}
+
+export interface MovimientosCuentaResponse {
+  cuenta: Cuenta
+  movimientos: MovimientoCuenta[]
+}
+
 export const getMovimientosCuenta = async (id: string, params?: {
   fecha_desde?: string
   fecha_hasta?: string
   skip?: number
   limit?: number
-}): Promise<Transaccion[]> => {
+}): Promise<MovimientosCuentaResponse> => {
   const response = await api.get(`/finanzas/cuentas/${id}/movimientos`, { params })
   return response.data
 }
