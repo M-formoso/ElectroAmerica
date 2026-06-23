@@ -13,6 +13,8 @@ export interface Herramienta {
   estado_prestamo: EstadoPrestamo
   activo: boolean
   created_at: string
+  foto_url?: string | null
+  foto_public_id?: string | null
   // Datos del préstamo activo (si existe)
   retirado_por?: string
   fecha_retiro?: string
@@ -91,6 +93,22 @@ export const herramientasService = {
 
   async deleteHerramienta(id: string): Promise<void> {
     await api.delete(`/herramientas/${id}`)
+  },
+
+  async subirFotoHerramienta(id: string, file: File): Promise<Herramienta> {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await api.post<Herramienta>(
+      `/herramientas/${id}/foto`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    )
+    return response.data
+  },
+
+  async quitarFotoHerramienta(id: string): Promise<Herramienta> {
+    const response = await api.delete<Herramienta>(`/herramientas/${id}/foto`)
+    return response.data
   },
 
   // Préstamos

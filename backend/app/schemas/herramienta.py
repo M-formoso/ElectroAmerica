@@ -32,6 +32,8 @@ class HerramientaResponse(HerramientaBase):
     estado_prestamo: EstadoPrestamo
     activo: bool
     created_at: datetime
+    foto_url: Optional[str] = None
+    foto_public_id: Optional[str] = None
 
     class Config:
         from_attributes = True

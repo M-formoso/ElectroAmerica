@@ -26,6 +26,8 @@ class Herramienta(Base, BaseModel):
     descripcion = Column(Text, nullable=True)
     estado = Column(Enum(EstadoHerramienta), default=EstadoHerramienta.buen_estado, nullable=False)
     estado_prestamo = Column(Enum(EstadoPrestamo), default=EstadoPrestamo.disponible, nullable=False)
+    foto_url = Column(String(500), nullable=True)
+    foto_public_id = Column(String(300), nullable=True)
 
     # Relaciones
     prestamos = relationship(

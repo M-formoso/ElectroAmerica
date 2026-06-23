@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import UUID
@@ -10,6 +10,7 @@ from app.schemas.herramienta import (
     HerramientaCreate, HerramientaUpdate, HerramientaResponse, HerramientaConPrestamoResponse,
     PrestamoCreate, PrestamoDevolucion, PrestamoUpdate, PrestamoResponse
 )
+from app.services import cloudinary_service
 
 router = APIRouter()
 
@@ -46,6 +47,8 @@ def listar_herramientas(
             estado_prestamo=h.estado_prestamo,
             activo=h.activo,
             created_at=h.created_at,
+            foto_url=h.foto_url,
+            foto_public_id=h.foto_public_id,
             retirado_por=prestamo_activo.retirado_por if prestamo_activo else None,
             fecha_retiro=prestamo_activo.fecha_retiro if prestamo_activo else None
         ))
@@ -96,6 +99,8 @@ def obtener_herramienta(
         estado_prestamo=herramienta.estado_prestamo,
         activo=herramienta.activo,
         created_at=herramienta.created_at,
+        foto_url=herramienta.foto_url,
+        foto_public_id=herramienta.foto_public_id,
         retirado_por=prestamo_activo.retirado_por if prestamo_activo else None,
         fecha_retiro=prestamo_activo.fecha_retiro if prestamo_activo else None
     )
@@ -146,6 +151,68 @@ def eliminar_herramienta(
 
     db_herramienta.activo = False
     db.commit()
+
+
+@router.post("/{herramienta_id}/foto", response_model=HerramientaResponse)
+async def subir_foto_herramienta(
+    herramienta_id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Sube o reemplaza la foto de una herramienta."""
+    db_herramienta = db.query(Herramienta).filter(
+        Herramienta.id == herramienta_id,
+        Herramienta.activo == True
+    ).first()
+    if not db_herramienta:
+        raise HTTPException(status_code=404, detail="Herramienta no encontrada")
+
+    foto_anterior = db_herramienta.foto_public_id
+
+    result = await cloudinary_service.upload_image(file, folder="herramientas")
+
+    db_herramienta.foto_url = result["url"]
+    db_herramienta.foto_public_id = result["public_id"]
+    db.commit()
+    db.refresh(db_herramienta)
+
+    if foto_anterior and foto_anterior != result["public_id"]:
+        try:
+            await cloudinary_service.delete_image(foto_anterior)
+        except Exception:
+            pass
+
+    return db_herramienta
+
+
+@router.delete("/{herramienta_id}/foto", response_model=HerramientaResponse)
+async def quitar_foto_herramienta(
+    herramienta_id: UUID,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Quita la foto de una herramienta."""
+    db_herramienta = db.query(Herramienta).filter(
+        Herramienta.id == herramienta_id,
+        Herramienta.activo == True
+    ).first()
+    if not db_herramienta:
+        raise HTTPException(status_code=404, detail="Herramienta no encontrada")
+
+    public_id = db_herramienta.foto_public_id
+    db_herramienta.foto_url = None
+    db_herramienta.foto_public_id = None
+    db.commit()
+    db.refresh(db_herramienta)
+
+    if public_id:
+        try:
+            await cloudinary_service.delete_image(public_id)
+        except Exception:
+            pass
+
+    return db_herramienta
 
 
 # ============ Préstamos ============

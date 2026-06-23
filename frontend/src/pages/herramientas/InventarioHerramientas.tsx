@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, ArrowLeft } from 'lucide-react'
+import { Plus, Pencil, Trash2, ArrowLeft, Eye, ImageIcon, Upload, X, Loader2 } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -62,16 +63,22 @@ const estadoColors: Record<EstadoHerramienta, string> = {
 
 export default function InventarioHerramientas() {
   const queryClient = useQueryClient()
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState('todas')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedHerramienta, setSelectedHerramienta] = useState<Herramienta | null>(null)
   const [isEditing, setIsEditing] = useState(false)
+  const [verFotoUrl, setVerFotoUrl] = useState<string | null>(null)
+  const [verFotoNombre, setVerFotoNombre] = useState<string>('')
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // Form states
   const [formNombre, setFormNombre] = useState('')
   const [formDescripcion, setFormDescripcion] = useState('')
   const [formEstado, setFormEstado] = useState<EstadoHerramienta>('buen_estado')
+  const [formFotoPreview, setFormFotoPreview] = useState<string | null>(null)
+  const [formFotoFile, setFormFotoFile] = useState<File | null>(null)
 
   // Queries
   const { data: herramientas, isLoading } = useQuery({
@@ -81,19 +88,44 @@ export default function InventarioHerramientas() {
 
   // Mutations
   const createMutation = useMutation({
-    mutationFn: (data: HerramientaCreate) => herramientasService.createHerramienta(data),
+    mutationFn: async (data: HerramientaCreate) => {
+      const creada = await herramientasService.createHerramienta(data)
+      if (formFotoFile) {
+        return herramientasService.subirFotoHerramienta(creada.id, formFotoFile)
+      }
+      return creada
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['herramientas-inventario'] })
       closeDialog()
     },
+    onError: (e: any) => {
+      toast({
+        variant: 'destructive',
+        title: 'Error al crear herramienta',
+        description: e?.response?.data?.detail,
+      })
+    },
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: HerramientaUpdate }) =>
-      herramientasService.updateHerramienta(id, data),
+    mutationFn: async ({ id, data }: { id: string; data: HerramientaUpdate }) => {
+      const actualizada = await herramientasService.updateHerramienta(id, data)
+      if (formFotoFile) {
+        return herramientasService.subirFotoHerramienta(actualizada.id, formFotoFile)
+      }
+      return actualizada
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['herramientas-inventario'] })
       closeDialog()
+    },
+    onError: (e: any) => {
+      toast({
+        variant: 'destructive',
+        title: 'Error al actualizar herramienta',
+        description: e?.response?.data?.detail,
+      })
     },
   })
 
@@ -106,6 +138,15 @@ export default function InventarioHerramientas() {
     },
   })
 
+  const quitarFotoMutation = useMutation({
+    mutationFn: (id: string) => herramientasService.quitarFotoHerramienta(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['herramientas-inventario'] })
+      setFormFotoPreview(null)
+      setFormFotoFile(null)
+    },
+  })
+
   const closeDialog = () => {
     setDialogOpen(false)
     setSelectedHerramienta(null)
@@ -113,10 +154,15 @@ export default function InventarioHerramientas() {
     setFormNombre('')
     setFormDescripcion('')
     setFormEstado('buen_estado')
+    setFormFotoPreview(null)
+    setFormFotoFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const openCreateDialog = () => {
     setIsEditing(false)
+    setFormFotoPreview(null)
+    setFormFotoFile(null)
     setDialogOpen(true)
   }
 
@@ -125,8 +171,41 @@ export default function InventarioHerramientas() {
     setFormNombre(herramienta.nombre)
     setFormDescripcion(herramienta.descripcion || '')
     setFormEstado(herramienta.estado)
+    setFormFotoPreview(herramienta.foto_url || null)
+    setFormFotoFile(null)
     setIsEditing(true)
     setDialogOpen(true)
+  }
+
+  const onSelectFoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast({ variant: 'destructive', title: 'El archivo debe ser una imagen' })
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ variant: 'destructive', title: 'Imagen demasiado grande (máx 10 MB)' })
+      return
+    }
+    setFormFotoFile(file)
+    setFormFotoPreview(URL.createObjectURL(file))
+  }
+
+  const handleQuitarFoto = () => {
+    if (isEditing && selectedHerramienta?.foto_url && !formFotoFile) {
+      quitarFotoMutation.mutate(selectedHerramienta.id)
+    } else {
+      setFormFotoFile(null)
+      setFormFotoPreview(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const abrirVisorFoto = (herramienta: Herramienta) => {
+    if (!herramienta.foto_url) return
+    setVerFotoUrl(herramienta.foto_url)
+    setVerFotoNombre(herramienta.nombre)
   }
 
   const openDeleteDialog = (herramienta: Herramienta) => {
@@ -203,7 +282,8 @@ export default function InventarioHerramientas() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[40%]">Herramienta</TableHead>
+                  <TableHead className="w-[80px]">Foto</TableHead>
+                  <TableHead className="w-[35%]">Herramienta</TableHead>
                   <TableHead className="w-[30%]">Descripción</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -212,6 +292,26 @@ export default function InventarioHerramientas() {
               <TableBody>
                 {filteredHerramientas?.map(herramienta => (
                   <TableRow key={herramienta.id}>
+                    <TableCell>
+                      {herramienta.foto_url ? (
+                        <button
+                          type="button"
+                          onClick={() => abrirVisorFoto(herramienta)}
+                          className="block h-12 w-12 overflow-hidden rounded-md border bg-muted hover:ring-2 hover:ring-red-500"
+                          title="Ver foto"
+                        >
+                          <img
+                            src={herramienta.foto_url}
+                            alt={herramienta.nombre}
+                            className="h-full w-full object-cover"
+                          />
+                        </button>
+                      ) : (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-md border bg-muted text-muted-foreground">
+                          <ImageIcon className="h-5 w-5" />
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">{herramienta.nombre}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {herramienta.descripcion || '-'}
@@ -223,6 +323,16 @@ export default function InventarioHerramientas() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        {herramienta.foto_url && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => abrirVisorFoto(herramienta)}
+                            title="Ver foto"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -245,7 +355,7 @@ export default function InventarioHerramientas() {
                 ))}
                 {filteredHerramientas?.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                       No hay herramientas en esta categoría
                     </TableCell>
                   </TableRow>
@@ -301,6 +411,58 @@ export default function InventarioHerramientas() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label>Foto</Label>
+              <div className="flex items-start gap-3">
+                <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
+                  {formFotoPreview ? (
+                    <img
+                      src={formFotoPreview}
+                      alt="Vista previa"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={onSelectFoto}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    {formFotoPreview ? 'Cambiar foto' : 'Subir foto'}
+                  </Button>
+                  {formFotoPreview && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleQuitarFoto}
+                      disabled={quitarFotoMutation.isPending}
+                    >
+                      {quitarFotoMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <X className="h-4 w-4 mr-2" />
+                      )}
+                      Quitar foto
+                    </Button>
+                  )}
+                  <p className="text-xs text-muted-foreground">JPG / PNG · máx 10 MB</p>
+                </div>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={closeDialog}>
@@ -318,6 +480,24 @@ export default function InventarioHerramientas() {
                   : 'Añadir'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Visor de foto */}
+      <Dialog open={!!verFotoUrl} onOpenChange={(o) => !o && setVerFotoUrl(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{verFotoNombre}</DialogTitle>
+          </DialogHeader>
+          {verFotoUrl && (
+            <div className="flex justify-center">
+              <img
+                src={verFotoUrl}
+                alt={verFotoNombre}
+                className="max-h-[70vh] w-auto rounded-md"
+              />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
