@@ -54,11 +54,25 @@ export function PresupuestosTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['totales-proyectos'] })
       queryClient.invalidateQueries({ queryKey: ['proyectos'] })
+      queryClient.invalidateQueries({ queryKey: ['facturacion-proyectos'] })
       toast({ title: 'Proyecto eliminado' })
       setProyectoEliminar(null)
     },
-    onError: () => {
-      toast({ variant: 'destructive', title: 'Error al eliminar proyecto' })
+    onError: (e: any) => {
+      const status = e?.response?.status
+      const detail = e?.response?.data?.detail
+      toast({
+        variant: 'destructive',
+        title: 'Error al eliminar proyecto',
+        description:
+          typeof detail === 'string'
+            ? detail
+            : status === 404
+            ? 'El proyecto ya no existe. Refrescá la lista.'
+            : status === 403
+            ? 'No tenés permisos para eliminar este proyecto.'
+            : undefined,
+      })
     },
   })
 

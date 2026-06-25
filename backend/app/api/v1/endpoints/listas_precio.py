@@ -244,7 +244,10 @@ def listar_totales_proyectos(
     """
     proyectos = (
         db.query(Proyecto)
-        .filter(Proyecto.estado != EstadoProyecto.finalizado)
+        .filter(
+            Proyecto.activo == True,
+            Proyecto.estado != EstadoProyecto.finalizado,
+        )
         .order_by(Proyecto.nombre)
         .all()
     )
@@ -409,7 +412,10 @@ def listar_facturacion_proyectos(
     """Proyectos finalizados con su estado de facturación/cobro.
     Filtro opcional por estado: pendiente | facturado | cobrado.
     """
-    q = db.query(Proyecto).filter(Proyecto.estado == EstadoProyecto.finalizado)
+    q = db.query(Proyecto).filter(
+        Proyecto.activo == True,
+        Proyecto.estado == EstadoProyecto.finalizado,
+    )
     if estado:
         try:
             estado_enum = EstadoFacturacion(estado)
