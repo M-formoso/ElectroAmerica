@@ -317,9 +317,9 @@ export interface MovimientoCuenta {
   descripcion?: string | null
   monto: number
   fecha: string
-  metodo_pago?: string | null
+  metodo_pago?: MetodoPago | null
   referencia_pago?: string | null
-  estado: string
+  estado: EstadoTransaccion | string
   numero_comprobante?: string | null
   proyecto_nombre?: string | null
 }
