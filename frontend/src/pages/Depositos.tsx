@@ -740,24 +740,43 @@ export function DepositosPage() {
                 </DialogDescription>
               </div>
               {depositoDetail && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="shrink-0 mr-8"
-                  onClick={async () => {
-                    try {
-                      await depositosService.descargarPdfStock(
-                        depositoDetail.id,
-                        depositoDetail.nombre,
-                      )
-                    } catch {
-                      toast({ variant: 'destructive', title: 'Error al descargar PDF' })
-                    }
-                  }}
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  PDF stock
-                </Button>
+                <div className="flex gap-2 shrink-0 mr-8">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        await depositosService.descargarPdfStock(
+                          depositoDetail.id,
+                          depositoDetail.nombre,
+                        )
+                      } catch {
+                        toast({ variant: 'destructive', title: 'Error al descargar PDF' })
+                      }
+                    }}
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    PDF stock
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        await depositosService.descargarPdfDetalleMovimientos(
+                          depositoDetail.id,
+                          depositoDetail.nombre,
+                        )
+                      } catch {
+                        toast({ variant: 'destructive', title: 'Error al descargar PDF' })
+                      }
+                    }}
+                    title="Ingresos + egresos por subdeposito + stock actual"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    PDF detalle movimientos
+                  </Button>
+                </div>
               )}
             </div>
           </DialogHeader>

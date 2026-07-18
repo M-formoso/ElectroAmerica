@@ -131,6 +131,30 @@ export const depositosService = {
     window.URL.revokeObjectURL(url)
   },
 
+  async descargarPdfDetalleMovimientos(
+    id: string,
+    nombre: string,
+    fechaDesde?: string,
+    fechaHasta?: string,
+  ): Promise<void> {
+    const params: Record<string, string> = {}
+    if (fechaDesde) params.fecha_desde = fechaDesde
+    if (fechaHasta) params.fecha_hasta = fechaHasta
+    const res = await api.get(`/depositos/${id}/detalle-movimientos/pdf`, {
+      params,
+      responseType: 'blob',
+    })
+    const url = window.URL.createObjectURL(new Blob([res.data]))
+    const link = document.createElement('a')
+    link.href = url
+    const safe = (nombre || 'deposito').replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 40)
+    link.download = `detalle_movimientos_${safe}.pdf`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  },
+
   async listMateriales(depositoId: string): Promise<DepositoMaterial[]> {
     const response = await api.get<DepositoMaterial[]>(
       `/depositos/${depositoId}/materiales`
