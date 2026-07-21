@@ -273,6 +273,16 @@ export function PanelSociosTab() {
     },
   })
 
+  // Mutation: eliminar transaccion (usado para gastos e ingresos que no son aportes)
+  const deleteTransaccionMutation = useMutation({
+    mutationFn: finanzasService.deleteTransaccion,
+    onSuccess: () => {
+      invalidar()
+      toast({ title: 'Movimiento eliminado' })
+    },
+    onError: () => toast({ variant: 'destructive', title: 'Error al eliminar' }),
+  })
+
   // Forms
   const aporteForm = useForm<AporteForm>({
     resolver: zodResolver(aporteSchema),
@@ -559,6 +569,19 @@ export function PanelSociosTab() {
                                                 </Button>
                                               )}
                                             </div>
+                                          ) : isAdmin ? (
+                                            <Button
+                                              size="icon"
+                                              variant="ghost"
+                                              className="h-7 w-7"
+                                              onClick={() => {
+                                                if (confirm(`Eliminar ingreso "${i.concepto}" por ${formatCurrency(i.monto)}?`)) {
+                                                  deleteTransaccionMutation.mutate(i.id)
+                                                }
+                                              }}
+                                            >
+                                              <Trash2 className="h-3 w-3 text-destructive" />
+                                            </Button>
                                           ) : (
                                             <span className="text-xs text-muted-foreground">-</span>
                                           )}
@@ -629,6 +652,7 @@ export function PanelSociosTab() {
                                   <TableHead>Concepto</TableHead>
                                   <TableHead>Referencia</TableHead>
                                   <TableHead className="text-right">Monto</TableHead>
+                                  {isAdmin && <TableHead className="w-16 text-center">Acciones</TableHead>}
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
@@ -642,6 +666,22 @@ export function PanelSociosTab() {
                                     <TableCell className="text-right text-red-700 font-medium">
                                       {formatCurrency(i.monto)}
                                     </TableCell>
+                                    {isAdmin && (
+                                      <TableCell className="text-center">
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          className="h-7 w-7"
+                                          onClick={() => {
+                                            if (confirm(`Eliminar gasto "${i.concepto}" por ${formatCurrency(i.monto)}?`)) {
+                                              deleteTransaccionMutation.mutate(i.id)
+                                            }
+                                          }}
+                                        >
+                                          <Trash2 className="h-3 w-3 text-destructive" />
+                                        </Button>
+                                      </TableCell>
+                                    )}
                                   </TableRow>
                                 ))}
                               </TableBody>
