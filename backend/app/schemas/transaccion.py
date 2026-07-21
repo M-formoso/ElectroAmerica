@@ -26,6 +26,13 @@ class EstadoTransaccion(str, Enum):
     ANULADA = "anulada"
 
 
+class TipoIngreso(str, Enum):
+    COBRO_FACTURA_OBRA = "cobro_factura_obra"
+    COBRO_FACTURA_VENTA = "cobro_factura_venta"
+    APORTE_SOCIO = "aporte_socio"
+    OTRO = "otro"
+
+
 class TipoCuenta(str, Enum):
     CAJA = "caja"
     BANCO = "banco"
@@ -43,6 +50,7 @@ class TipoClienteProveedor(str, Enum):
 
 class TransaccionBase(BaseModel):
     tipo: TipoTransaccion
+    tipo_ingreso: Optional[TipoIngreso] = None
     concepto: str = Field(..., max_length=300)
     descripcion: Optional[str] = None
     monto: float = Field(..., gt=0)
@@ -66,6 +74,7 @@ class TransaccionCreate(TransaccionBase):
 
 class TransaccionUpdate(BaseModel):
     tipo: Optional[TipoTransaccion] = None
+    tipo_ingreso: Optional[TipoIngreso] = None
     concepto: Optional[str] = None
     descripcion: Optional[str] = None
     monto: Optional[float] = None

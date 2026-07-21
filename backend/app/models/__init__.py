@@ -17,7 +17,7 @@ from app.models.reporte import Reporte
 from app.models.precio_item import PrecioItem
 from app.models.lista_precio import ListaPrecio, PrecioListaActividad
 from app.models.transaccion import (
-    Transaccion, TipoTransaccion, MetodoPago, EstadoTransaccion,
+    Transaccion, TipoTransaccion, MetodoPago, EstadoTransaccion, TipoIngreso,
     Cuenta, TipoCuenta,
     ClienteProveedor, TipoClienteProveedor,
     Presupuesto
@@ -46,3 +46,6 @@ from app.models.proyecto_actividad import ProyectoActividad, AvanceActividad, Pr
 
 # Remitos de salida e ingreso
 from app.models.remito import Remito, RemitoItem, RemitoDescuento, TipoRemito
+
+# Socios y aportes/retiros
+from app.models.socio import Socio, AporteSocio, RetiroSocio

@@ -31,6 +31,7 @@ import {
 import { ListasPrecioTab } from '@/components/finanzas/ListasPrecioTab'
 import { PresupuestosTab } from '@/components/finanzas/PresupuestosTab'
 import { FacturacionTab } from '@/components/finanzas/FacturacionTab'
+import { PanelSociosTab } from '@/components/finanzas/PanelSociosTab'
 import {
   BarChart,
   Bar,
@@ -106,6 +107,7 @@ import type {
 // Schemas
 const transaccionSchema = z.object({
   tipo: z.enum(['ingreso', 'egreso']),
+  tipo_ingreso: z.enum(['cobro_factura_obra', 'cobro_factura_venta', 'aporte_socio', 'otro']).optional(),
   concepto: z.string().min(1, 'Concepto requerido'),
   descripcion: z.string().optional(),
   monto: z.number().min(0.01, 'Monto debe ser mayor a 0'),
@@ -379,7 +381,7 @@ export function FinanzasPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-8">
+        <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             <span className="hidden sm:inline">Dashboard</span>
@@ -411,6 +413,10 @@ export function FinanzasPage() {
           <TabsTrigger value="facturacion" className="flex items-center gap-2">
             <ClipboardCheck className="h-4 w-4" />
             <span className="hidden sm:inline">Facturación</span>
+          </TabsTrigger>
+          <TabsTrigger value="panel-socios" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            <span className="hidden sm:inline">Socios</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1110,6 +1116,10 @@ export function FinanzasPage() {
         <TabsContent value="facturacion" className="space-y-4">
           <FacturacionTab />
         </TabsContent>
+
+        <TabsContent value="panel-socios" className="space-y-4">
+          <PanelSociosTab />
+        </TabsContent>
       </Tabs>
 
       {/* Dialog: Nueva Transacción */}
@@ -1125,6 +1135,33 @@ export function FinanzasPage() {
           </DialogHeader>
 
           <form onSubmit={transaccionForm.handleSubmit(onSubmitTransaccion)} className="space-y-4">
+            {transaccionTipo === 'ingreso' && (
+              <div className="space-y-2">
+                <Label>Tipo de ingreso</Label>
+                <Select
+                  onValueChange={(v) =>
+                    transaccionForm.setValue(
+                      'tipo_ingreso',
+                      v as 'cobro_factura_obra' | 'cobro_factura_venta' | 'aporte_socio' | 'otro',
+                    )
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Elegir planilla (obra, venta, aporte...)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cobro_factura_obra">Cobro factura obras</SelectItem>
+                    <SelectItem value="cobro_factura_venta">Cobro factura ventas</SelectItem>
+                    <SelectItem value="aporte_socio">Aporte de socio</SelectItem>
+                    <SelectItem value="otro">Otro</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Se usa para agrupar en el Panel de Socios.
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Concepto *</Label>
               <Input

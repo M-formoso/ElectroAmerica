@@ -3,6 +3,7 @@ import api from './api'
 // ============ TYPES ============
 
 export type TipoTransaccion = 'ingreso' | 'egreso'
+export type TipoIngreso = 'cobro_factura_obra' | 'cobro_factura_venta' | 'aporte_socio' | 'otro'
 export type MetodoPago = 'efectivo' | 'transferencia' | 'tarjeta_debito' | 'tarjeta_credito' | 'cheque' | 'mercado_pago' | 'otro'
 export type EstadoTransaccion = 'pendiente' | 'confirmada' | 'anulada'
 export type TipoCuenta = 'caja' | 'banco' | 'mercado_pago' | 'otro'
@@ -11,6 +12,7 @@ export type TipoClienteProveedor = 'cliente' | 'proveedor' | 'ambos'
 export interface Transaccion {
   id: string
   tipo: TipoTransaccion
+  tipo_ingreso?: TipoIngreso | null
   concepto: string
   descripcion?: string
   monto: number
@@ -37,6 +39,7 @@ export interface Transaccion {
 
 export interface TransaccionCreate {
   tipo: TipoTransaccion
+  tipo_ingreso?: TipoIngreso | null
   concepto: string
   descripcion?: string
   monto: number
@@ -55,6 +58,7 @@ export interface TransaccionCreate {
 
 export interface TransaccionUpdate {
   tipo?: TipoTransaccion
+  tipo_ingreso?: TipoIngreso | null
   concepto?: string
   descripcion?: string
   monto?: number

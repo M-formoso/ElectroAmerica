@@ -29,10 +29,24 @@ class EstadoTransaccion(str, enum.Enum):
     ANULADA = "anulada"
 
 
+class TipoIngreso(str, enum.Enum):
+    """Subtipo de ingreso, usado para separar planillas en el panel de socios."""
+    COBRO_FACTURA_OBRA = "cobro_factura_obra"
+    COBRO_FACTURA_VENTA = "cobro_factura_venta"
+    APORTE_SOCIO = "aporte_socio"
+    OTRO = "otro"
+
+
 # PostgreSQL ENUMs - usan los valores del enum (minuscula)
 TipoTransaccionDB = PgEnum(
     'ingreso', 'egreso',
     name='tipotransaccion',
+    create_type=False
+)
+
+TipoIngresoDB = PgEnum(
+    'cobro_factura_obra', 'cobro_factura_venta', 'aporte_socio', 'otro',
+    name='tipoingreso',
     create_type=False
 )
 
@@ -54,6 +68,7 @@ class Transaccion(Base, BaseModel):
     __tablename__ = "transacciones"
 
     tipo = Column(TipoTransaccionDB, nullable=False)
+    tipo_ingreso = Column(TipoIngresoDB, nullable=True)  # solo se usa cuando tipo=ingreso
     concepto = Column(String(300), nullable=False)
     descripcion = Column(Text, nullable=True)
     monto = Column(Numeric(12, 2), nullable=False)

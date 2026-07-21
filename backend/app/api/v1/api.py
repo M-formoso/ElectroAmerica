@@ -27,6 +27,7 @@ from app.api.v1.endpoints import (
     depositos,
     remitos,
     listas_precio,
+    panel_socios,
 )
 
 api_router = APIRouter()
@@ -218,4 +219,11 @@ api_router.include_router(
     listas_precio.router,
     prefix="/listas-precio",
     tags=["Listas de Precio"]
+)
+
+# Panel de Socios (control gerencial)
+api_router.include_router(
+    panel_socios.router,
+    prefix="/panel-socios",
+    tags=["Panel Socios"]
 )
