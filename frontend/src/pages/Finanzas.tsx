@@ -507,7 +507,7 @@ export function FinanzasPage() {
                         />
                         <Tooltip
                           formatter={(value) => [formatCurrency(Number(value)), '']}
-                          labelFormatter={(label) => formatDate(label)}
+                          labelFormatter={(label) => formatDate(String(label))}
                         />
                         <Legend />
                         <Line type="monotone" dataKey="ingresos" name="Ingresos" stroke="#10b981" strokeWidth={2} />
