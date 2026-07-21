@@ -147,7 +147,8 @@ def get_transacciones(
         {
             "id": str(t.id),
             "tipo": finanzas_service.enum_value(t.tipo),
-            "tipo_ingreso": finanzas_service.enum_value(t.tipo_ingreso),
+            "tipo_ingreso_id": str(t.tipo_ingreso_id) if t.tipo_ingreso_id else None,
+            "tipo_ingreso_nombre": t.tipo_ingreso.nombre if t.tipo_ingreso else None,
             "concepto": t.concepto,
             "descripcion": t.descripcion,
             "monto": float(t.monto),
@@ -186,7 +187,8 @@ def get_transaccion(
     return {
         "id": str(t.id),
         "tipo": finanzas_service.enum_value(t.tipo),
-        "tipo_ingreso": finanzas_service.enum_value(t.tipo_ingreso),
+        "tipo_ingreso_id": str(t.tipo_ingreso_id) if t.tipo_ingreso_id else None,
+        "tipo_ingreso_nombre": t.tipo_ingreso.nombre if t.tipo_ingreso else None,
         "concepto": t.concepto,
         "descripcion": t.descripcion,
         "monto": float(t.monto),

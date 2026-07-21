@@ -10,6 +10,7 @@ from app.schemas.socio import (
     SocioCreate, SocioUpdate, SocioResponse,
     AporteSocioCreate, AporteSocioUpdate, AporteSocioResponse,
     RetiroSocioCreate, RetiroSocioUpdate, RetiroSocioResponse,
+    TipoIngresoCreate, TipoIngresoUpdate, TipoIngresoResponse,
     ResumenPanelSocios,
 )
 from app.services import panel_socios_service
@@ -201,3 +202,46 @@ def eliminar_retiro(
     if not panel_socios_service.eliminar_retiro(db, retiro_id):
         raise HTTPException(status_code=404, detail="Retiro no encontrado")
     return {"message": "Retiro eliminado"}
+
+
+# ============ TIPOS DE INGRESO (planillas dinamicas) ============
+
+@router.get("/tipos-ingreso", response_model=List[TipoIngresoResponse])
+def listar_tipos_ingreso(
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin_or_supervisor),
+):
+    return panel_socios_service.listar_tipos_ingreso(db)
+
+
+@router.post("/tipos-ingreso", response_model=TipoIngresoResponse)
+def crear_tipo_ingreso(
+    data: TipoIngresoCreate,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin_or_supervisor),
+):
+    return panel_socios_service.crear_tipo_ingreso(db, data)
+
+
+@router.put("/tipos-ingreso/{tipo_id}", response_model=TipoIngresoResponse)
+def actualizar_tipo_ingreso(
+    tipo_id: UUID,
+    data: TipoIngresoUpdate,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin_or_supervisor),
+):
+    tipo = panel_socios_service.actualizar_tipo_ingreso(db, tipo_id, data)
+    if not tipo:
+        raise HTTPException(status_code=404, detail="Planilla no encontrada")
+    return tipo
+
+
+@router.delete("/tipos-ingreso/{tipo_id}")
+def eliminar_tipo_ingreso(
+    tipo_id: UUID,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin),
+):
+    if not panel_socios_service.eliminar_tipo_ingreso(db, tipo_id):
+        raise HTTPException(status_code=404, detail="Planilla no encontrada")
+    return {"message": "Planilla eliminada"}

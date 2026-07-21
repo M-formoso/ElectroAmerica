@@ -1,17 +1,18 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from typing import List, Optional
 from uuid import UUID
 from decimal import Decimal
 from datetime import date
 
 from app.models.socio import Socio, AporteSocio, RetiroSocio
-from app.models.transaccion import Transaccion, TipoTransaccion, TipoIngreso, EstadoTransaccion
+from app.models.transaccion import Transaccion, TipoTransaccion, EstadoTransaccion
+from app.models.tipo_ingreso import TipoIngresoConfig
 from app.models.categoria_gasto import CategoriaGasto
 from app.schemas.socio import (
     SocioCreate, SocioUpdate,
     AporteSocioCreate, AporteSocioUpdate,
     RetiroSocioCreate, RetiroSocioUpdate,
+    TipoIngresoCreate, TipoIngresoUpdate,
     ResumenPanelSocios, PlanillaIngresos, PlanillaGastos,
     SaldoSocio, ItemPlanilla,
 )
@@ -163,15 +164,51 @@ def eliminar_retiro(db: Session, retiro_id: UUID) -> bool:
     return True
 
 
+# ============ TIPOS DE INGRESO (planillas dinamicas) ============
+
+def listar_tipos_ingreso(db: Session) -> List[TipoIngresoConfig]:
+    return db.query(TipoIngresoConfig).filter(
+        TipoIngresoConfig.activo == True
+    ).order_by(TipoIngresoConfig.orden, TipoIngresoConfig.nombre).all()
+
+
+def obtener_tipo_ingreso(db: Session, tipo_id: UUID) -> Optional[TipoIngresoConfig]:
+    return db.query(TipoIngresoConfig).filter(
+        TipoIngresoConfig.id == tipo_id, TipoIngresoConfig.activo == True
+    ).first()
+
+
+def crear_tipo_ingreso(db: Session, data: TipoIngresoCreate) -> TipoIngresoConfig:
+    tipo = TipoIngresoConfig(**data.model_dump())
+    db.add(tipo)
+    db.commit()
+    db.refresh(tipo)
+    return tipo
+
+
+def actualizar_tipo_ingreso(
+    db: Session, tipo_id: UUID, data: TipoIngresoUpdate
+) -> Optional[TipoIngresoConfig]:
+    tipo = obtener_tipo_ingreso(db, tipo_id)
+    if not tipo:
+        return None
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(tipo, k, v)
+    db.commit()
+    db.refresh(tipo)
+    return tipo
+
+
+def eliminar_tipo_ingreso(db: Session, tipo_id: UUID) -> bool:
+    tipo = obtener_tipo_ingreso(db, tipo_id)
+    if not tipo:
+        return False
+    tipo.activo = False
+    db.commit()
+    return True
+
+
 # ============ RESUMEN PANEL ============
-
-_LABELS_INGRESO = {
-    TipoIngreso.COBRO_FACTURA_OBRA.value: "Cobro factura obras",
-    TipoIngreso.COBRO_FACTURA_VENTA.value: "Cobro factura ventas",
-    TipoIngreso.APORTE_SOCIO.value: "Aportes de socios",
-    TipoIngreso.OTRO.value: "Otros ingresos",
-}
-
 
 def _to_float(v) -> float:
     if v is None:
@@ -194,9 +231,10 @@ def obtener_resumen_panel(
 ) -> ResumenPanelSocios:
     """
     Arma el resumen completo del panel de socios para el periodo dado.
-    Cruza transacciones (ingresos/egresos), aportes de socios y retiros para
-    calcular ganancia y saldo por socio.
+    Las planillas de ingreso se leen dinamicamente de tipos_ingreso.
     """
+    tipos_ingreso = listar_tipos_ingreso(db)
+
     # Transacciones confirmadas del periodo
     txs = db.query(Transaccion).filter(
         Transaccion.activo == True,
@@ -205,27 +243,20 @@ def obtener_resumen_panel(
         Transaccion.fecha <= fecha_hasta,
     ).all()
 
-    # --- Planillas de ingresos (por tipo_ingreso) ---
-    ingresos_por_tipo: dict[str, list[Transaccion]] = {
-        TipoIngreso.COBRO_FACTURA_OBRA.value: [],
-        TipoIngreso.COBRO_FACTURA_VENTA.value: [],
-        TipoIngreso.APORTE_SOCIO.value: [],
-        TipoIngreso.OTRO.value: [],
-    }
-
+    # --- Planillas de ingresos ---
+    ingresos_por_tipo: dict[Optional[UUID], list[Transaccion]] = {}
     for t in txs:
         if _enum_value(t.tipo) != TipoTransaccion.INGRESO.value:
             continue
-        clave = _enum_value(t.tipo_ingreso) or TipoIngreso.OTRO.value
-        ingresos_por_tipo.setdefault(clave, []).append(t)
+        ingresos_por_tipo.setdefault(t.tipo_ingreso_id, []).append(t)
 
-    # Sumar tambien aportes registrados en tabla aportes_socio (aparte de transacciones)
+    # Aportes de socios (tabla separada) se incluyen dentro de la planilla
+    # marcada con es_aporte_socio=True.
     aportes = db.query(AporteSocio).filter(
         AporteSocio.activo == True,
         AporteSocio.fecha >= fecha_desde,
         AporteSocio.fecha <= fecha_hasta,
     ).all()
-
     aportes_items = [
         ItemPlanilla(
             id=a.id,
@@ -237,9 +268,12 @@ def obtener_resumen_panel(
         for a in aportes
     ]
 
+    tipo_aporte = next((t for t in tipos_ingreso if t.es_aporte_socio), None)
+
     planillas_ingresos: List[PlanillaIngresos] = []
-    for tipo, label in _LABELS_INGRESO.items():
-        items_tx = [
+    ids_conocidos = set()
+    for tipo in tipos_ingreso:
+        items = [
             ItemPlanilla(
                 id=t.id,
                 concepto=t.concepto,
@@ -247,27 +281,57 @@ def obtener_resumen_panel(
                 fecha=t.fecha,
                 referencia=t.proyecto.nombre if t.proyecto else None,
             )
-            for t in ingresos_por_tipo.get(tipo, [])
+            for t in ingresos_por_tipo.get(tipo.id, [])
         ]
+        ids_conocidos.add(tipo.id)
 
-        items = items_tx
-        if tipo == TipoIngreso.APORTE_SOCIO.value:
+        if tipo_aporte and tipo.id == tipo_aporte.id:
             items = items + aportes_items
 
-        total = sum(i.monto for i in items)
         planillas_ingresos.append(PlanillaIngresos(
-            tipo=tipo,
-            label=label,
-            total=total,
+            tipo_id=tipo.id,
+            nombre=tipo.nombre,
+            color=tipo.color,
+            total=sum(i.monto for i in items),
             cantidad=len(items),
             items=items,
         ))
 
+    # Si el tipo aporte esta desactivado pero hay aportes, los mostramos aparte.
+    if not tipo_aporte and aportes_items:
+        planillas_ingresos.append(PlanillaIngresos(
+            tipo_id=None,
+            nombre="Aportes de socios",
+            color="#10B981",
+            total=sum(i.monto for i in aportes_items),
+            cantidad=len(aportes_items),
+            items=aportes_items,
+        ))
+
+    # Ingresos sin tipo asignado (huerfanos): "Sin clasificar"
+    sin_tipo = ingresos_por_tipo.get(None, [])
+    if sin_tipo:
+        items_st = [
+            ItemPlanilla(
+                id=t.id, concepto=t.concepto, monto=_to_float(t.monto),
+                fecha=t.fecha,
+                referencia=t.proyecto.nombre if t.proyecto else None,
+            )
+            for t in sin_tipo
+        ]
+        planillas_ingresos.append(PlanillaIngresos(
+            tipo_id=None,
+            nombre="Sin clasificar",
+            color="#94A3B8",
+            total=sum(i.monto for i in items_st),
+            cantidad=len(items_st),
+            items=items_st,
+        ))
+
     total_ingresos = sum(p.total for p in planillas_ingresos)
 
-    # --- Planillas de gastos (por categoria) ---
+    # --- Planillas de gastos ---
     gastos = [t for t in txs if _enum_value(t.tipo) == TipoTransaccion.EGRESO.value]
-
     gastos_por_cat: dict[Optional[UUID], list[Transaccion]] = {}
     for g in gastos:
         gastos_por_cat.setdefault(g.categoria_id, []).append(g)
@@ -297,7 +361,6 @@ def obtener_resumen_panel(
             cantidad=len(items),
             items=items,
         ))
-
     planillas_gastos.sort(key=lambda p: p.total, reverse=True)
     total_gastos = sum(p.total for p in planillas_gastos)
 
@@ -307,7 +370,6 @@ def obtener_resumen_panel(
     socios = listar_socios(db)
     total_participacion = sum(_to_float(s.porcentaje_participacion) for s in socios) or 100.0
 
-    # Retiros del periodo por socio
     retiros_periodo = listar_retiros(db, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta)
     retiros_por_socio: dict[UUID, list[RetiroSocio]] = {}
     for r in retiros_periodo:
@@ -361,6 +423,7 @@ _CATEGORIAS_ADICIONALES = [
     ("Impuestos", "Impuestos municipales, provinciales y nacionales", "#DC2626"),
     ("IVA", "IVA a pagar / retenciones", "#F59E0B"),
     ("Vehiculos", "Mantenimiento, patente y seguro de vehiculos", "#7C3AED"),
+    ("Gastos diarios", "Gastos varios del dia a dia", "#64748B"),
 ]
 
 
@@ -379,4 +442,23 @@ def inicializar_socios_default(db: Session) -> None:
         return
     db.add(Socio(nombre="Socio A", porcentaje_participacion=50))
     db.add(Socio(nombre="Socio B", porcentaje_participacion=50))
+    db.commit()
+
+
+_TIPOS_INGRESO_DEFAULT = [
+    ("Cobro factura obras", "#22C55E", 1, False),
+    ("Cobro factura ventas", "#3B82F6", 2, False),
+    ("Aportes de socios", "#8B5CF6", 3, True),
+    ("Otros ingresos", "#94A3B8", 4, False),
+]
+
+
+def inicializar_tipos_ingreso_default(db: Session) -> None:
+    """Crea las 4 planillas de ingreso por defecto si no hay ninguna."""
+    if db.query(TipoIngresoConfig).count() > 0:
+        return
+    for nombre, color, orden, es_aporte in _TIPOS_INGRESO_DEFAULT:
+        db.add(TipoIngresoConfig(
+            nombre=nombre, color=color, orden=orden, es_aporte_socio=es_aporte
+        ))
     db.commit()

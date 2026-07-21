@@ -14,8 +14,10 @@ import {
   ChevronDown,
   ChevronUp,
   Trash2,
+  Pencil,
   TrendingUp,
   TrendingDown,
+  Settings2,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -37,6 +39,11 @@ import { useIsAdmin } from '@/store/auth'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import * as panelSocios from '@/services/panelSocios'
 import * as finanzasService from '@/services/finanzas'
+import type {
+  AporteSocio,
+  RetiroSocio,
+  TipoIngresoConfig,
+} from '@/services/panelSocios'
 
 // ============ helpers ============
 
@@ -79,9 +86,17 @@ const socioSchema = z.object({
   notas: z.string().optional(),
 })
 
+const tipoIngresoSchema = z.object({
+  nombre: z.string().min(1, 'Nombre requerido').max(100),
+  color: z.string().optional(),
+  orden: z.number().optional(),
+  es_aporte_socio: z.boolean().optional(),
+})
+
 type AporteForm = z.infer<typeof aporteSchema>
 type RetiroForm = z.infer<typeof retiroSchema>
 type SocioForm = z.infer<typeof socioSchema>
+type TipoIngresoForm = z.infer<typeof tipoIngresoSchema>
 
 // ============ componente ============
 
@@ -94,6 +109,10 @@ export function PanelSociosTab() {
   const [isAporteOpen, setIsAporteOpen] = useState(false)
   const [isRetiroOpen, setIsRetiroOpen] = useState(false)
   const [isSocioOpen, setIsSocioOpen] = useState(false)
+  const [isPlanillasOpen, setIsPlanillasOpen] = useState(false)
+  const [aporteEdit, setAporteEdit] = useState<AporteSocio | null>(null)
+  const [retiroEdit, setRetiroEdit] = useState<RetiroSocio | null>(null)
+  const [tipoEdit, setTipoEdit] = useState<TipoIngresoConfig | null>(null)
   const [socioSeleccionado, setSocioSeleccionado] = useState<string | undefined>()
 
   const { toast } = useToast()
@@ -118,14 +137,39 @@ export function PanelSociosTab() {
     queryFn: () => panelSocios.getSocios(),
   })
 
+  const { data: tiposIngreso } = useQuery({
+    queryKey: ['tipos-ingreso'],
+    queryFn: panelSocios.getTiposIngreso,
+  })
+
+  // Aportes y retiros completos para modo edicion
+  const { data: aportesFull } = useQuery({
+    queryKey: ['aportes-periodo', fechaDesde, fechaHasta],
+    queryFn: () => panelSocios.getAportes({
+      fecha_desde: fechaDesde,
+      fecha_hasta: fechaHasta,
+    }),
+  })
+
+  const { data: retirosFull } = useQuery({
+    queryKey: ['retiros-periodo', fechaDesde, fechaHasta],
+    queryFn: () => panelSocios.getRetiros({
+      fecha_desde: fechaDesde,
+      fecha_hasta: fechaHasta,
+    }),
+  })
+
   const invalidar = () => {
     queryClient.invalidateQueries({ queryKey: ['panel-socios-resumen'] })
     queryClient.invalidateQueries({ queryKey: ['socios'] })
+    queryClient.invalidateQueries({ queryKey: ['tipos-ingreso'] })
+    queryClient.invalidateQueries({ queryKey: ['aportes-periodo'] })
+    queryClient.invalidateQueries({ queryKey: ['retiros-periodo'] })
     queryClient.invalidateQueries({ queryKey: ['transacciones'] })
     queryClient.invalidateQueries({ queryKey: ['finanzas-dashboard'] })
   }
 
-  // Mutations
+  // Mutations aportes
   const createAporteMutation = useMutation({
     mutationFn: panelSocios.createAporte,
     onSuccess: () => {
@@ -137,6 +181,26 @@ export function PanelSociosTab() {
     onError: () => toast({ variant: 'destructive', title: 'Error al registrar aporte' }),
   })
 
+  const updateAporteMutation = useMutation({
+    mutationFn: (payload: { id: string; data: panelSocios.AporteSocioUpdate }) =>
+      panelSocios.updateAporte(payload.id, payload.data),
+    onSuccess: () => {
+      invalidar()
+      toast({ title: 'Aporte actualizado' })
+      setAporteEdit(null)
+    },
+    onError: () => toast({ variant: 'destructive', title: 'Error al actualizar aporte' }),
+  })
+
+  const deleteAporteMutation = useMutation({
+    mutationFn: panelSocios.deleteAporte,
+    onSuccess: () => {
+      invalidar()
+      toast({ title: 'Aporte eliminado' })
+    },
+  })
+
+  // Mutations retiros
   const createRetiroMutation = useMutation({
     mutationFn: panelSocios.createRetiro,
     onSuccess: () => {
@@ -148,6 +212,17 @@ export function PanelSociosTab() {
     onError: () => toast({ variant: 'destructive', title: 'Error al registrar retiro' }),
   })
 
+  const updateRetiroMutation = useMutation({
+    mutationFn: (payload: { id: string; data: panelSocios.RetiroSocioUpdate }) =>
+      panelSocios.updateRetiro(payload.id, payload.data),
+    onSuccess: () => {
+      invalidar()
+      toast({ title: 'Retiro actualizado' })
+      setRetiroEdit(null)
+    },
+    onError: () => toast({ variant: 'destructive', title: 'Error al actualizar retiro' }),
+  })
+
   const deleteRetiroMutation = useMutation({
     mutationFn: panelSocios.deleteRetiro,
     onSuccess: () => {
@@ -156,6 +231,7 @@ export function PanelSociosTab() {
     },
   })
 
+  // Mutations socios
   const createSocioMutation = useMutation({
     mutationFn: panelSocios.createSocio,
     onSuccess: () => {
@@ -165,6 +241,36 @@ export function PanelSociosTab() {
       socioForm.reset()
     },
     onError: () => toast({ variant: 'destructive', title: 'Error al crear socio' }),
+  })
+
+  // Mutations planillas
+  const createTipoMutation = useMutation({
+    mutationFn: panelSocios.createTipoIngreso,
+    onSuccess: () => {
+      invalidar()
+      toast({ title: 'Planilla creada' })
+      tipoForm.reset()
+    },
+    onError: () => toast({ variant: 'destructive', title: 'Error al crear planilla' }),
+  })
+
+  const updateTipoMutation = useMutation({
+    mutationFn: (payload: { id: string; data: panelSocios.TipoIngresoUpdate }) =>
+      panelSocios.updateTipoIngreso(payload.id, payload.data),
+    onSuccess: () => {
+      invalidar()
+      toast({ title: 'Planilla actualizada' })
+      setTipoEdit(null)
+    },
+    onError: () => toast({ variant: 'destructive', title: 'Error al actualizar planilla' }),
+  })
+
+  const deleteTipoMutation = useMutation({
+    mutationFn: panelSocios.deleteTipoIngreso,
+    onSuccess: () => {
+      invalidar()
+      toast({ title: 'Planilla eliminada' })
+    },
   })
 
   // Forms
@@ -181,6 +287,11 @@ export function PanelSociosTab() {
   const socioForm = useForm<SocioForm>({
     resolver: zodResolver(socioSchema),
     defaultValues: { porcentaje_participacion: 50 },
+  })
+
+  const tipoForm = useForm<TipoIngresoForm>({
+    resolver: zodResolver(tipoIngresoSchema),
+    defaultValues: { color: '#10B981', orden: 0, es_aporte_socio: false },
   })
 
   const onSubmitAporte = (data: AporteForm) => {
@@ -201,6 +312,15 @@ export function PanelSociosTab() {
     createSocioMutation.mutate({
       ...data,
       email: data.email || undefined,
+    })
+  }
+
+  const onSubmitTipo = (data: TipoIngresoForm) => {
+    createTipoMutation.mutate({
+      nombre: data.nombre,
+      color: data.color,
+      orden: data.orden,
+      es_aporte_socio: data.es_aporte_socio,
     })
   }
 
@@ -229,6 +349,18 @@ export function PanelSociosTab() {
     setFechaDesde(`${anio}-01-01`)
     setFechaHasta(`${anio}-12-31`)
   }
+
+  // Indice de aportes/retiros por id para lookup rapido en edicion
+  const aportesById = useMemo(() => {
+    const m: Record<string, AporteSocio> = {}
+    aportesFull?.forEach((a) => { m[a.id] = a })
+    return m
+  }, [aportesFull])
+  const retirosById = useMemo(() => {
+    const m: Record<string, RetiroSocio> = {}
+    retirosFull?.forEach((r) => { m[r.id] = r })
+    return m
+  }, [retirosFull])
 
   return (
     <div className="space-y-6">
@@ -264,6 +396,9 @@ export function PanelSociosTab() {
             </Button>
             <Button variant="outline" onClick={() => setIsRetiroOpen(true)}>
               <Plus className="h-4 w-4 mr-1" /> Retiro
+            </Button>
+            <Button variant="outline" onClick={() => setIsPlanillasOpen(true)}>
+              <Settings2 className="h-4 w-4 mr-1" /> Planillas
             </Button>
             {isAdmin && (
               <Button variant="ghost" onClick={() => setIsSocioOpen(true)}>
@@ -331,66 +466,115 @@ export function PanelSociosTab() {
                   <ArrowUpRight className="h-5 w-5 text-green-600" />
                   Planillas de ingresos
                 </CardTitle>
-                <CardDescription>Click en una planilla para ver el detalle</CardDescription>
+                <CardDescription>
+                  Click en una planilla para ver el detalle.
+                  <button
+                    onClick={() => setIsPlanillasOpen(true)}
+                    className="ml-2 text-primary hover:underline"
+                  >
+                    Gestionar planillas
+                  </button>
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
-                {resumen!.planillas_ingresos.map((p) => {
-                  const abierta = openPlanilla === p.tipo
-                  return (
-                    <div key={p.tipo} className="rounded border">
-                      <button
-                        type="button"
-                        onClick={() => setOpenPlanilla(abierta ? null : p.tipo)}
-                        className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition"
-                      >
-                        <div className="flex items-center gap-3">
-                          {abierta ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                          <div className="text-left">
-                            <p className="font-medium">{p.label}</p>
-                            <p className="text-xs text-muted-foreground">{p.cantidad} movimiento(s)</p>
-                          </div>
-                        </div>
-                        <p className="font-bold text-green-700">
-                          {formatCurrency(p.total)}
-                        </p>
-                      </button>
-                      {abierta && (
-                        <div className="border-t bg-muted/20">
-                          {p.items.length === 0 ? (
-                            <div className="p-4 text-sm text-muted-foreground text-center">
-                              Sin movimientos en este periodo.
+                {resumen!.planillas_ingresos.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">
+                    No hay planillas de ingreso configuradas.
+                  </p>
+                ) : (
+                  resumen!.planillas_ingresos.map((p) => {
+                    const key = p.tipo_id || `virtual-${p.nombre}`
+                    const abierta = openPlanilla === key
+                    return (
+                      <div key={key} className="rounded border">
+                        <button
+                          type="button"
+                          onClick={() => setOpenPlanilla(abierta ? null : key)}
+                          className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition"
+                        >
+                          <div className="flex items-center gap-3">
+                            {abierta ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            <div
+                              className="w-3 h-3 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: p.color }}
+                            />
+                            <div className="text-left">
+                              <p className="font-medium">{p.nombre}</p>
+                              <p className="text-xs text-muted-foreground">{p.cantidad} movimiento(s)</p>
                             </div>
-                          ) : (
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead className="w-24">Fecha</TableHead>
-                                  <TableHead>Concepto</TableHead>
-                                  <TableHead>Referencia</TableHead>
-                                  <TableHead className="text-right">Monto</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {p.items.map((i) => (
-                                  <TableRow key={i.id}>
-                                    <TableCell className="text-xs">{formatDate(i.fecha)}</TableCell>
-                                    <TableCell className="text-sm">{i.concepto}</TableCell>
-                                    <TableCell className="text-xs text-muted-foreground">
-                                      {i.referencia || '-'}
-                                    </TableCell>
-                                    <TableCell className="text-right text-green-700 font-medium">
-                                      {formatCurrency(i.monto)}
-                                    </TableCell>
+                          </div>
+                          <p className="font-bold text-green-700">
+                            {formatCurrency(p.total)}
+                          </p>
+                        </button>
+                        {abierta && (
+                          <div className="border-t bg-muted/20">
+                            {p.items.length === 0 ? (
+                              <div className="p-4 text-sm text-muted-foreground text-center">
+                                Sin movimientos en este periodo.
+                              </div>
+                            ) : (
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead className="w-24">Fecha</TableHead>
+                                    <TableHead>Concepto</TableHead>
+                                    <TableHead>Referencia</TableHead>
+                                    <TableHead className="text-right">Monto</TableHead>
+                                    <TableHead className="w-20 text-center">Acciones</TableHead>
                                   </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+                                </TableHeader>
+                                <TableBody>
+                                  {p.items.map((i) => {
+                                    const aporte = aportesById[i.id]
+                                    return (
+                                      <TableRow key={i.id}>
+                                        <TableCell className="text-xs">{formatDate(i.fecha)}</TableCell>
+                                        <TableCell className="text-sm">{i.concepto}</TableCell>
+                                        <TableCell className="text-xs text-muted-foreground">
+                                          {i.referencia || '-'}
+                                        </TableCell>
+                                        <TableCell className="text-right text-green-700 font-medium">
+                                          {formatCurrency(i.monto)}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                          {aporte ? (
+                                            <div className="flex justify-center gap-1">
+                                              <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-7 w-7"
+                                                onClick={() => setAporteEdit(aporte)}
+                                              >
+                                                <Pencil className="h-3 w-3" />
+                                              </Button>
+                                              {isAdmin && (
+                                                <Button
+                                                  size="icon"
+                                                  variant="ghost"
+                                                  className="h-7 w-7"
+                                                  onClick={() => deleteAporteMutation.mutate(aporte.id)}
+                                                >
+                                                  <Trash2 className="h-3 w-3 text-destructive" />
+                                                </Button>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <span className="text-xs text-muted-foreground">-</span>
+                                          )}
+                                        </TableCell>
+                                      </TableRow>
+                                    )
+                                  })}
+                                </TableBody>
+                              </Table>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+                )}
                 <div className="pt-3 mt-2 border-t flex justify-between items-center">
                   <span className="font-semibold">TOTAL INGRESOS</span>
                   <span className="font-bold text-green-700 text-lg">
@@ -566,36 +750,55 @@ export function PanelSociosTab() {
                                   <TableHead>Concepto</TableHead>
                                   <TableHead>Cuenta</TableHead>
                                   <TableHead className="text-right">Monto</TableHead>
-                                  {isAdmin && <TableHead className="w-12" />}
+                                  <TableHead className="w-24 text-center">Acciones</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {s.retiros.map((r) => (
-                                  <TableRow key={r.id}>
-                                    <TableCell className="text-xs">{formatDate(r.fecha)}</TableCell>
-                                    <TableCell className="text-sm">{r.concepto}</TableCell>
-                                    <TableCell className="text-xs text-muted-foreground">
-                                      {r.referencia || '-'}
-                                    </TableCell>
-                                    <TableCell className="text-right text-red-700 font-medium">
-                                      −{formatCurrency(r.monto)}
-                                    </TableCell>
-                                    {isAdmin && (
-                                      <TableCell>
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            deleteRetiroMutation.mutate(r.id)
-                                          }}
-                                        >
-                                          <Trash2 className="h-3 w-3 text-destructive" />
-                                        </Button>
+                                {s.retiros.map((r) => {
+                                  const retiro = retirosById[r.id]
+                                  return (
+                                    <TableRow key={r.id}>
+                                      <TableCell className="text-xs">{formatDate(r.fecha)}</TableCell>
+                                      <TableCell className="text-sm">{r.concepto}</TableCell>
+                                      <TableCell className="text-xs text-muted-foreground">
+                                        {r.referencia || '-'}
                                       </TableCell>
-                                    )}
-                                  </TableRow>
-                                ))}
+                                      <TableCell className="text-right text-red-700 font-medium">
+                                        −{formatCurrency(r.monto)}
+                                      </TableCell>
+                                      <TableCell className="text-center">
+                                        <div className="flex justify-center gap-1">
+                                          {retiro && (
+                                            <Button
+                                              size="icon"
+                                              variant="ghost"
+                                              className="h-7 w-7"
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                setRetiroEdit(retiro)
+                                              }}
+                                            >
+                                              <Pencil className="h-3 w-3" />
+                                            </Button>
+                                          )}
+                                          {isAdmin && (
+                                            <Button
+                                              size="icon"
+                                              variant="ghost"
+                                              className="h-7 w-7"
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                deleteRetiroMutation.mutate(r.id)
+                                              }}
+                                            >
+                                              <Trash2 className="h-3 w-3 text-destructive" />
+                                            </Button>
+                                          )}
+                                        </div>
+                                      </TableCell>
+                                    </TableRow>
+                                  )
+                                })}
                               </TableBody>
                             </Table>
                           )}
@@ -610,14 +813,12 @@ export function PanelSociosTab() {
         </>
       )}
 
-      {/* Dialog: Aporte */}
+      {/* Dialog: Aporte (crear) */}
       <Dialog open={isAporteOpen} onOpenChange={setIsAporteOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Registrar aporte de socio</DialogTitle>
-            <DialogDescription>
-              El aporte suma como ingreso de la empresa.
-            </DialogDescription>
+            <DialogDescription>El aporte suma como ingreso de la empresa.</DialogDescription>
           </DialogHeader>
           <form onSubmit={aporteForm.handleSubmit(onSubmitAporte)} className="space-y-4">
             <div className="space-y-2">
@@ -685,14 +886,34 @@ export function PanelSociosTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog: Retiro */}
+      {/* Dialog: Aporte (editar) */}
+      <Dialog open={!!aporteEdit} onOpenChange={(o) => !o && setAporteEdit(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar aporte</DialogTitle>
+            <DialogDescription>
+              Socio: {aporteEdit?.socio_nombre}
+            </DialogDescription>
+          </DialogHeader>
+          {aporteEdit && (
+            <EditForm
+              tipo="aporte"
+              initial={aporteEdit}
+              cuentas={cuentas || []}
+              loading={updateAporteMutation.isPending}
+              onCancel={() => setAporteEdit(null)}
+              onSubmit={(data) => updateAporteMutation.mutate({ id: aporteEdit.id, data })}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Retiro (crear) */}
       <Dialog open={isRetiroOpen} onOpenChange={setIsRetiroOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Registrar retiro de socio</DialogTitle>
-            <DialogDescription>
-              El retiro se descuenta de la ganancia del socio.
-            </DialogDescription>
+            <DialogDescription>Se descuenta de la ganancia del socio.</DialogDescription>
           </DialogHeader>
           <form onSubmit={retiroForm.handleSubmit(onSubmitRetiro)} className="space-y-4">
             <div className="space-y-2">
@@ -766,7 +987,29 @@ export function PanelSociosTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog: Socio nuevo */}
+      {/* Dialog: Retiro (editar) */}
+      <Dialog open={!!retiroEdit} onOpenChange={(o) => !o && setRetiroEdit(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar retiro</DialogTitle>
+            <DialogDescription>
+              Socio: {retiroEdit?.socio_nombre}
+            </DialogDescription>
+          </DialogHeader>
+          {retiroEdit && (
+            <EditForm
+              tipo="retiro"
+              initial={retiroEdit}
+              cuentas={cuentas || []}
+              loading={updateRetiroMutation.isPending}
+              onCancel={() => setRetiroEdit(null)}
+              onSubmit={(data) => updateRetiroMutation.mutate({ id: retiroEdit.id, data })}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Socio */}
       <Dialog open={isSocioOpen} onOpenChange={setIsSocioOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -817,6 +1060,198 @@ export function PanelSociosTab() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog: Gestion de planillas de ingreso */}
+      <Dialog open={isPlanillasOpen} onOpenChange={setIsPlanillasOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Gestionar planillas de ingreso</DialogTitle>
+            <DialogDescription>
+              Podés agregar, renombrar o eliminar planillas. Se aplican al elegir "Planilla" al cargar un ingreso.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Alta */}
+          <form onSubmit={tipoForm.handleSubmit(onSubmitTipo)} className="grid grid-cols-[1fr_100px_auto] gap-2 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs">Nueva planilla</Label>
+              <Input {...tipoForm.register('nombre')} placeholder="Ej: Comisiones, Alquileres..." />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Color</Label>
+              <Input type="color" {...tipoForm.register('color')} />
+            </div>
+            <Button type="submit" disabled={createTipoMutation.isPending}>
+              <Plus className="h-4 w-4 mr-1" /> Agregar
+            </Button>
+          </form>
+
+          {/* Lista */}
+          <div className="space-y-2 mt-4">
+            {tiposIngreso?.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No hay planillas creadas.
+              </p>
+            ) : (
+              tiposIngreso?.map((t) => (
+                <div key={t.id} className="flex items-center gap-3 p-3 rounded border">
+                  <div
+                    className="w-4 h-4 rounded flex-shrink-0"
+                    style={{ backgroundColor: t.color }}
+                  />
+                  {tipoEdit?.id === t.id ? (
+                    <>
+                      <Input
+                        defaultValue={t.nombre}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const v = (e.target as HTMLInputElement).value
+                            if (v.trim()) {
+                              updateTipoMutation.mutate({ id: t.id, data: { nombre: v.trim() } })
+                            }
+                          }
+                          if (e.key === 'Escape') setTipoEdit(null)
+                        }}
+                        autoFocus
+                        className="flex-1"
+                      />
+                      <Button size="sm" variant="ghost" onClick={() => setTipoEdit(null)}>
+                        Cancelar
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex-1">
+                        <p className="font-medium">{t.nombre}</p>
+                        {t.es_aporte_socio && (
+                          <Badge variant="outline" className="mt-1 text-xs">
+                            Planilla de aportes de socios
+                          </Badge>
+                        )}
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setTipoEdit(t)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      {isAdmin && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
+                            if (confirm(`Eliminar planilla "${t.nombre}"? Los ingresos ya cargados quedaran sin clasificar.`)) {
+                              deleteTipoMutation.mutate(t.id)
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPlanillasOpen(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+  )
+}
+
+
+// ============ EditForm (aporte / retiro) ============
+
+interface EditFormProps {
+  tipo: 'aporte' | 'retiro'
+  initial: AporteSocio | RetiroSocio
+  cuentas: Array<{ id: string; nombre: string }>
+  loading: boolean
+  onCancel: () => void
+  onSubmit: (data: panelSocios.AporteSocioUpdate | panelSocios.RetiroSocioUpdate) => void
+}
+
+function EditForm({ tipo, initial, cuentas, loading, onCancel, onSubmit }: EditFormProps) {
+  const [monto, setMonto] = useState<number>(initial.monto)
+  const [fecha, setFecha] = useState<string>(initial.fecha)
+  const [concepto, setConcepto] = useState<string>(initial.concepto || '')
+  const [observaciones, setObservaciones] = useState<string>(initial.observaciones || '')
+  const [cuentaId, setCuentaId] = useState<string | undefined>(initial.cuenta_id || undefined)
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSubmit({
+          monto,
+          fecha,
+          concepto: concepto || undefined,
+          observaciones: observaciones || undefined,
+          cuenta_id: cuentaId || undefined,
+        })
+      }}
+      className="space-y-4"
+    >
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label>Monto *</Label>
+          <Input
+            type="number"
+            step="0.01"
+            value={monto}
+            onChange={(e) => setMonto(Number(e.target.value))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Fecha *</Label>
+          <Input
+            type="date"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label>{tipo === 'aporte' ? 'Cuenta destino' : 'Cuenta origen'}</Label>
+        <Select value={cuentaId} onValueChange={setCuentaId}>
+          <SelectTrigger>
+            <SelectValue placeholder="Opcional" />
+          </SelectTrigger>
+          <SelectContent>
+            {cuentas.map((c) => (
+              <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Concepto</Label>
+        <Input value={concepto} onChange={(e) => setConcepto(e.target.value)} />
+      </div>
+      <div className="space-y-2">
+        <Label>Observaciones</Label>
+        <Textarea
+          value={observaciones}
+          onChange={(e) => setObservaciones(e.target.value)}
+          rows={2}
+        />
+      </div>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={loading}>
+          Guardar cambios
+        </Button>
+      </DialogFooter>
+    </form>
   )
 }

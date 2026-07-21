@@ -29,24 +29,10 @@ class EstadoTransaccion(str, enum.Enum):
     ANULADA = "anulada"
 
 
-class TipoIngreso(str, enum.Enum):
-    """Subtipo de ingreso, usado para separar planillas en el panel de socios."""
-    COBRO_FACTURA_OBRA = "cobro_factura_obra"
-    COBRO_FACTURA_VENTA = "cobro_factura_venta"
-    APORTE_SOCIO = "aporte_socio"
-    OTRO = "otro"
-
-
 # PostgreSQL ENUMs - usan los valores del enum (minuscula)
 TipoTransaccionDB = PgEnum(
     'ingreso', 'egreso',
     name='tipotransaccion',
-    create_type=False
-)
-
-TipoIngresoDB = PgEnum(
-    'cobro_factura_obra', 'cobro_factura_venta', 'aporte_socio', 'otro',
-    name='tipoingreso',
     create_type=False
 )
 
@@ -68,7 +54,8 @@ class Transaccion(Base, BaseModel):
     __tablename__ = "transacciones"
 
     tipo = Column(TipoTransaccionDB, nullable=False)
-    tipo_ingreso = Column(TipoIngresoDB, nullable=True)  # solo se usa cuando tipo=ingreso
+    # solo se usa cuando tipo=ingreso, apunta a la planilla configurable
+    tipo_ingreso_id = Column(UUID(as_uuid=True), ForeignKey("tipos_ingreso.id"), nullable=True)
     concepto = Column(String(300), nullable=False)
     descripcion = Column(Text, nullable=True)
     monto = Column(Numeric(12, 2), nullable=False)
@@ -100,6 +87,7 @@ class Transaccion(Base, BaseModel):
     categoria = relationship("CategoriaGasto")
     cuenta = relationship("Cuenta", back_populates="transacciones")
     cliente_proveedor = relationship("ClienteProveedor", back_populates="transacciones")
+    tipo_ingreso = relationship("TipoIngresoConfig")
     creador = relationship("Usuario", foreign_keys=[creado_por_id])
 
     def __repr__(self):

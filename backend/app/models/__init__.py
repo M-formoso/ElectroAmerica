@@ -17,7 +17,7 @@ from app.models.reporte import Reporte
 from app.models.precio_item import PrecioItem
 from app.models.lista_precio import ListaPrecio, PrecioListaActividad
 from app.models.transaccion import (
-    Transaccion, TipoTransaccion, MetodoPago, EstadoTransaccion, TipoIngreso,
+    Transaccion, TipoTransaccion, MetodoPago, EstadoTransaccion,
     Cuenta, TipoCuenta,
     ClienteProveedor, TipoClienteProveedor,
     Presupuesto
@@ -49,3 +49,6 @@ from app.models.remito import Remito, RemitoItem, RemitoDescuento, TipoRemito
 
 # Socios y aportes/retiros
 from app.models.socio import Socio, AporteSocio, RetiroSocio
+
+# Planillas de ingreso dinamicas (reemplaza el enum tipoingreso)
+from app.models.tipo_ingreso import TipoIngresoConfig

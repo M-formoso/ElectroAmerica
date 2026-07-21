@@ -91,6 +91,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { proyectosService } from '@/services/proyectos'
 import { gastosService } from '@/services/gastos'
 import * as finanzasService from '@/services/finanzas'
+import * as panelSocios from '@/services/panelSocios'
 import type {
   Transaccion,
   TransaccionCreate,
@@ -107,7 +108,7 @@ import type {
 // Schemas
 const transaccionSchema = z.object({
   tipo: z.enum(['ingreso', 'egreso']),
-  tipo_ingreso: z.enum(['cobro_factura_obra', 'cobro_factura_venta', 'aporte_socio', 'otro']).optional(),
+  tipo_ingreso_id: z.string().optional(),
   concepto: z.string().min(1, 'Concepto requerido'),
   descripcion: z.string().optional(),
   monto: z.number().min(0.01, 'Monto debe ser mayor a 0'),
@@ -194,6 +195,11 @@ export function FinanzasPage() {
   const { data: categorias } = useQuery({
     queryKey: ['categorias-gasto'],
     queryFn: gastosService.getCategorias,
+  })
+
+  const { data: tiposIngreso } = useQuery({
+    queryKey: ['tipos-ingreso'],
+    queryFn: panelSocios.getTiposIngreso,
   })
 
   const { data: resumenMensual } = useQuery({
@@ -1137,27 +1143,23 @@ export function FinanzasPage() {
           <form onSubmit={transaccionForm.handleSubmit(onSubmitTransaccion)} className="space-y-4">
             {transaccionTipo === 'ingreso' && (
               <div className="space-y-2">
-                <Label>Tipo de ingreso</Label>
+                <Label>Planilla de ingreso</Label>
                 <Select
-                  onValueChange={(v) =>
-                    transaccionForm.setValue(
-                      'tipo_ingreso',
-                      v as 'cobro_factura_obra' | 'cobro_factura_venta' | 'aporte_socio' | 'otro',
-                    )
-                  }
+                  onValueChange={(v) => transaccionForm.setValue('tipo_ingreso_id', v)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Elegir planilla (obra, venta, aporte...)" />
+                    <SelectValue placeholder="Elegir planilla" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cobro_factura_obra">Cobro factura obras</SelectItem>
-                    <SelectItem value="cobro_factura_venta">Cobro factura ventas</SelectItem>
-                    <SelectItem value="aporte_socio">Aporte de socio</SelectItem>
-                    <SelectItem value="otro">Otro</SelectItem>
+                    {tiposIngreso?.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.nombre}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Se usa para agrupar en el Panel de Socios.
+                  Se agrupan en el Panel de Socios. Podés crear planillas nuevas desde ahí.
                 </p>
               </div>
             )}

@@ -104,6 +104,34 @@ class RetiroSocioResponse(RetiroSocioBase):
         from_attributes = True
 
 
+# ============ TIPOS DE INGRESO (planillas dinamicas) ============
+
+class TipoIngresoBase(BaseModel):
+    nombre: str = Field(..., max_length=100)
+    color: str = Field("#10B981", max_length=7)
+    orden: int = 0
+    es_aporte_socio: bool = False
+
+
+class TipoIngresoCreate(TipoIngresoBase):
+    pass
+
+
+class TipoIngresoUpdate(BaseModel):
+    nombre: Optional[str] = None
+    color: Optional[str] = None
+    orden: Optional[int] = None
+    es_aporte_socio: Optional[bool] = None
+
+
+class TipoIngresoResponse(TipoIngresoBase):
+    id: UUID
+    activo: bool
+
+    class Config:
+        from_attributes = True
+
+
 # ============ RESUMEN PANEL SOCIOS ============
 
 class ItemPlanilla(BaseModel):
@@ -116,9 +144,10 @@ class ItemPlanilla(BaseModel):
 
 
 class PlanillaIngresos(BaseModel):
-    """Agrupacion de ingresos por tipo (obra, venta, aportes, otros)."""
-    tipo: str
-    label: str
+    """Agrupacion de ingresos por planilla configurable."""
+    tipo_id: Optional[UUID] = None  # None si es una planilla virtual (aportes sueltos, sin clasificar)
+    nombre: str
+    color: str
     total: float
     cantidad: int
     items: List[ItemPlanilla] = []

@@ -1,5 +1,4 @@
 import api from './api'
-import type { TipoIngreso } from './finanzas'
 
 // ============ TYPES ============
 
@@ -95,6 +94,29 @@ export interface RetiroSocioUpdate {
   cuenta_id?: string
 }
 
+export interface TipoIngresoConfig {
+  id: string
+  nombre: string
+  color: string
+  orden: number
+  es_aporte_socio: boolean
+  activo: boolean
+}
+
+export interface TipoIngresoCreate {
+  nombre: string
+  color?: string
+  orden?: number
+  es_aporte_socio?: boolean
+}
+
+export interface TipoIngresoUpdate {
+  nombre?: string
+  color?: string
+  orden?: number
+  es_aporte_socio?: boolean
+}
+
 export interface ItemPlanilla {
   id: string
   concepto: string
@@ -104,8 +126,9 @@ export interface ItemPlanilla {
 }
 
 export interface PlanillaIngresos {
-  tipo: TipoIngreso
-  label: string
+  tipo_id?: string | null
+  nombre: string
+  color: string
   total: number
   cantidad: number
   items: ItemPlanilla[]
@@ -218,13 +241,22 @@ export const deleteRetiro = async (id: string): Promise<void> => {
   await api.delete(`/panel-socios/retiros/${id}`)
 }
 
-// Helpers
-export const getTipoIngresoLabel = (tipo: TipoIngreso): string => {
-  const labels: Record<TipoIngreso, string> = {
-    cobro_factura_obra: 'Cobro factura obras',
-    cobro_factura_venta: 'Cobro factura ventas',
-    aporte_socio: 'Aportes de socios',
-    otro: 'Otros ingresos',
-  }
-  return labels[tipo] || tipo
+// Tipos de ingreso (planillas dinamicas)
+export const getTiposIngreso = async (): Promise<TipoIngresoConfig[]> => {
+  const response = await api.get('/panel-socios/tipos-ingreso')
+  return response.data
+}
+
+export const createTipoIngreso = async (data: TipoIngresoCreate): Promise<TipoIngresoConfig> => {
+  const response = await api.post('/panel-socios/tipos-ingreso', data)
+  return response.data
+}
+
+export const updateTipoIngreso = async (id: string, data: TipoIngresoUpdate): Promise<TipoIngresoConfig> => {
+  const response = await api.put(`/panel-socios/tipos-ingreso/${id}`, data)
+  return response.data
+}
+
+export const deleteTipoIngreso = async (id: string): Promise<void> => {
+  await api.delete(`/panel-socios/tipos-ingreso/${id}`)
 }
