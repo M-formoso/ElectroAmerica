@@ -132,6 +132,7 @@ const navigationSections: NavSection[] = [
     modulo: 'finanzas',
     items: [
       { name: 'Resumen Financiero', href: '/finanzas', icon: Wallet, roles: ['administrador', 'supervisor'], modulo: 'finanzas' },
+      { name: 'Panel de Socios', href: '/panel-socios', icon: Users, roles: ['administrador', 'supervisor'], modulo: 'finanzas' },
       { name: 'Reportes', href: '/reportes', icon: FileBarChart, roles: ['administrador', 'supervisor'], modulo: 'reportes' },
     ],
   },

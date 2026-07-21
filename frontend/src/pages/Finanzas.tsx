@@ -31,7 +31,6 @@ import {
 import { ListasPrecioTab } from '@/components/finanzas/ListasPrecioTab'
 import { PresupuestosTab } from '@/components/finanzas/PresupuestosTab'
 import { FacturacionTab } from '@/components/finanzas/FacturacionTab'
-import { PanelSociosTab } from '@/components/finanzas/PanelSociosTab'
 import {
   BarChart,
   Bar,
@@ -405,7 +404,7 @@ export function FinanzasPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-9">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             <span className="hidden sm:inline">Dashboard</span>
@@ -437,10 +436,6 @@ export function FinanzasPage() {
           <TabsTrigger value="facturacion" className="flex items-center gap-2">
             <ClipboardCheck className="h-4 w-4" />
             <span className="hidden sm:inline">Facturación</span>
-          </TabsTrigger>
-          <TabsTrigger value="panel-socios" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            <span className="hidden sm:inline">Socios</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1139,10 +1134,6 @@ export function FinanzasPage() {
 
         <TabsContent value="facturacion" className="space-y-4">
           <FacturacionTab />
-        </TabsContent>
-
-        <TabsContent value="panel-socios" className="space-y-4">
-          <PanelSociosTab />
         </TabsContent>
       </Tabs>
 

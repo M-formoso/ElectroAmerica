@@ -14,6 +14,7 @@ import { DepositosPage } from '@/pages/Depositos'
 import { RemitosPage } from '@/pages/Remitos'
 import { EquiposPage } from '@/pages/Equipos'
 import { FinanzasPage } from '@/pages/Finanzas'
+import { PanelSociosPage } from '@/pages/PanelSocios'
 import { ClientesPage } from '@/pages/Clientes'
 import { UsuariosPage } from '@/pages/Usuarios'
 import { MisProyectosPage } from '@/pages/portal/MisProyectos'
@@ -118,6 +119,7 @@ function AppRoutes() {
         <Route path="remitos" element={<RemitosPage />} />
         <Route path="equipos" element={<EquiposPage />} />
         <Route path="finanzas" element={<FinanzasPage />} />
+        <Route path="panel-socios" element={<PanelSociosPage />} />
         <Route path="clientes" element={<ClientesPage />} />
         <Route path="alertas" element={<AlertasPage />} />
         <Route path="reportes" element={<ReportesPage />} />
