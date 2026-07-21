@@ -18,6 +18,7 @@ import {
   TrendingUp,
   TrendingDown,
   Settings2,
+  Download,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -114,6 +115,7 @@ export function PanelSociosTab() {
   const [retiroEdit, setRetiroEdit] = useState<RetiroSocio | null>(null)
   const [tipoEdit, setTipoEdit] = useState<TipoIngresoConfig | null>(null)
   const [socioSeleccionado, setSocioSeleccionado] = useState<string | undefined>()
+  const [descargandoPdf, setDescargandoPdf] = useState(false)
 
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -360,6 +362,20 @@ export function PanelSociosTab() {
     setFechaHasta(`${anio}-12-31`)
   }
 
+  const descargarPdf = async () => {
+    try {
+      setDescargandoPdf(true)
+      await panelSocios.descargarPanelPdf({
+        fecha_desde: fechaDesde,
+        fecha_hasta: fechaHasta,
+      })
+    } catch {
+      toast({ variant: 'destructive', title: 'Error al generar el PDF' })
+    } finally {
+      setDescargandoPdf(false)
+    }
+  }
+
   // Indice de aportes/retiros por id para lookup rapido en edicion
   const aportesById = useMemo(() => {
     const m: Record<string, AporteSocio> = {}
@@ -401,6 +417,18 @@ export function PanelSociosTab() {
             <Button variant="outline" size="sm" onClick={setAnioActual}>Año</Button>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              onClick={descargarPdf}
+              disabled={descargandoPdf}
+            >
+              {descargandoPdf ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-1" />
+              )}
+              PDF
+            </Button>
             <Button onClick={() => setIsAporteOpen(true)}>
               <Plus className="h-4 w-4 mr-1" /> Aporte
             </Button>

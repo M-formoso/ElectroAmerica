@@ -220,12 +220,28 @@ export function FinanzasPage() {
       queryClient.invalidateQueries({ queryKey: ['transacciones'] })
       queryClient.invalidateQueries({ queryKey: ['finanzas-dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['cuentas'] })
+      queryClient.invalidateQueries({ queryKey: ['panel-socios-resumen'] })
       toast({ title: 'Transacción registrada correctamente' })
       setIsCreateTransaccionOpen(false)
       transaccionForm.reset()
     },
-    onError: () => {
-      toast({ variant: 'destructive', title: 'Error al registrar transacción' })
+    onError: (e: any) => {
+      const detail = e?.response?.data?.detail
+      let description: string | undefined
+      if (typeof detail === 'string') {
+        description = detail
+      } else if (Array.isArray(detail)) {
+        description = detail
+          .map((d: any) => d?.msg || d?.loc?.join('.') || JSON.stringify(d))
+          .join(' · ')
+      } else if (detail) {
+        description = JSON.stringify(detail)
+      }
+      toast({
+        variant: 'destructive',
+        title: 'Error al registrar transacción',
+        description,
+      })
     },
   })
 
@@ -326,6 +342,8 @@ export function FinanzasPage() {
       categoria_id: data.categoria_id || undefined,
       cuenta_id: data.cuenta_id || undefined,
       cliente_proveedor_id: data.cliente_proveedor_id || undefined,
+      // tipo_ingreso_id solo aplica a ingresos, se limpia si el tipo es egreso
+      tipo_ingreso_id: data.tipo === 'ingreso' ? (data.tipo_ingreso_id || undefined) : undefined,
     } as TransaccionCreate)
   }
 

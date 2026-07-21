@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from uuid import UUID
 from typing import Optional, List
@@ -13,7 +14,7 @@ from app.schemas.socio import (
     TipoIngresoCreate, TipoIngresoUpdate, TipoIngresoResponse,
     ResumenPanelSocios,
 )
-from app.services import panel_socios_service
+from app.services import panel_socios_service, panel_socios_pdf_service
 
 router = APIRouter()
 
@@ -31,6 +32,28 @@ def obtener_resumen(
     if fecha_hasta < fecha_desde:
         raise HTTPException(status_code=400, detail="fecha_hasta debe ser posterior a fecha_desde")
     return panel_socios_service.obtener_resumen_panel(db, fecha_desde, fecha_hasta)
+
+
+@router.get("/pdf")
+def descargar_pdf(
+    fecha_desde: date,
+    fecha_hasta: date,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Descarga un PDF con el resumen del panel de socios del periodo."""
+    if fecha_hasta < fecha_desde:
+        raise HTTPException(status_code=400, detail="fecha_hasta debe ser posterior a fecha_desde")
+
+    resumen = panel_socios_service.obtener_resumen_panel(db, fecha_desde, fecha_hasta)
+    pdf_bytes = panel_socios_pdf_service.generar_pdf_panel_socios(resumen)
+
+    nombre = f"panel-socios_{fecha_desde.isoformat()}_{fecha_hasta.isoformat()}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
 
 
 # ============ SOCIOS ============

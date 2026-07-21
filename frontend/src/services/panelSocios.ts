@@ -173,6 +173,24 @@ export const getResumenPanel = async (params: {
   return response.data
 }
 
+export const descargarPanelPdf = async (params: {
+  fecha_desde: string
+  fecha_hasta: string
+}): Promise<void> => {
+  const response = await api.get('/panel-socios/pdf', {
+    params,
+    responseType: 'blob',
+  })
+  const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `panel-socios_${params.fecha_desde}_${params.fecha_hasta}.pdf`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 // Socios
 export const getSocios = async (): Promise<Socio[]> => {
   const response = await api.get('/panel-socios/socios')
