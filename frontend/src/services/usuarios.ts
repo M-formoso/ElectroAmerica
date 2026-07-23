@@ -55,6 +55,8 @@ export const moduloLabels: Record<string, string> = {
   proyectos: 'Proyectos',
   clientes: 'Clientes',
   materiales: 'Materiales',
+  depositos: 'Depósitos',
+  remitos: 'Remitos',
   equipos: 'Equipos',
   herramientas: 'Herramientas',
   finanzas: 'Finanzas',
