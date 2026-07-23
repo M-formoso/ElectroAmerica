@@ -28,6 +28,7 @@ from app.api.v1.endpoints import (
     remitos,
     listas_precio,
     panel_socios,
+    fichajes,
 )
 
 api_router = APIRouter()
@@ -226,4 +227,11 @@ api_router.include_router(
     panel_socios.router,
     prefix="/panel-socios",
     tags=["Panel Socios"]
+)
+
+# Fichajes de jornada (entrada/salida operarios)
+api_router.include_router(
+    fichajes.router,
+    prefix="/fichajes",
+    tags=["Fichajes"]
 )

@@ -88,6 +88,7 @@ const navigationSections: NavSection[] = [
     roles: ['operario'],
     modulo: 'jornadas_operario',
     items: [
+      { name: 'Fichar Entrada/Salida', href: '/operario/fichaje', icon: Clock, roles: ['operario'], modulo: 'jornadas_operario' },
       { name: 'Iniciar Jornada', href: '/operario/iniciar-jornada', icon: PlayCircle, roles: ['operario'], modulo: 'jornadas_operario' },
       { name: 'Jornada Activa', href: '/operario/jornada-activa', icon: Clock, roles: ['operario'], modulo: 'jornadas_operario' },
       { name: 'Mi Historial', href: '/operario/historial', icon: History, roles: ['operario'], modulo: 'jornadas_operario' },
@@ -100,6 +101,7 @@ const navigationSections: NavSection[] = [
     modulo: 'jornadas_gestion',
     items: [
       { name: 'Monitor Jornadas', href: '/jornadas/monitor', icon: Clock, roles: ['administrador', 'supervisor'], modulo: 'jornadas_gestion' },
+      { name: 'Fichajes', href: '/jornadas/fichajes', icon: ClipboardCheck, roles: ['administrador', 'supervisor'], modulo: 'jornadas_gestion' },
       { name: 'Planificación', href: '/jornadas/planificacion', icon: Calendar, roles: ['administrador', 'supervisor'], modulo: 'jornadas_gestion' },
       { name: 'Tareas', href: '/actividades-tipo', icon: ClipboardList, roles: ['administrador', 'supervisor'], modulo: 'actividades_tipo' },
     ],

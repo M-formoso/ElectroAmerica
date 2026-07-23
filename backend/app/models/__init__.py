@@ -52,3 +52,6 @@ from app.models.socio import Socio, AporteSocio, RetiroSocio
 
 # Planillas de ingreso dinamicas (reemplaza el enum tipoingreso)
 from app.models.tipo_ingreso import TipoIngresoConfig
+
+# Fichaje de jornadas (entrada/salida)
+from app.models.fichaje import FichajeJornada, EstadoFichaje

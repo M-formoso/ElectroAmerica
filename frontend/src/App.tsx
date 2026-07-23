@@ -26,10 +26,12 @@ import { AuditoriaPage } from '@/pages/Auditoria'
 import IniciarJornadaPage from '@/pages/operario/IniciarJornada'
 import JornadaActivaPage from '@/pages/operario/JornadaActiva'
 import HistorialJornadasPage from '@/pages/operario/HistorialJornadas'
+import FichajePage from '@/pages/operario/Fichaje'
 // Supervisor pages
 import MonitorJornadasPage from '@/pages/admin/MonitorJornadas'
 import PlanificacionDiariaPage from '@/pages/admin/PlanificacionDiaria'
 import ActividadesTipoPage from '@/pages/admin/ActividadesTipo'
+import FichajesAdminPage from '@/pages/admin/FichajesAdmin'
 // Herramientas pages
 import ControlPrestamosPage from '@/pages/herramientas/ControlPrestamos'
 import InventarioHerramientasPage from '@/pages/herramientas/InventarioHerramientas'
@@ -129,9 +131,11 @@ function AppRoutes() {
         <Route path="operario/iniciar-jornada" element={<IniciarJornadaPage />} />
         <Route path="operario/jornada-activa" element={<JornadaActivaPage />} />
         <Route path="operario/historial" element={<HistorialJornadasPage />} />
+        <Route path="operario/fichaje" element={<FichajePage />} />
         {/* Supervisor routes */}
         <Route path="jornadas/monitor" element={<MonitorJornadasPage />} />
         <Route path="jornadas/planificacion" element={<PlanificacionDiariaPage />} />
+        <Route path="jornadas/fichajes" element={<FichajesAdminPage />} />
         <Route path="actividades-tipo" element={<ActividadesTipoPage />} />
         {/* Herramientas routes */}
         <Route path="herramientas/prestamos" element={<ControlPrestamosPage />} />
