@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Clock, Users, CheckCircle, Timer, Search, RefreshCw, LogIn, LogOut, UserCog } from 'lucide-react'
+import { Clock, Users, CheckCircle, Timer, Search, RefreshCw, LogIn, LogOut, UserCog, FileDown, Trash2 } from 'lucide-react'
 import { fichajesService } from '@/services/fichajes'
 import type { EstadoFichaje, FichajeListItem } from '@/services/fichajes'
 import { usuariosService } from '@/services/usuarios'
@@ -49,6 +49,9 @@ export default function FichajesAdminPage() {
   const [fechaHasta, setFechaHasta] = useState(today)
   const [estadoFiltro, setEstadoFiltro] = useState<string>('todos')
   const [busqueda, setBusqueda] = useState('')
+
+  const [descargandoPdf, setDescargandoPdf] = useState(false)
+  const [fichajeABorrar, setFichajeABorrar] = useState<FichajeListItem | null>(null)
 
   // Dialog fichar por operario
   const [showFicharDialog, setShowFicharDialog] = useState(false)
@@ -122,6 +125,37 @@ export default function FichajesAdminPage() {
     },
   })
 
+  const borrarMutation = useMutation({
+    mutationFn: (id: string) => fichajesService.eliminar(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fichajes-admin'] })
+      qc.invalidateQueries({ queryKey: ['fichajes-resumen'] })
+      setFichajeABorrar(null)
+      toast({ title: 'Fichaje eliminado' })
+    },
+    onError: () => toast({ title: 'Error al eliminar', variant: 'destructive' }),
+  })
+
+  const handleDescargarPdf = async () => {
+    setDescargandoPdf(true)
+    try {
+      const blob = await fichajesService.descargarPdf({
+        fecha_desde: fechaDesde || undefined,
+        fecha_hasta: fechaHasta || undefined,
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `fichajes_${fechaDesde || 'todo'}_${fechaHasta || 'hoy'}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast({ title: 'Error al generar PDF', variant: 'destructive' })
+    } finally {
+      setDescargandoPdf(false)
+    }
+  }
+
   const filtrados = fichajes.filter((f: FichajeListItem) => {
     if (!busqueda) return true
     const nombre = `${f.operario_nombre ?? ''} ${f.operario_apellido ?? ''}`.toLowerCase()
@@ -143,6 +177,10 @@ export default function FichajesAdminPage() {
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4 mr-1" />
             Actualizar
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleDescargarPdf} disabled={descargandoPdf}>
+            <FileDown className="h-4 w-4 mr-1" />
+            {descargandoPdf ? 'Generando...' : 'Descargar PDF'}
           </Button>
           <Button size="sm" onClick={() => setShowFicharDialog(true)}>
             <UserCog className="h-4 w-4 mr-1" />
@@ -302,7 +340,8 @@ export default function FichajesAdminPage() {
                     <th className="py-3 pr-4 font-medium">Salida</th>
                     <th className="py-3 pr-4 font-medium">Horas</th>
                     <th className="py-3 pr-4 font-medium">Proyecto</th>
-                    <th className="py-3 font-medium">Estado</th>
+                    <th className="py-3 pr-4 font-medium">Estado</th>
+                    <th className="py-3 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -326,7 +365,17 @@ export default function FichajesAdminPage() {
                       <td className="py-3 pr-4 text-muted-foreground">
                         {f.proyecto_nombre ?? '—'}
                       </td>
-                      <td className="py-3">{estadoBadge(f.estado)}</td>
+                      <td className="py-3 pr-4">{estadoBadge(f.estado)}</td>
+                      <td className="py-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600"
+                          onClick={() => setFichajeABorrar(f)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -388,6 +437,34 @@ export default function FichajesAdminPage() {
             >
               <LogIn className="h-4 w-4 mr-2" />
               Fichar entrada
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: confirmar borrado */}
+      <Dialog open={!!fichajeABorrar} onOpenChange={(open) => { if (!open) setFichajeABorrar(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Eliminar fichaje
+            </DialogTitle>
+          </DialogHeader>
+          {fichajeABorrar && (
+            <p className="text-sm text-muted-foreground py-2">
+              ¿Eliminar el fichaje de <span className="font-medium text-foreground">{fichajeABorrar.operario_nombre} {fichajeABorrar.operario_apellido}</span> del {formatFechaCorta(fichajeABorrar.fecha)}? Esta acción no se puede deshacer.
+            </p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFichajeABorrar(null)}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              onClick={() => fichajeABorrar && borrarMutation.mutate(fichajeABorrar.id)}
+              disabled={borrarMutation.isPending}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Eliminar
             </Button>
           </DialogFooter>
         </DialogContent>

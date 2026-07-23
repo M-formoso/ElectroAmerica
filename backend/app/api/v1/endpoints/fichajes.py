@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from uuid import UUID
 from typing import Optional, List
@@ -142,3 +143,51 @@ def resumen_fichajes(
         fecha_hasta=fecha_hasta,
         operario_id=operario_id,
     )
+
+
+@router.get("/pdf")
+def descargar_pdf_fichajes(
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    operario_id: Optional[UUID] = None,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Descarga PDF con horas trabajadas, normales y extras por operario."""
+    from app.models.fichaje import FichajeJornada, EstadoFichaje as EF
+    from app.services import fichaje_pdf_service
+
+    q = db.query(FichajeJornada).filter(FichajeJornada.activo == True, FichajeJornada.estado == EF.completado)
+    if fecha_desde:
+        q = q.filter(FichajeJornada.fecha >= fecha_desde)
+    if fecha_hasta:
+        q = q.filter(FichajeJornada.fecha <= fecha_hasta)
+    if operario_id:
+        q = q.filter(FichajeJornada.operario_id == operario_id)
+
+    fichajes = q.order_by(FichajeJornada.fecha.asc(), FichajeJornada.hora_inicio.asc()).all()
+    pdf_bytes = fichaje_pdf_service.generar_pdf_fichajes(fichajes, fecha_desde, fecha_hasta)
+
+    desde_str = fecha_desde.isoformat() if fecha_desde else "inicio"
+    hasta_str = fecha_hasta.isoformat() if fecha_hasta else "hoy"
+    nombre = f"fichajes_{desde_str}_{hasta_str}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
+
+
+@router.delete("/{fichaje_id}", status_code=204)
+def eliminar_fichaje(
+    fichaje_id: UUID,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Elimina (soft delete) un fichaje."""
+    from app.models.fichaje import FichajeJornada
+    fichaje = db.query(FichajeJornada).filter(FichajeJornada.id == fichaje_id, FichajeJornada.activo == True).first()
+    if not fichaje:
+        raise HTTPException(status_code=404, detail="Fichaje no encontrado")
+    fichaje.activo = False
+    db.commit()

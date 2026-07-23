@@ -118,4 +118,17 @@ export const fichajesService = {
     const res = await api.post(`/fichajes/admin/${fichajeId}/fichar-salida`, data)
     return res.data
   },
+
+  async eliminar(fichajeId: string): Promise<void> {
+    await api.delete(`/fichajes/${fichajeId}`)
+  },
+
+  async descargarPdf(params?: {
+    fecha_desde?: string
+    fecha_hasta?: string
+    operario_id?: string
+  }): Promise<Blob> {
+    const res = await api.get('/fichajes/pdf', { params, responseType: 'blob' })
+    return res.data
+  },
 }
