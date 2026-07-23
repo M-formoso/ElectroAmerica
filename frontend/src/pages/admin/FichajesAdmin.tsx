@@ -1,12 +1,18 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Clock, Users, CheckCircle, Timer, Search, RefreshCw } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Clock, Users, CheckCircle, Timer, Search, RefreshCw, LogIn, LogOut, UserCog } from 'lucide-react'
 import { fichajesService } from '@/services/fichajes'
 import type { EstadoFichaje, FichajeListItem } from '@/services/fichajes'
+import { usuariosService } from '@/services/usuarios'
+import type { Usuario } from '@/services/usuarios'
+import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 
 function formatHora(iso: string) {
@@ -36,11 +42,22 @@ function estadoBadge(estado: EstadoFichaje) {
 }
 
 export default function FichajesAdminPage() {
+  const { toast } = useToast()
+  const qc = useQueryClient()
   const today = new Date().toISOString().split('T')[0]
   const [fechaDesde, setFechaDesde] = useState(today)
   const [fechaHasta, setFechaHasta] = useState(today)
   const [estadoFiltro, setEstadoFiltro] = useState<string>('todos')
   const [busqueda, setBusqueda] = useState('')
+
+  // Dialog fichar por operario
+  const [showFicharDialog, setShowFicharDialog] = useState(false)
+  const [operarioSeleccionado, setOperarioSeleccionado] = useState<string>('')
+  const [notas, setNotas] = useState('')
+  // Dialog fichar salida por admin
+  const [showSalidaDialog, setShowSalidaDialog] = useState(false)
+  const [fichajeParaSalida, setFichajeParaSalida] = useState<FichajeListItem | null>(null)
+  const [notasSalida, setNotasSalida] = useState('')
 
   const params = {
     fecha_desde: fechaDesde || undefined,
@@ -59,11 +76,61 @@ export default function FichajesAdminPage() {
     queryFn: () => fichajesService.resumen(params),
   })
 
+  const { data: activos = [] } = useQuery({
+    queryKey: ['fichajes-activos'],
+    queryFn: () => fichajesService.obtenerActivos(),
+    refetchInterval: 30_000,
+  })
+
+  const { data: operarios = [] } = useQuery({
+    queryKey: ['usuarios-operarios'],
+    queryFn: () => usuariosService.getUsuarios({ rol: 'operario' }),
+  })
+
+  const fichajeEntradaMutation = useMutation({
+    mutationFn: () => fichajesService.ficharEntradaAdmin({ operario_id: operarioSeleccionado, notas_inicio: notas || undefined }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['fichajes-admin'] })
+      qc.invalidateQueries({ queryKey: ['fichajes-activos'] })
+      qc.invalidateQueries({ queryKey: ['fichajes-resumen'] })
+      setShowFicharDialog(false)
+      setOperarioSeleccionado('')
+      setNotas('')
+      const op = operarios.find((o: Usuario) => o.id === data.operario_id)
+      toast({ title: 'Entrada fichada', description: `Fichaje de ${op?.nombre ?? ''} ${op?.apellido ?? ''} registrado.` })
+    },
+    onError: (e: unknown) => {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast({ title: 'Error', description: detail || 'No se pudo fichar entrada', variant: 'destructive' })
+    },
+  })
+
+  const fichajeSalidaMutation = useMutation({
+    mutationFn: () => fichajesService.ficharSalidaAdmin(fichajeParaSalida!.id, { notas_fin: notasSalida || undefined }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fichajes-admin'] })
+      qc.invalidateQueries({ queryKey: ['fichajes-activos'] })
+      qc.invalidateQueries({ queryKey: ['fichajes-resumen'] })
+      setShowSalidaDialog(false)
+      setFichajeParaSalida(null)
+      setNotasSalida('')
+      toast({ title: 'Salida fichada', description: 'Jornada finalizada correctamente.' })
+    },
+    onError: (e: unknown) => {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast({ title: 'Error', description: detail || 'No se pudo fichar salida', variant: 'destructive' })
+    },
+  })
+
   const filtrados = fichajes.filter((f: FichajeListItem) => {
     if (!busqueda) return true
     const nombre = `${f.operario_nombre ?? ''} ${f.operario_apellido ?? ''}`.toLowerCase()
     return nombre.includes(busqueda.toLowerCase())
   })
+
+  // Operarios sin fichaje activo (disponibles para fichar entrada)
+  const operariosActivosIds = new Set(activos.map((f: FichajeListItem) => f.operario_id))
+  const operariosSinFichaje = operarios.filter((o: Usuario) => !operariosActivosIds.has(o.id) && o.activo)
 
   return (
     <div className="space-y-6">
@@ -72,10 +139,16 @@ export default function FichajesAdminPage() {
           <h1 className="text-2xl font-bold">Fichajes</h1>
           <p className="text-muted-foreground">Control de entradas y salidas de operarios</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4 mr-1" />
-          Actualizar
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4 mr-1" />
+            Actualizar
+          </Button>
+          <Button size="sm" onClick={() => setShowFicharDialog(true)}>
+            <UserCog className="h-4 w-4 mr-1" />
+            Fichar por operario
+          </Button>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -126,6 +199,39 @@ export default function FichajesAdminPage() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Activos ahora */}
+      {activos.length > 0 && (
+        <Card className="border-green-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2 text-green-700">
+              <Clock className="h-4 w-4" />
+              En jornada ahora ({activos.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {activos.map((f: FichajeListItem) => (
+                <div key={f.id} className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">{f.operario_nombre} {f.operario_apellido}</p>
+                    <p className="text-xs text-muted-foreground">Desde {formatHora(f.hora_inicio)}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={() => { setFichajeParaSalida(f); setShowSalidaDialog(true) }}
+                  >
+                    <LogOut className="h-3.5 w-3.5 mr-1" />
+                    Salida
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Filtros */}
@@ -229,6 +335,103 @@ export default function FichajesAdminPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog: fichar entrada por operario */}
+      <Dialog open={showFicharDialog} onOpenChange={(open) => { setShowFicharDialog(open); if (!open) { setOperarioSeleccionado(''); setNotas('') } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserCog className="h-5 w-5" />
+              Fichar entrada por operario
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Operario *</Label>
+              <Select value={operarioSeleccionado} onValueChange={setOperarioSeleccionado}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccioná un operario..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {operariosSinFichaje.length === 0 ? (
+                    <SelectItem value="__none__" disabled>Todos los operarios ya ficharon entrada</SelectItem>
+                  ) : (
+                    operariosSinFichaje.map((o: Usuario) => (
+                      <SelectItem key={o.id} value={o.id}>
+                        {o.nombre} {o.apellido}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              {operariosActivosIds.size > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {operariosActivosIds.size} operario{operariosActivosIds.size > 1 ? 's' : ''} ya {operariosActivosIds.size > 1 ? 'tienen' : 'tiene'} fichaje activo y no aparece{operariosActivosIds.size > 1 ? 'n' : ''} en la lista.
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Notas (opcional)</Label>
+              <Textarea
+                placeholder="Ej: Fichaje manual — operario olvidó el celular"
+                value={notas}
+                onChange={(e) => setNotas(e.target.value)}
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFicharDialog(false)}>Cancelar</Button>
+            <Button
+              onClick={() => fichajeEntradaMutation.mutate()}
+              disabled={!operarioSeleccionado || operarioSeleccionado === '__none__' || fichajeEntradaMutation.isPending}
+            >
+              <LogIn className="h-4 w-4 mr-2" />
+              Fichar entrada
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: fichar salida por admin */}
+      <Dialog open={showSalidaDialog} onOpenChange={(open) => { setShowSalidaDialog(open); if (!open) { setFichajeParaSalida(null); setNotasSalida('') } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LogOut className="h-5 w-5" />
+              Fichar salida
+            </DialogTitle>
+          </DialogHeader>
+          {fichajeParaSalida && (
+            <div className="space-y-4 py-2">
+              <div className="bg-muted rounded-lg px-4 py-3 text-sm">
+                <p className="font-medium">{fichajeParaSalida.operario_nombre} {fichajeParaSalida.operario_apellido}</p>
+                <p className="text-muted-foreground">Entrada: {formatHora(fichajeParaSalida.hora_inicio)}</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Notas de cierre (opcional)</Label>
+                <Textarea
+                  placeholder="Ej: Cierre manual por admin"
+                  value={notasSalida}
+                  onChange={(e) => setNotasSalida(e.target.value)}
+                  rows={2}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSalidaDialog(false)}>Cancelar</Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => fichajeSalidaMutation.mutate()}
+              disabled={fichajeSalidaMutation.isPending}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Confirmar salida
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

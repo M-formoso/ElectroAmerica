@@ -12,6 +12,12 @@ class IniciarFichajeRequest(BaseModel):
     notas_inicio: Optional[str] = None
 
 
+class IniciarFichajeAdminRequest(BaseModel):
+    operario_id: UUID
+    proyecto_id: Optional[UUID] = None
+    notas_inicio: Optional[str] = None
+
+
 class FinalizarFichajeRequest(BaseModel):
     notas_fin: Optional[str] = None
 

@@ -47,6 +47,12 @@ export interface IniciarFichajeRequest {
   notas_inicio?: string
 }
 
+export interface IniciarFichajeAdminRequest {
+  operario_id: string
+  proyecto_id?: string
+  notas_inicio?: string
+}
+
 export interface FinalizarFichajeRequest {
   notas_fin?: string
 }
@@ -95,6 +101,21 @@ export const fichajesService = {
     operario_id?: string
   }): Promise<ResumenFichajes> {
     const res = await api.get('/fichajes/resumen', { params })
+    return res.data
+  },
+
+  async obtenerActivos(): Promise<FichajeListItem[]> {
+    const res = await api.get('/fichajes/admin/activos')
+    return res.data
+  },
+
+  async ficharEntradaAdmin(data: IniciarFichajeAdminRequest): Promise<FichajeResponse> {
+    const res = await api.post('/fichajes/admin/fichar-entrada', data)
+    return res.data
+  },
+
+  async ficharSalidaAdmin(fichajeId: string, data: FinalizarFichajeRequest = {}): Promise<FichajeResponse> {
+    const res = await api.post(`/fichajes/admin/${fichajeId}/fichar-salida`, data)
     return res.data
   },
 }

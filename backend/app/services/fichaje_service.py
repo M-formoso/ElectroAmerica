@@ -6,7 +6,7 @@ from datetime import date, datetime, timezone
 
 from app.models.fichaje import FichajeJornada, EstadoFichaje
 from app.schemas.fichaje import (
-    IniciarFichajeRequest, FinalizarFichajeRequest,
+    IniciarFichajeRequest, IniciarFichajeAdminRequest, FinalizarFichajeRequest,
     FichajeResponse, FichajeListResponse, ResumenFichajes,
 )
 
@@ -168,6 +168,68 @@ def obtener_mis_fichajes(db: Session, operario_id: UUID, limit: int = 30) -> Lis
         .all()
     )
     return [_to_list_response(f) for f in fichajes]
+
+
+def obtener_todos_activos(db: Session) -> List[FichajeListResponse]:
+    """Devuelve todos los fichajes activos en este momento (para panel admin)."""
+    fichajes = (
+        db.query(FichajeJornada)
+        .filter(FichajeJornada.estado == EstadoFichaje.activo, FichajeJornada.activo == True)
+        .order_by(FichajeJornada.hora_inicio.asc())
+        .all()
+    )
+    return [_to_list_response(f) for f in fichajes]
+
+
+def iniciar_fichaje_admin(db: Session, operario_id: UUID, data: IniciarFichajeAdminRequest) -> FichajeResponse:
+    """Admin ficha la entrada de un operario específico."""
+    activo = obtener_fichaje_activo(db, operario_id)
+    if activo:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="El operario ya tiene un fichaje activo.")
+
+    ahora = datetime.now(timezone.utc)
+    fichaje = FichajeJornada(
+        operario_id=operario_id,
+        fecha=ahora.date(),
+        hora_inicio=ahora,
+        estado=EstadoFichaje.activo,
+        proyecto_id=data.proyecto_id,
+        notas_inicio=data.notas_inicio,
+    )
+    db.add(fichaje)
+    db.commit()
+    db.refresh(fichaje)
+    return _to_response(fichaje)
+
+
+def finalizar_fichaje_admin(db: Session, fichaje_id: UUID, data: FinalizarFichajeRequest) -> FichajeResponse:
+    """Admin ficha la salida de cualquier fichaje activo."""
+    fichaje = (
+        db.query(FichajeJornada)
+        .filter(FichajeJornada.id == fichaje_id, FichajeJornada.activo == True)
+        .first()
+    )
+    if not fichaje:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Fichaje no encontrado")
+
+    if fichaje.estado != EstadoFichaje.activo:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="El fichaje no está activo")
+
+    ahora = datetime.now(timezone.utc)
+    inicio = fichaje.hora_inicio.replace(tzinfo=timezone.utc) if fichaje.hora_inicio.tzinfo is None else fichaje.hora_inicio
+    diferencia = ahora - inicio
+    horas = Decimal(str(round(diferencia.total_seconds() / 3600, 2)))
+
+    fichaje.hora_fin = ahora
+    fichaje.horas_trabajadas = horas
+    fichaje.estado = EstadoFichaje.completado
+    fichaje.notas_fin = data.notas_fin
+    db.commit()
+    db.refresh(fichaje)
+    return _to_response(fichaje)
 
 
 def resumen_fichajes(

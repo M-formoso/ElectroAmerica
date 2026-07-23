@@ -8,7 +8,7 @@ from app.core.deps import get_db, require_admin_or_supervisor, require_any_authe
 from app.models.usuario import Usuario
 from app.models.fichaje import EstadoFichaje
 from app.schemas.fichaje import (
-    IniciarFichajeRequest, FinalizarFichajeRequest,
+    IniciarFichajeRequest, IniciarFichajeAdminRequest, FinalizarFichajeRequest,
     FichajeResponse, FichajeListResponse, ResumenFichajes,
 )
 from app.services import fichaje_service
@@ -95,6 +95,36 @@ def listar_fichajes(
         skip=skip,
         limit=limit,
     )
+
+
+@router.get("/admin/activos", response_model=List[FichajeListResponse])
+def obtener_todos_activos(
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Lista todos los fichajes activos en este momento."""
+    return fichaje_service.obtener_todos_activos(db)
+
+
+@router.post("/admin/fichar-entrada", response_model=FichajeResponse)
+def fichar_entrada_por_admin(
+    data: IniciarFichajeAdminRequest,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Admin/supervisor ficha la entrada de un operario."""
+    return fichaje_service.iniciar_fichaje_admin(db, data.operario_id, data)
+
+
+@router.post("/admin/{fichaje_id}/fichar-salida", response_model=FichajeResponse)
+def fichar_salida_por_admin(
+    fichaje_id: UUID,
+    data: FinalizarFichajeRequest,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Admin/supervisor ficha la salida de cualquier fichaje activo."""
+    return fichaje_service.finalizar_fichaje_admin(db, fichaje_id, data)
 
 
 @router.get("/resumen", response_model=ResumenFichajes)
