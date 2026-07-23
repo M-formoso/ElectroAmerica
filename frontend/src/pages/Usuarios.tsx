@@ -549,7 +549,7 @@ export function UsuariosPage() {
               Ingresa los datos del nuevo usuario y configura sus permisos
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCreateSubmit}>
+          <form onSubmit={handleCreateSubmit} autoComplete="off">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="datos">Datos</TabsTrigger>
@@ -565,6 +565,7 @@ export function UsuariosPage() {
                       onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
                       placeholder="Nombre"
                       required
+                      autoComplete="off"
                     />
                   </div>
                   <div className="space-y-2">
@@ -574,6 +575,7 @@ export function UsuariosPage() {
                       onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
                       placeholder="Apellido"
                       required
+                      autoComplete="off"
                     />
                   </div>
                 </div>
@@ -585,6 +587,7 @@ export function UsuariosPage() {
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="email@ejemplo.com"
                     required
+                    autoComplete="off"
                   />
                 </div>
                 <div className="space-y-2">
@@ -596,6 +599,7 @@ export function UsuariosPage() {
                     placeholder="Mínimo 6 caracteres"
                     required
                     minLength={6}
+                    autoComplete="new-password"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
