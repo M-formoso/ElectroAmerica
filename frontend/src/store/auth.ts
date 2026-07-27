@@ -6,12 +6,12 @@ import { authService } from '@/services/auth'
 // Módulos por defecto según rol (mismo que backend)
 const MODULOS_POR_ROL: Record<string, string[]> = {
   administrador: [
-    'dashboard', 'proyectos', 'clientes', 'materiales', 'equipos',
+    'dashboard', 'proyectos', 'clientes', 'materiales', 'depositos', 'remitos', 'equipos',
     'herramientas', 'finanzas', 'reportes', 'usuarios', 'alertas',
     'auditoria', 'jornadas_operario', 'jornadas_gestion', 'actividades_tipo'
   ],
   supervisor: [
-    'dashboard', 'proyectos', 'clientes', 'materiales', 'equipos',
+    'dashboard', 'proyectos', 'clientes', 'materiales', 'depositos', 'remitos', 'equipos',
     'herramientas', 'finanzas', 'reportes', 'alertas',
     'jornadas_gestion', 'actividades_tipo'
   ],
