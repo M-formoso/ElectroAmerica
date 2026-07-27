@@ -112,8 +112,8 @@ const navigationSections: NavSection[] = [
     roles: ['administrador', 'supervisor', 'operario'],
     items: [
       { name: 'Materiales', href: '/materiales', icon: Package, roles: ['administrador', 'supervisor', 'operario'], modulo: 'materiales' },
-      { name: 'Depositos', href: '/depositos', icon: Warehouse, roles: ['administrador', 'supervisor'], modulo: 'depositos' },
-      { name: 'Remitos', href: '/remitos', icon: FileText, roles: ['administrador', 'supervisor'], modulo: 'remitos' },
+      { name: 'Depositos', href: '/depositos', icon: Warehouse, roles: ['administrador', 'supervisor', 'operario'], modulo: 'depositos' },
+      { name: 'Remitos', href: '/remitos', icon: FileText, roles: ['administrador', 'supervisor', 'operario'], modulo: 'remitos' },
       { name: 'Equipos', href: '/equipos', icon: Wrench, roles: ['administrador', 'supervisor', 'operario'], modulo: 'equipos' },
     ],
   },
