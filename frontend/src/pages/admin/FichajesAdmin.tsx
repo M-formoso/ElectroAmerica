@@ -19,6 +19,11 @@ function formatHora(iso: string) {
   return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
 }
 
+function horaActual() {
+  const now = new Date()
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+}
+
 function formatFechaCorta(iso: string) {
   return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
@@ -57,10 +62,12 @@ export default function FichajesAdminPage() {
   const [showFicharDialog, setShowFicharDialog] = useState(false)
   const [operarioSeleccionado, setOperarioSeleccionado] = useState<string>('')
   const [notas, setNotas] = useState('')
+  const [horaEntrada, setHoraEntrada] = useState('')
   // Dialog fichar salida por admin
   const [showSalidaDialog, setShowSalidaDialog] = useState(false)
   const [fichajeParaSalida, setFichajeParaSalida] = useState<FichajeListItem | null>(null)
   const [notasSalida, setNotasSalida] = useState('')
+  const [horaSalida, setHoraSalida] = useState('')
 
   const params = {
     fecha_desde: fechaDesde || undefined,
@@ -91,7 +98,11 @@ export default function FichajesAdminPage() {
   })
 
   const fichajeEntradaMutation = useMutation({
-    mutationFn: () => fichajesService.ficharEntradaAdmin({ operario_id: operarioSeleccionado, notas_inicio: notas || undefined }),
+    mutationFn: () => fichajesService.ficharEntradaAdmin({
+      operario_id: operarioSeleccionado,
+      notas_inicio: notas || undefined,
+      hora_manual: horaEntrada || undefined,
+    }),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['fichajes-admin'] })
       qc.invalidateQueries({ queryKey: ['fichajes-activos'] })
@@ -99,6 +110,7 @@ export default function FichajesAdminPage() {
       setShowFicharDialog(false)
       setOperarioSeleccionado('')
       setNotas('')
+      setHoraEntrada('')
       const op = operarios.find((o: Usuario) => o.id === data.operario_id)
       toast({ title: 'Entrada fichada', description: `Fichaje de ${op?.nombre ?? ''} ${op?.apellido ?? ''} registrado.` })
     },
@@ -109,7 +121,10 @@ export default function FichajesAdminPage() {
   })
 
   const fichajeSalidaMutation = useMutation({
-    mutationFn: () => fichajesService.ficharSalidaAdmin(fichajeParaSalida!.id, { notas_fin: notasSalida || undefined }),
+    mutationFn: () => fichajesService.ficharSalidaAdmin(fichajeParaSalida!.id, {
+      notas_fin: notasSalida || undefined,
+      hora_manual: horaSalida || undefined,
+    }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['fichajes-admin'] })
       qc.invalidateQueries({ queryKey: ['fichajes-activos'] })
@@ -117,6 +132,7 @@ export default function FichajesAdminPage() {
       setShowSalidaDialog(false)
       setFichajeParaSalida(null)
       setNotasSalida('')
+      setHoraSalida('')
       toast({ title: 'Salida fichada', description: 'Jornada finalizada correctamente.' })
     },
     onError: (e: unknown) => {
@@ -260,7 +276,7 @@ export default function FichajesAdminPage() {
                     variant="ghost"
                     size="sm"
                     className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                    onClick={() => { setFichajeParaSalida(f); setShowSalidaDialog(true) }}
+                    onClick={() => { setFichajeParaSalida(f); setHoraSalida(horaActual()); setShowSalidaDialog(true) }}
                   >
                     <LogOut className="h-3.5 w-3.5 mr-1" />
                     Salida
@@ -386,7 +402,7 @@ export default function FichajesAdminPage() {
       </Card>
 
       {/* Dialog: fichar entrada por operario */}
-      <Dialog open={showFicharDialog} onOpenChange={(open) => { setShowFicharDialog(open); if (!open) { setOperarioSeleccionado(''); setNotas('') } }}>
+      <Dialog open={showFicharDialog} onOpenChange={(open) => { setShowFicharDialog(open); if (!open) { setOperarioSeleccionado(''); setNotas(''); setHoraEntrada('') } else { setHoraEntrada(horaActual()) } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -418,6 +434,18 @@ export default function FichajesAdminPage() {
                   {operariosActivosIds.size} operario{operariosActivosIds.size > 1 ? 's' : ''} ya {operariosActivosIds.size > 1 ? 'tienen' : 'tiene'} fichaje activo y no aparece{operariosActivosIds.size > 1 ? 'n' : ''} en la lista.
                 </p>
               )}
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">
+                <Clock className="h-3.5 w-3.5" />
+                Hora de entrada
+              </Label>
+              <Input
+                type="time"
+                value={horaEntrada}
+                onChange={(e) => setHoraEntrada(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Pre-cargada con la hora actual. Modificala si necesitás corregir el horario.</p>
             </div>
             <div className="space-y-2">
               <Label>Notas (opcional)</Label>
@@ -471,7 +499,7 @@ export default function FichajesAdminPage() {
       </Dialog>
 
       {/* Dialog: fichar salida por admin */}
-      <Dialog open={showSalidaDialog} onOpenChange={(open) => { setShowSalidaDialog(open); if (!open) { setFichajeParaSalida(null); setNotasSalida('') } }}>
+      <Dialog open={showSalidaDialog} onOpenChange={(open) => { setShowSalidaDialog(open); if (!open) { setFichajeParaSalida(null); setNotasSalida(''); setHoraSalida('') } else { setHoraSalida(horaActual()) } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -484,6 +512,18 @@ export default function FichajesAdminPage() {
               <div className="bg-muted rounded-lg px-4 py-3 text-sm">
                 <p className="font-medium">{fichajeParaSalida.operario_nombre} {fichajeParaSalida.operario_apellido}</p>
                 <p className="text-muted-foreground">Entrada: {formatHora(fichajeParaSalida.hora_inicio)}</p>
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">
+                  <Clock className="h-3.5 w-3.5" />
+                  Hora de salida
+                </Label>
+                <Input
+                  type="time"
+                  value={horaSalida}
+                  onChange={(e) => setHoraSalida(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Pre-cargada con la hora actual. Modificala si necesitás corregir el horario.</p>
               </div>
               <div className="space-y-2">
                 <Label>Notas de cierre (opcional)</Label>

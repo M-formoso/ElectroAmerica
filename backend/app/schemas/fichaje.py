@@ -16,10 +16,16 @@ class IniciarFichajeAdminRequest(BaseModel):
     operario_id: UUID
     proyecto_id: Optional[UUID] = None
     notas_inicio: Optional[str] = None
+    hora_manual: Optional[str] = None  # "HH:MM" en hora Argentina
 
 
 class FinalizarFichajeRequest(BaseModel):
     notas_fin: Optional[str] = None
+
+
+class FinalizarFichajeAdminRequest(BaseModel):
+    notas_fin: Optional[str] = None
+    hora_manual: Optional[str] = None  # "HH:MM" en hora Argentina
 
 
 class FichajeResponse(BaseModel):

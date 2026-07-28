@@ -9,7 +9,8 @@ from app.core.deps import get_db, require_admin_or_supervisor, require_any_authe
 from app.models.usuario import Usuario
 from app.models.fichaje import EstadoFichaje
 from app.schemas.fichaje import (
-    IniciarFichajeRequest, IniciarFichajeAdminRequest, FinalizarFichajeRequest,
+    IniciarFichajeRequest, IniciarFichajeAdminRequest,
+    FinalizarFichajeRequest, FinalizarFichajeAdminRequest,
     FichajeResponse, FichajeListResponse, ResumenFichajes,
 )
 from app.services import fichaje_service
@@ -120,7 +121,7 @@ def fichar_entrada_por_admin(
 @router.post("/admin/{fichaje_id}/fichar-salida", response_model=FichajeResponse)
 def fichar_salida_por_admin(
     fichaje_id: UUID,
-    data: FinalizarFichajeRequest,
+    data: FinalizarFichajeAdminRequest,
     db: Session = Depends(get_db),
     _: Usuario = Depends(require_admin_or_supervisor),
 ):

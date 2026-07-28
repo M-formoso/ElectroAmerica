@@ -51,10 +51,16 @@ export interface IniciarFichajeAdminRequest {
   operario_id: string
   proyecto_id?: string
   notas_inicio?: string
+  hora_manual?: string  // "HH:MM" en hora Argentina
 }
 
 export interface FinalizarFichajeRequest {
   notas_fin?: string
+}
+
+export interface FinalizarFichajeAdminRequest {
+  notas_fin?: string
+  hora_manual?: string  // "HH:MM" en hora Argentina
 }
 
 export const fichajesService = {
@@ -114,7 +120,7 @@ export const fichajesService = {
     return res.data
   },
 
-  async ficharSalidaAdmin(fichajeId: string, data: FinalizarFichajeRequest = {}): Promise<FichajeResponse> {
+  async ficharSalidaAdmin(fichajeId: string, data: FinalizarFichajeAdminRequest = {}): Promise<FichajeResponse> {
     const res = await api.post(`/fichajes/admin/${fichajeId}/fichar-salida`, data)
     return res.data
   },

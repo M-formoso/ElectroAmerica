@@ -2,13 +2,30 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import UUID
 from decimal import Decimal
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 
 from app.models.fichaje import FichajeJornada, EstadoFichaje
 from app.schemas.fichaje import (
     IniciarFichajeRequest, IniciarFichajeAdminRequest, FinalizarFichajeRequest,
-    FichajeResponse, FichajeListResponse, ResumenFichajes,
+    FinalizarFichajeAdminRequest, FichajeResponse, FichajeListResponse, ResumenFichajes,
 )
+
+ARGENTINA_TZ = timezone(timedelta(hours=-3))
+
+
+def _parse_hora_manual(hora_str: str) -> datetime:
+    """Convierte 'HH:MM' en hora Argentina a datetime UTC."""
+    from fastapi import HTTPException
+    try:
+        parts = hora_str.strip().split(':')
+        h, m = int(parts[0]), int(parts[1])
+        if not (0 <= h <= 23 and 0 <= m <= 59):
+            raise ValueError
+        hoy_arg = datetime.now(ARGENTINA_TZ).date()
+        dt_arg = datetime(hoy_arg.year, hoy_arg.month, hoy_arg.day, h, m, tzinfo=ARGENTINA_TZ)
+        return dt_arg.astimezone(timezone.utc)
+    except (ValueError, IndexError, AttributeError):
+        raise HTTPException(status_code=400, detail="Formato de hora inválido. Usá HH:MM")
 
 
 def _to_response(fichaje: FichajeJornada) -> FichajeResponse:
@@ -188,11 +205,13 @@ def iniciar_fichaje_admin(db: Session, operario_id: UUID, data: IniciarFichajeAd
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail="El operario ya tiene un fichaje activo.")
 
-    ahora = datetime.now(timezone.utc)
+    hora_inicio = _parse_hora_manual(data.hora_manual) if data.hora_manual else datetime.now(timezone.utc)
+    fecha = hora_inicio.astimezone(ARGENTINA_TZ).date()
+
     fichaje = FichajeJornada(
         operario_id=operario_id,
-        fecha=ahora.date(),
-        hora_inicio=ahora,
+        fecha=fecha,
+        hora_inicio=hora_inicio,
         estado=EstadoFichaje.activo,
         proyecto_id=data.proyecto_id,
         notas_inicio=data.notas_inicio,
@@ -203,7 +222,7 @@ def iniciar_fichaje_admin(db: Session, operario_id: UUID, data: IniciarFichajeAd
     return _to_response(fichaje)
 
 
-def finalizar_fichaje_admin(db: Session, fichaje_id: UUID, data: FinalizarFichajeRequest) -> FichajeResponse:
+def finalizar_fichaje_admin(db: Session, fichaje_id: UUID, data: FinalizarFichajeAdminRequest) -> FichajeResponse:
     """Admin ficha la salida de cualquier fichaje activo."""
     fichaje = (
         db.query(FichajeJornada)
@@ -218,9 +237,12 @@ def finalizar_fichaje_admin(db: Session, fichaje_id: UUID, data: FinalizarFichaj
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail="El fichaje no está activo")
 
-    ahora = datetime.now(timezone.utc)
+    ahora = _parse_hora_manual(data.hora_manual) if data.hora_manual else datetime.now(timezone.utc)
     inicio = fichaje.hora_inicio.replace(tzinfo=timezone.utc) if fichaje.hora_inicio.tzinfo is None else fichaje.hora_inicio
     diferencia = ahora - inicio
+    if diferencia.total_seconds() < 0:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="La hora de salida no puede ser anterior a la de entrada")
     horas = Decimal(str(round(diferencia.total_seconds() / 3600, 2)))
 
     fichaje.hora_fin = ahora
