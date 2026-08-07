@@ -87,6 +87,14 @@ export interface DepositoMovimientoPayload {
   motivo?: string
 }
 
+export interface VaciarDepositoResponse {
+  deposito_id: string
+  materiales_borrados: number
+  remitos_borrados: number
+  movimientos_borrados: number
+  subdepositos_afectados: number
+}
+
 export const depositosService = {
   async list(clienteId?: string, parentId?: string): Promise<Deposito[]> {
     const params: Record<string, string | boolean> = {}
@@ -116,6 +124,11 @@ export const depositosService = {
 
   async remove(id: string): Promise<void> {
     await api.delete(`/depositos/${id}`)
+  },
+
+  async vaciar(id: string): Promise<VaciarDepositoResponse> {
+    const res = await api.post<VaciarDepositoResponse>(`/depositos/${id}/vaciar`)
+    return res.data
   },
 
   async descargarPdfStock(id: string, nombre: string): Promise<void> {

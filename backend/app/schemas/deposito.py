@@ -115,3 +115,12 @@ class DepositoMovimientoCreate(BaseModel):
     """Entrada o salida manual de un material en un deposito."""
     cantidad: Decimal = Field(..., gt=0)
     motivo: Optional[str] = Field(None, max_length=300)
+
+
+class DepositoVaciarResponse(BaseModel):
+    """Resultado de vaciar un deposito: cuenta lo que se borro."""
+    deposito_id: UUID
+    materiales_borrados: int
+    remitos_borrados: int
+    movimientos_borrados: int
+    subdepositos_afectados: int

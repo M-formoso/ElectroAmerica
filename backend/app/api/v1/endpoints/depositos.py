@@ -18,7 +18,7 @@ from app.schemas.deposito import (
     DepositoCreate, DepositoUpdate, DepositoResponse, DepositoDetailResponse,
     DepositoMaterialCreate, DepositoMaterialUpdate, DepositoMaterialResponse,
     DepositoMaterialBulkCreate, DepositoMaterialNuevoCreate,
-    DepositoMovimientoCreate, MaterialAgregado,
+    DepositoMovimientoCreate, MaterialAgregado, DepositoVaciarResponse,
 )
 from app.schemas.material import MovimientoStockResponse
 from app.services.deposito_pdf_service import (
@@ -661,6 +661,108 @@ def eliminar_deposito(
         raise HTTPException(status_code=404, detail="Deposito no encontrado")
     _eliminar_deposito_cascada(db, deposito)
     db.commit()
+
+
+def _vaciar_deposito_cascada(db: Session, deposito: Deposito) -> dict:
+    """Reset total del deposito y sus subdepositos: pone stock en 0
+    (borra los materiales cargados) y elimina remitos, descuentos y
+    movimientos asociados. El deposito queda activo pero vacio, listo
+    para empezar de cero. No se puede deshacer.
+    """
+    total_mats = 0
+    total_remitos = 0
+    total_movs = 0
+    total_subs = 0
+
+    # Reset recursivo de subdepositos
+    for sub in list(deposito.subdepositos):
+        if sub.activo:
+            sub_stats = _vaciar_deposito_cascada(db, sub)
+            total_mats += sub_stats["materiales"]
+            total_remitos += sub_stats["remitos"]
+            total_movs += sub_stats["movimientos"]
+            total_subs += 1 + sub_stats["subdepositos"]
+
+    # DepositoMaterial: soft-delete + stock a 0 (asi cuando se re-agrega
+    # el material, _crear_o_reactivar_deposito_material lo resucita con
+    # el nuevo stock desde 0 y no arrastra el valor viejo).
+    mats_updated = db.query(DepositoMaterial).filter(
+        DepositoMaterial.deposito_id == deposito.id,
+        DepositoMaterial.activo == True,
+    ).update(
+        {"activo": False, "stock_actual": Decimal("0")},
+        synchronize_session=False,
+    )
+    total_mats += mats_updated or 0
+
+    # Remitos originados en este deposito (con items y descuentos)
+    remito_ids = [
+        r.id for r in db.query(Remito.id).filter(
+            Remito.deposito_id == deposito.id,
+            Remito.activo == True,
+        ).all()
+    ]
+    if remito_ids:
+        db.query(RemitoItem).filter(
+            RemitoItem.remito_id.in_(remito_ids),
+            RemitoItem.activo == True,
+        ).update({"activo": False}, synchronize_session=False)
+        db.query(RemitoDescuento).filter(
+            RemitoDescuento.remito_id.in_(remito_ids),
+            RemitoDescuento.activo == True,
+        ).update({"activo": False}, synchronize_session=False)
+        db.query(Remito).filter(Remito.id.in_(remito_ids)).update(
+            {"activo": False}, synchronize_session=False
+        )
+        total_remitos += len(remito_ids)
+
+    # Descuentos huerfanos: remitos de OTROS depositos que descontaron
+    # de este (por reparto en cascada).
+    db.query(RemitoDescuento).filter(
+        RemitoDescuento.deposito_id == deposito.id,
+        RemitoDescuento.activo == True,
+    ).update({"activo": False}, synchronize_session=False)
+
+    # MovimientoStock: hard-delete (audit records, sin FKs entrantes)
+    movs_del = db.query(MovimientoStock).filter(
+        (MovimientoStock.deposito_id == deposito.id)
+        | (MovimientoStock.deposito_destino_id == deposito.id)
+    ).delete(synchronize_session=False)
+    total_movs += movs_del or 0
+
+    return {
+        "materiales": total_mats,
+        "remitos": total_remitos,
+        "movimientos": total_movs,
+        "subdepositos": total_subs,
+    }
+
+
+@router.post("/{deposito_id}/vaciar", response_model=DepositoVaciarResponse)
+def vaciar_deposito(
+    deposito_id: UUID,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Vacia el deposito (y sus subdepositos): pone stock en 0 y borra
+    todos los remitos y movimientos asociados. El deposito queda activo
+    pero completamente limpio. No se puede deshacer.
+    """
+    deposito = db.query(Deposito).filter(
+        Deposito.id == deposito_id, Deposito.activo == True
+    ).first()
+    if not deposito:
+        raise HTTPException(status_code=404, detail="Deposito no encontrado")
+
+    stats = _vaciar_deposito_cascada(db, deposito)
+    db.commit()
+    return DepositoVaciarResponse(
+        deposito_id=deposito_id,
+        materiales_borrados=stats["materiales"],
+        remitos_borrados=stats["remitos"],
+        movimientos_borrados=stats["movimientos"],
+        subdepositos_afectados=stats["subdepositos"],
+    )
 
 
 # ============ Materiales del deposito ============

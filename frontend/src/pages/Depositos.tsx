@@ -142,6 +142,10 @@ export function DepositosPage() {
 
   const [historialMaterial, setHistorialMaterial] = useState<DepositoMaterialRow | null>(null)
 
+  // Confirmacion para vaciar deposito (reset a 0 + borra remitos y movimientos)
+  const [depositoAVaciar, setDepositoAVaciar] = useState<{ id: string; nombre: string } | null>(null)
+  const [confirmVaciarText, setConfirmVaciarText] = useState('')
+
   const { data: clientes = [] } = useQuery({
     queryKey: ['clientes'],
     queryFn: () => getClientes(),
@@ -208,6 +212,22 @@ export function DepositosPage() {
       setConfirmDeleteText('')
     },
     onError: () => toast({ variant: 'destructive', title: 'Error al eliminar' }),
+  })
+
+  const vaciarMutation = useMutation({
+    mutationFn: (id: string) => depositosService.vaciar(id),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['depositos'] })
+      qc.invalidateQueries({ queryKey: ['deposito'] })
+      qc.invalidateQueries({ queryKey: ['remitos'] })
+      toast({
+        title: 'Depósito vaciado',
+        description: `${data.materiales_borrados} materiales, ${data.remitos_borrados} remitos y ${data.movimientos_borrados} movimientos borrados.`,
+      })
+      setDepositoAVaciar(null)
+      setConfirmVaciarText('')
+    },
+    onError: () => toast({ variant: 'destructive', title: 'Error al vaciar depósito' }),
   })
 
   const closeAddMaterialDialog = () => {
@@ -714,6 +734,84 @@ export function DepositosPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Dialog confirmar vaciar deposito */}
+      <Dialog
+        open={!!depositoAVaciar}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDepositoAVaciar(null)
+            setConfirmVaciarText('')
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" />
+              Vaciar depósito
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-3 pt-2">
+                <p>
+                  Vas a vaciar <strong>{depositoAVaciar?.nombre}</strong>.
+                  El depósito queda activo pero completamente en cero. No se puede deshacer.
+                </p>
+                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
+                  <p className="font-medium text-destructive mb-2">
+                    Se van a borrar:
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1 text-foreground">
+                    <li>Todos los materiales cargados (stock a 0)</li>
+                    <li>Todos los remitos emitidos desde este depósito</li>
+                    <li>Todo el historial de movimientos</li>
+                    <li>También se aplica a los subdepósitos</li>
+                  </ul>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-vaciar" className="text-sm">
+                    Para confirmar, escribí el nombre del depósito:{' '}
+                    <strong>{depositoAVaciar?.nombre}</strong>
+                  </Label>
+                  <Input
+                    id="confirm-vaciar"
+                    value={confirmVaciarText}
+                    onChange={(e) => setConfirmVaciarText(e.target.value)}
+                    placeholder={depositoAVaciar?.nombre}
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDepositoAVaciar(null)
+                setConfirmVaciarText('')
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() =>
+                depositoAVaciar && vaciarMutation.mutate(depositoAVaciar.id)
+              }
+              disabled={
+                vaciarMutation.isPending ||
+                confirmVaciarText.trim() !== (depositoAVaciar?.nombre ?? '').trim()
+              }
+            >
+              {vaciarMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Vaciar todo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Dialog gestionar materiales del deposito */}
       <Dialog
         open={!!openDepositoId}
@@ -775,6 +873,19 @@ export function DepositosPage() {
                   >
                     <FileText className="h-4 w-4 mr-2" />
                     PDF detalle movimientos
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => {
+                      setDepositoAVaciar({ id: depositoDetail.id, nombre: depositoDetail.nombre })
+                      setConfirmVaciarText('')
+                    }}
+                    title="Resetea stock a 0 y borra remitos y movimientos del depósito"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Vaciar depósito
                   </Button>
                 </div>
               )}
