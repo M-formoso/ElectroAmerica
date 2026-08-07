@@ -17,6 +17,7 @@ class IniciarFichajeAdminRequest(BaseModel):
     proyecto_id: Optional[UUID] = None
     notas_inicio: Optional[str] = None
     hora_manual: Optional[str] = None  # "HH:MM" en hora Argentina
+    fecha_manual: Optional[date] = None  # YYYY-MM-DD; default = hoy en Argentina
 
 
 class FinalizarFichajeRequest(BaseModel):
@@ -26,6 +27,7 @@ class FinalizarFichajeRequest(BaseModel):
 class FinalizarFichajeAdminRequest(BaseModel):
     notas_fin: Optional[str] = None
     hora_manual: Optional[str] = None  # "HH:MM" en hora Argentina
+    fecha_manual: Optional[date] = None  # YYYY-MM-DD; default = hoy en Argentina
 
 
 class FichajeResponse(BaseModel):

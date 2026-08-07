@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Clock, Users, CheckCircle, Timer, Search, RefreshCw, LogIn, LogOut, UserCog, FileDown, Trash2 } from 'lucide-react'
+import { Clock, Users, CheckCircle, Timer, Search, RefreshCw, LogIn, LogOut, UserCog, FileDown, Trash2, Calendar } from 'lucide-react'
 import { fichajesService } from '@/services/fichajes'
 import type { EstadoFichaje, FichajeListItem } from '@/services/fichajes'
 import { usuariosService } from '@/services/usuarios'
@@ -22,6 +22,14 @@ function formatHora(iso: string) {
 function horaActual() {
   const now = new Date()
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+}
+
+function fechaHoy() {
+  return new Date().toISOString().split('T')[0]
+}
+
+function fechaDeIso(iso: string) {
+  return new Date(iso).toISOString().split('T')[0]
 }
 
 function formatFechaCorta(iso: string) {
@@ -57,17 +65,20 @@ export default function FichajesAdminPage() {
 
   const [descargandoPdf, setDescargandoPdf] = useState(false)
   const [fichajeABorrar, setFichajeABorrar] = useState<FichajeListItem | null>(null)
+  const [mostrarSugerencias, setMostrarSugerencias] = useState(false)
 
   // Dialog fichar por operario
   const [showFicharDialog, setShowFicharDialog] = useState(false)
   const [operarioSeleccionado, setOperarioSeleccionado] = useState<string>('')
   const [notas, setNotas] = useState('')
   const [horaEntrada, setHoraEntrada] = useState('')
+  const [fechaEntrada, setFechaEntrada] = useState('')
   // Dialog fichar salida por admin
   const [showSalidaDialog, setShowSalidaDialog] = useState(false)
   const [fichajeParaSalida, setFichajeParaSalida] = useState<FichajeListItem | null>(null)
   const [notasSalida, setNotasSalida] = useState('')
   const [horaSalida, setHoraSalida] = useState('')
+  const [fechaSalida, setFechaSalida] = useState('')
 
   const params = {
     fecha_desde: fechaDesde || undefined,
@@ -102,6 +113,7 @@ export default function FichajesAdminPage() {
       operario_id: operarioSeleccionado,
       notas_inicio: notas || undefined,
       hora_manual: horaEntrada || undefined,
+      fecha_manual: fechaEntrada || undefined,
     }),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['fichajes-admin'] })
@@ -111,6 +123,7 @@ export default function FichajesAdminPage() {
       setOperarioSeleccionado('')
       setNotas('')
       setHoraEntrada('')
+      setFechaEntrada('')
       const op = operarios.find((o: Usuario) => o.id === data.operario_id)
       toast({ title: 'Entrada fichada', description: `Fichaje de ${op?.nombre ?? ''} ${op?.apellido ?? ''} registrado.` })
     },
@@ -124,6 +137,7 @@ export default function FichajesAdminPage() {
     mutationFn: () => fichajesService.ficharSalidaAdmin(fichajeParaSalida!.id, {
       notas_fin: notasSalida || undefined,
       hora_manual: horaSalida || undefined,
+      fecha_manual: fechaSalida || undefined,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['fichajes-admin'] })
@@ -133,6 +147,7 @@ export default function FichajesAdminPage() {
       setFichajeParaSalida(null)
       setNotasSalida('')
       setHoraSalida('')
+      setFechaSalida('')
       toast({ title: 'Salida fichada', description: 'Jornada finalizada correctamente.' })
     },
     onError: (e: unknown) => {
@@ -181,6 +196,14 @@ export default function FichajesAdminPage() {
   // Operarios sin fichaje activo (disponibles para fichar entrada)
   const operariosActivosIds = new Set(activos.map((f: FichajeListItem) => f.operario_id))
   const operariosSinFichaje = operarios.filter((o: Usuario) => !operariosActivosIds.has(o.id) && o.activo)
+
+  // Sugerencias para autocomplete del buscador
+  const operariosSugeridos = busqueda.trim()
+    ? operarios
+        .filter((o: Usuario) => o.activo)
+        .filter((o: Usuario) => `${o.nombre} ${o.apellido}`.toLowerCase().includes(busqueda.toLowerCase()))
+        .slice(0, 8)
+    : []
 
   return (
     <div className="space-y-6">
@@ -276,7 +299,7 @@ export default function FichajesAdminPage() {
                     variant="ghost"
                     size="sm"
                     className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                    onClick={() => { setFichajeParaSalida(f); setHoraSalida(horaActual()); setShowSalidaDialog(true) }}
+                    onClick={() => { setFichajeParaSalida(f); setHoraSalida(horaActual()); setFechaSalida(fechaDeIso(f.hora_inicio)); setShowSalidaDialog(true) }}
                   >
                     <LogOut className="h-3.5 w-3.5 mr-1" />
                     Salida
@@ -325,8 +348,34 @@ export default function FichajesAdminPage() {
                   placeholder="Nombre..."
                   className="pl-8"
                   value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
+                  onChange={(e) => { setBusqueda(e.target.value); setMostrarSugerencias(true) }}
+                  onFocus={() => setMostrarSugerencias(true)}
+                  onBlur={() => setTimeout(() => setMostrarSugerencias(false), 150)}
                 />
+                {mostrarSugerencias && operariosSugeridos.length > 0 && (
+                  <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border rounded-md shadow-lg max-h-56 overflow-y-auto">
+                    {operariosSugeridos.map((o: Usuario) => (
+                      <button
+                        key={o.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          setBusqueda(`${o.nombre} ${o.apellido}`)
+                          setMostrarSugerencias(false)
+                        }}
+                      >
+                        <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>{o.nombre} {o.apellido}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {mostrarSugerencias && busqueda.trim() && operariosSugeridos.length === 0 && (
+                  <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border rounded-md shadow-lg px-3 py-2 text-xs text-muted-foreground">
+                    Sin operarios que coincidan
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -402,7 +451,7 @@ export default function FichajesAdminPage() {
       </Card>
 
       {/* Dialog: fichar entrada por operario */}
-      <Dialog open={showFicharDialog} onOpenChange={(open) => { setShowFicharDialog(open); if (!open) { setOperarioSeleccionado(''); setNotas(''); setHoraEntrada('') } else { setHoraEntrada(horaActual()) } }}>
+      <Dialog open={showFicharDialog} onOpenChange={(open) => { setShowFicharDialog(open); if (!open) { setOperarioSeleccionado(''); setNotas(''); setHoraEntrada(''); setFechaEntrada('') } else { setHoraEntrada(horaActual()); setFechaEntrada(fechaHoy()) } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -435,18 +484,32 @@ export default function FichajesAdminPage() {
                 </p>
               )}
             </div>
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1">
-                <Clock className="h-3.5 w-3.5" />
-                Hora de entrada
-              </Label>
-              <Input
-                type="time"
-                value={horaEntrada}
-                onChange={(e) => setHoraEntrada(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">Pre-cargada con la hora actual. Modificala si necesitás corregir el horario.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">
+                  <Calendar className="h-3.5 w-3.5" />
+                  Fecha
+                </Label>
+                <Input
+                  type="date"
+                  value={fechaEntrada}
+                  max={fechaHoy()}
+                  onChange={(e) => setFechaEntrada(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">
+                  <Clock className="h-3.5 w-3.5" />
+                  Hora de entrada
+                </Label>
+                <Input
+                  type="time"
+                  value={horaEntrada}
+                  onChange={(e) => setHoraEntrada(e.target.value)}
+                />
+              </div>
             </div>
+            <p className="text-xs text-muted-foreground -mt-2">Pre-cargadas con fecha y hora actuales. Modificalas para cargar un fichaje de un día anterior.</p>
             <div className="space-y-2">
               <Label>Notas (opcional)</Label>
               <Textarea
@@ -499,7 +562,7 @@ export default function FichajesAdminPage() {
       </Dialog>
 
       {/* Dialog: fichar salida por admin */}
-      <Dialog open={showSalidaDialog} onOpenChange={(open) => { setShowSalidaDialog(open); if (!open) { setFichajeParaSalida(null); setNotasSalida(''); setHoraSalida('') } else { setHoraSalida(horaActual()) } }}>
+      <Dialog open={showSalidaDialog} onOpenChange={(open) => { setShowSalidaDialog(open); if (!open) { setFichajeParaSalida(null); setNotasSalida(''); setHoraSalida(''); setFechaSalida('') } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -513,18 +576,33 @@ export default function FichajesAdminPage() {
                 <p className="font-medium">{fichajeParaSalida.operario_nombre} {fichajeParaSalida.operario_apellido}</p>
                 <p className="text-muted-foreground">Entrada: {formatHora(fichajeParaSalida.hora_inicio)}</p>
               </div>
-              <div className="space-y-2">
-                <Label className="flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5" />
-                  Hora de salida
-                </Label>
-                <Input
-                  type="time"
-                  value={horaSalida}
-                  onChange={(e) => setHoraSalida(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">Pre-cargada con la hora actual. Modificala si necesitás corregir el horario.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1">
+                    <Calendar className="h-3.5 w-3.5" />
+                    Fecha
+                  </Label>
+                  <Input
+                    type="date"
+                    value={fechaSalida}
+                    min={fechaDeIso(fichajeParaSalida.hora_inicio)}
+                    max={fechaHoy()}
+                    onChange={(e) => setFechaSalida(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5" />
+                    Hora de salida
+                  </Label>
+                  <Input
+                    type="time"
+                    value={horaSalida}
+                    onChange={(e) => setHoraSalida(e.target.value)}
+                  />
+                </div>
               </div>
+              <p className="text-xs text-muted-foreground -mt-2">Pre-cargadas con la fecha de entrada y la hora actual. Modificalas si el cierre fue otro día.</p>
               <div className="space-y-2">
                 <Label>Notas de cierre (opcional)</Label>
                 <Textarea

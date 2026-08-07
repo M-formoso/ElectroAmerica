@@ -52,6 +52,7 @@ export interface IniciarFichajeAdminRequest {
   proyecto_id?: string
   notas_inicio?: string
   hora_manual?: string  // "HH:MM" en hora Argentina
+  fecha_manual?: string  // YYYY-MM-DD
 }
 
 export interface FinalizarFichajeRequest {
@@ -61,6 +62,7 @@ export interface FinalizarFichajeRequest {
 export interface FinalizarFichajeAdminRequest {
   notas_fin?: string
   hora_manual?: string  // "HH:MM" en hora Argentina
+  fecha_manual?: string  // YYYY-MM-DD
 }
 
 export const fichajesService = {

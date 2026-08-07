@@ -13,16 +13,16 @@ from app.schemas.fichaje import (
 ARGENTINA_TZ = timezone(timedelta(hours=-3))
 
 
-def _parse_hora_manual(hora_str: str) -> datetime:
-    """Convierte 'HH:MM' en hora Argentina a datetime UTC."""
+def _parse_hora_manual(hora_str: str, fecha_arg: Optional[date] = None) -> datetime:
+    """Convierte 'HH:MM' en hora Argentina (fecha opcional, default hoy) a datetime UTC."""
     from fastapi import HTTPException
     try:
         parts = hora_str.strip().split(':')
         h, m = int(parts[0]), int(parts[1])
         if not (0 <= h <= 23 and 0 <= m <= 59):
             raise ValueError
-        hoy_arg = datetime.now(ARGENTINA_TZ).date()
-        dt_arg = datetime(hoy_arg.year, hoy_arg.month, hoy_arg.day, h, m, tzinfo=ARGENTINA_TZ)
+        base = fecha_arg if fecha_arg is not None else datetime.now(ARGENTINA_TZ).date()
+        dt_arg = datetime(base.year, base.month, base.day, h, m, tzinfo=ARGENTINA_TZ)
         return dt_arg.astimezone(timezone.utc)
     except (ValueError, IndexError, AttributeError):
         raise HTTPException(status_code=400, detail="Formato de hora inválido. Usá HH:MM")
@@ -205,7 +205,17 @@ def iniciar_fichaje_admin(db: Session, operario_id: UUID, data: IniciarFichajeAd
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail="El operario ya tiene un fichaje activo.")
 
-    hora_inicio = _parse_hora_manual(data.hora_manual) if data.hora_manual else datetime.now(timezone.utc)
+    if data.hora_manual:
+        hora_inicio = _parse_hora_manual(data.hora_manual, data.fecha_manual)
+    elif data.fecha_manual:
+        ahora_arg = datetime.now(ARGENTINA_TZ)
+        dt_arg = datetime(
+            data.fecha_manual.year, data.fecha_manual.month, data.fecha_manual.day,
+            ahora_arg.hour, ahora_arg.minute, tzinfo=ARGENTINA_TZ,
+        )
+        hora_inicio = dt_arg.astimezone(timezone.utc)
+    else:
+        hora_inicio = datetime.now(timezone.utc)
     fecha = hora_inicio.astimezone(ARGENTINA_TZ).date()
 
     fichaje = FichajeJornada(
@@ -237,7 +247,17 @@ def finalizar_fichaje_admin(db: Session, fichaje_id: UUID, data: FinalizarFichaj
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail="El fichaje no está activo")
 
-    ahora = _parse_hora_manual(data.hora_manual) if data.hora_manual else datetime.now(timezone.utc)
+    if data.hora_manual:
+        ahora = _parse_hora_manual(data.hora_manual, data.fecha_manual)
+    elif data.fecha_manual:
+        ahora_arg = datetime.now(ARGENTINA_TZ)
+        dt_arg = datetime(
+            data.fecha_manual.year, data.fecha_manual.month, data.fecha_manual.day,
+            ahora_arg.hour, ahora_arg.minute, tzinfo=ARGENTINA_TZ,
+        )
+        ahora = dt_arg.astimezone(timezone.utc)
+    else:
+        ahora = datetime.now(timezone.utc)
     inicio = fichaje.hora_inicio.replace(tzinfo=timezone.utc) if fichaje.hora_inicio.tzinfo is None else fichaje.hora_inicio
     diferencia = ahora - inicio
     if diferencia.total_seconds() < 0:
