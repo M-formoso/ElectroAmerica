@@ -1,6 +1,6 @@
 import { api } from './api'
 
-export type EstadoFichaje = 'activo' | 'completado' | 'cancelado'
+export type EstadoFichaje = 'activo' | 'completado' | 'cancelado' | 'inasistencia'
 
 export interface FichajeResponse {
   id: string
@@ -65,6 +65,12 @@ export interface FinalizarFichajeAdminRequest {
   fecha_manual?: string  // YYYY-MM-DD
 }
 
+export interface MarcarInasistenciaRequest {
+  operario_id: string
+  fecha: string  // YYYY-MM-DD
+  motivo?: string
+}
+
 export const fichajesService = {
   async iniciar(data: IniciarFichajeRequest = {}): Promise<FichajeResponse> {
     const res = await api.post('/fichajes/iniciar', data)
@@ -124,6 +130,11 @@ export const fichajesService = {
 
   async ficharSalidaAdmin(fichajeId: string, data: FinalizarFichajeAdminRequest = {}): Promise<FichajeResponse> {
     const res = await api.post(`/fichajes/admin/${fichajeId}/fichar-salida`, data)
+    return res.data
+  },
+
+  async marcarInasistencia(data: MarcarInasistenciaRequest): Promise<FichajeResponse> {
+    const res = await api.post('/fichajes/admin/marcar-inasistencia', data)
     return res.data
   },
 

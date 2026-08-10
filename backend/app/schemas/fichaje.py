@@ -30,6 +30,12 @@ class FinalizarFichajeAdminRequest(BaseModel):
     fecha_manual: Optional[date] = None  # YYYY-MM-DD; default = hoy en Argentina
 
 
+class MarcarInasistenciaRequest(BaseModel):
+    operario_id: UUID
+    fecha: date
+    motivo: Optional[str] = None
+
+
 class FichajeResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

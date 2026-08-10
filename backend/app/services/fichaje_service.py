@@ -7,7 +7,8 @@ from datetime import date, datetime, timezone, timedelta
 from app.models.fichaje import FichajeJornada, EstadoFichaje
 from app.schemas.fichaje import (
     IniciarFichajeRequest, IniciarFichajeAdminRequest, FinalizarFichajeRequest,
-    FinalizarFichajeAdminRequest, FichajeResponse, FichajeListResponse, ResumenFichajes,
+    FinalizarFichajeAdminRequest, MarcarInasistenciaRequest,
+    FichajeResponse, FichajeListResponse, ResumenFichajes,
 )
 
 ARGENTINA_TZ = timezone(timedelta(hours=-3))
@@ -269,6 +270,49 @@ def finalizar_fichaje_admin(db: Session, fichaje_id: UUID, data: FinalizarFichaj
     fichaje.horas_trabajadas = horas
     fichaje.estado = EstadoFichaje.completado
     fichaje.notas_fin = data.notas_fin
+    db.commit()
+    db.refresh(fichaje)
+    return _to_response(fichaje)
+
+
+def marcar_inasistencia(db: Session, data: MarcarInasistenciaRequest) -> FichajeResponse:
+    """Registra una inasistencia (falta) de un operario en una fecha dada.
+
+    Bloquea si ya existe cualquier fichaje activo del operario para esa
+    fecha (no tiene sentido marcar falta si trabajó o está trabajando).
+    """
+    from fastapi import HTTPException
+
+    existente = (
+        db.query(FichajeJornada)
+        .filter(
+            FichajeJornada.operario_id == data.operario_id,
+            FichajeJornada.fecha == data.fecha,
+            FichajeJornada.activo == True,
+        )
+        .first()
+    )
+    if existente:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ya hay un fichaje registrado para este operario el {data.fecha.strftime('%d/%m/%Y')}."
+        )
+
+    dt_arg = datetime(
+        data.fecha.year, data.fecha.month, data.fecha.day,
+        0, 0, tzinfo=ARGENTINA_TZ,
+    )
+    hora_inicio = dt_arg.astimezone(timezone.utc)
+
+    fichaje = FichajeJornada(
+        operario_id=data.operario_id,
+        fecha=data.fecha,
+        hora_inicio=hora_inicio,
+        estado=EstadoFichaje.inasistencia,
+        horas_trabajadas=Decimal("0"),
+        notas_inicio=data.motivo,
+    )
+    db.add(fichaje)
     db.commit()
     db.refresh(fichaje)
     return _to_response(fichaje)

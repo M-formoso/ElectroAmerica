@@ -11,6 +11,7 @@ from app.models.fichaje import EstadoFichaje
 from app.schemas.fichaje import (
     IniciarFichajeRequest, IniciarFichajeAdminRequest,
     FinalizarFichajeRequest, FinalizarFichajeAdminRequest,
+    MarcarInasistenciaRequest,
     FichajeResponse, FichajeListResponse, ResumenFichajes,
 )
 from app.services import fichaje_service
@@ -129,6 +130,16 @@ def fichar_salida_por_admin(
     return fichaje_service.finalizar_fichaje_admin(db, fichaje_id, data)
 
 
+@router.post("/admin/marcar-inasistencia", response_model=FichajeResponse)
+def marcar_inasistencia(
+    data: MarcarInasistenciaRequest,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin_or_supervisor),
+):
+    """Admin/supervisor marca a un operario como ausente en una fecha."""
+    return fichaje_service.marcar_inasistencia(db, data)
+
+
 @router.get("/resumen", response_model=ResumenFichajes)
 def resumen_fichajes(
     fecha_desde: Optional[date] = None,
@@ -158,7 +169,10 @@ def descargar_pdf_fichajes(
     from app.models.fichaje import FichajeJornada, EstadoFichaje as EF
     from app.services import fichaje_pdf_service
 
-    q = db.query(FichajeJornada).filter(FichajeJornada.activo == True, FichajeJornada.estado == EF.completado)
+    q = db.query(FichajeJornada).filter(
+        FichajeJornada.activo == True,
+        FichajeJornada.estado.in_([EF.completado, EF.inasistencia]),
+    )
     if fecha_desde:
         q = q.filter(FichajeJornada.fecha >= fecha_desde)
     if fecha_hasta:

@@ -100,15 +100,25 @@ def generar_pdf_fichajes(
         story.append(Paragraph(periodo, estilo_subtitulo))
     story.append(Spacer(1, 0.4 * cm))
 
-    # Agrupar por operario
+    # Agrupar por operario (completados y inasistencias por separado)
     por_operario: dict = defaultdict(list)
+    inasistencias_por_operario: dict = defaultdict(list)
     for f in fichajes:
+        nombre = f"{f.operario.nombre} {f.operario.apellido}" if f.operario else str(f.operario_id)
         if f.estado == EstadoFichaje.completado:
-            nombre = f"{f.operario.nombre} {f.operario.apellido}" if f.operario else str(f.operario_id)
             por_operario[nombre].append(f)
+        elif f.estado == EstadoFichaje.inasistencia:
+            inasistencias_por_operario[nombre].append(f)
+
+    if not por_operario and not inasistencias_por_operario:
+        story.append(Paragraph("No hay fichajes ni inasistencias en el período seleccionado.", styles["Normal"]))
+        doc.build(story)
+        return buffer.getvalue()
 
     if not por_operario:
         story.append(Paragraph("No hay fichajes completados en el período seleccionado.", styles["Normal"]))
+        story.append(Spacer(1, 0.4 * cm))
+        _agregar_seccion_inasistencias(story, inasistencias_por_operario, estilo_seccion)
         doc.build(story)
         return buffer.getvalue()
 
@@ -232,5 +242,46 @@ def generar_pdf_fichajes(
     story.append(Spacer(1, 0.5 * cm))
     story.append(Paragraph(f"* Jornada normal: {HORAS_NORMALES}h. Todo lo que supere ese valor por día se considera hora extra.", estilo_nota))
 
+    # Seccion final: inasistencias del periodo
+    _agregar_seccion_inasistencias(story, inasistencias_por_operario, estilo_seccion)
+
     doc.build(story)
     return buffer.getvalue()
+
+
+def _agregar_seccion_inasistencias(story, inasistencias_por_operario, estilo_seccion):
+    """Agrega al PDF una tabla con las inasistencias del periodo (si hay)."""
+    if not inasistencias_por_operario:
+        return
+
+    story.append(Spacer(1, 0.5 * cm))
+    story.append(Paragraph("Inasistencias del período", estilo_seccion))
+
+    rows = [["Operario", "Fecha", "Motivo"]]
+    total = 0
+    for nombre, flist in sorted(inasistencias_por_operario.items()):
+        for f in sorted(flist, key=lambda x: x.fecha):
+            rows.append([
+                nombre,
+                _fmt_fecha(f.fecha),
+                (f.notas_inicio or "—")[:60],
+            ])
+            total += 1
+
+    t = Table(rows, colWidths=[7 * cm, 3.5 * cm, 12 * cm])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), NARANJA),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+        ("ALIGN", (1, 0), (1, -1), "CENTER"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, GRIS_CLARO]),
+        ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#DDDDDD")),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 0.2 * cm))

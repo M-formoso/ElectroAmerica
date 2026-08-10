@@ -28,6 +28,11 @@ function fechaHoy() {
   return new Date().toISOString().split('T')[0]
 }
 
+function primerDiaMes() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+}
+
 function fechaDeIso(iso: string) {
   return new Date(iso).toISOString().split('T')[0]
 }
@@ -41,11 +46,13 @@ function estadoBadge(estado: EstadoFichaje) {
     activo: 'bg-green-100 text-green-800',
     completado: 'bg-blue-100 text-blue-800',
     cancelado: 'bg-gray-100 text-gray-600',
+    inasistencia: 'bg-orange-100 text-orange-800',
   }
   const labels: Record<EstadoFichaje, string> = {
     activo: 'Activo',
     completado: 'Completado',
     cancelado: 'Cancelado',
+    inasistencia: 'Faltó',
   }
   return (
     <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', styles[estado])}>
@@ -58,7 +65,7 @@ export default function FichajesAdminPage() {
   const { toast } = useToast()
   const qc = useQueryClient()
   const today = new Date().toISOString().split('T')[0]
-  const [fechaDesde, setFechaDesde] = useState(today)
+  const [fechaDesde, setFechaDesde] = useState(primerDiaMes())
   const [fechaHasta, setFechaHasta] = useState(today)
   const [estadoFiltro, setEstadoFiltro] = useState<string>('todos')
   const [busqueda, setBusqueda] = useState('')
@@ -73,6 +80,7 @@ export default function FichajesAdminPage() {
   const [notas, setNotas] = useState('')
   const [horaEntrada, setHoraEntrada] = useState('')
   const [fechaEntrada, setFechaEntrada] = useState('')
+  const [marcarFalto, setMarcarFalto] = useState(false)
   // Dialog fichar salida por admin
   const [showSalidaDialog, setShowSalidaDialog] = useState(false)
   const [fichajeParaSalida, setFichajeParaSalida] = useState<FichajeListItem | null>(null)
@@ -130,6 +138,30 @@ export default function FichajesAdminPage() {
     onError: (e: unknown) => {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       toast({ title: 'Error', description: detail || 'No se pudo fichar entrada', variant: 'destructive' })
+    },
+  })
+
+  const inasistenciaMutation = useMutation({
+    mutationFn: () => fichajesService.marcarInasistencia({
+      operario_id: operarioSeleccionado,
+      fecha: fechaEntrada || fechaHoy(),
+      motivo: notas || undefined,
+    }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['fichajes-admin'] })
+      qc.invalidateQueries({ queryKey: ['fichajes-resumen'] })
+      setShowFicharDialog(false)
+      setOperarioSeleccionado('')
+      setNotas('')
+      setHoraEntrada('')
+      setFechaEntrada('')
+      setMarcarFalto(false)
+      const op = operarios.find((o: Usuario) => o.id === data.operario_id)
+      toast({ title: 'Inasistencia registrada', description: `${op?.nombre ?? ''} ${op?.apellido ?? ''} marcado como ausente.` })
+    },
+    onError: (e: unknown) => {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast({ title: 'Error', description: detail || 'No se pudo marcar inasistencia', variant: 'destructive' })
     },
   })
 
@@ -337,6 +369,7 @@ export default function FichajesAdminPage() {
                   <SelectItem value="activo">Activos</SelectItem>
                   <SelectItem value="completado">Completados</SelectItem>
                   <SelectItem value="cancelado">Cancelados</SelectItem>
+                  <SelectItem value="inasistencia">Inasistencias</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -410,39 +443,46 @@ export default function FichajesAdminPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtrados.map((f: FichajeListItem) => (
-                    <tr key={f.id} className="border-b last:border-0 hover:bg-muted/30">
-                      <td className="py-3 pr-4 font-medium">
-                        {f.operario_nombre} {f.operario_apellido}
-                      </td>
-                      <td className="py-3 pr-4 text-muted-foreground">{formatFechaCorta(f.fecha)}</td>
-                      <td className="py-3 pr-4 font-mono">{formatHora(f.hora_inicio)}</td>
-                      <td className="py-3 pr-4 font-mono text-muted-foreground">
-                        {f.hora_fin ? formatHora(f.hora_fin) : '—'}
-                      </td>
-                      <td className="py-3 pr-4">
-                        {f.horas_trabajadas != null ? (
-                          <span className="font-medium">{Number(f.horas_trabajadas).toFixed(2)}hs</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="py-3 pr-4 text-muted-foreground">
-                        {f.proyecto_nombre ?? '—'}
-                      </td>
-                      <td className="py-3 pr-4">{estadoBadge(f.estado)}</td>
-                      <td className="py-3">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600"
-                          onClick={() => setFichajeABorrar(f)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                  {filtrados.map((f: FichajeListItem) => {
+                    const esInasistencia = f.estado === 'inasistencia'
+                    return (
+                      <tr key={f.id} className="border-b last:border-0 hover:bg-muted/30">
+                        <td className="py-3 pr-4 font-medium">
+                          {f.operario_nombre} {f.operario_apellido}
+                        </td>
+                        <td className="py-3 pr-4 text-muted-foreground">{formatFechaCorta(f.fecha)}</td>
+                        <td className="py-3 pr-4 font-mono">
+                          {esInasistencia ? <span className="text-muted-foreground">—</span> : formatHora(f.hora_inicio)}
+                        </td>
+                        <td className="py-3 pr-4 font-mono text-muted-foreground">
+                          {esInasistencia ? '—' : (f.hora_fin ? formatHora(f.hora_fin) : '—')}
+                        </td>
+                        <td className="py-3 pr-4">
+                          {esInasistencia ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : f.horas_trabajadas != null ? (
+                            <span className="font-medium">{Number(f.horas_trabajadas).toFixed(2)}hs</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 pr-4 text-muted-foreground">
+                          {f.proyecto_nombre ?? '—'}
+                        </td>
+                        <td className="py-3 pr-4">{estadoBadge(f.estado)}</td>
+                        <td className="py-3">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600"
+                            onClick={() => setFichajeABorrar(f)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -451,15 +491,38 @@ export default function FichajesAdminPage() {
       </Card>
 
       {/* Dialog: fichar entrada por operario */}
-      <Dialog open={showFicharDialog} onOpenChange={(open) => { setShowFicharDialog(open); if (!open) { setOperarioSeleccionado(''); setNotas(''); setHoraEntrada(''); setFechaEntrada('') } else { setHoraEntrada(horaActual()); setFechaEntrada(fechaHoy()) } }}>
+      <Dialog open={showFicharDialog} onOpenChange={(open) => { setShowFicharDialog(open); if (!open) { setOperarioSeleccionado(''); setNotas(''); setHoraEntrada(''); setFechaEntrada(''); setMarcarFalto(false) } else { setHoraEntrada(horaActual()); setFechaEntrada(fechaHoy()) } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserCog className="h-5 w-5" />
-              Fichar entrada por operario
+              {marcarFalto ? 'Marcar inasistencia' : 'Fichar entrada por operario'}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {/* Toggle: fichar entrada vs marcar inasistencia */}
+            <div className="flex items-center gap-2 p-2 bg-muted/30 rounded-md">
+              <Button
+                type="button"
+                size="sm"
+                variant={!marcarFalto ? 'default' : 'ghost'}
+                className="flex-1"
+                onClick={() => setMarcarFalto(false)}
+              >
+                <LogIn className="h-4 w-4 mr-2" />
+                Fichó
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={marcarFalto ? 'default' : 'ghost'}
+                className={cn('flex-1', marcarFalto && 'bg-orange-600 hover:bg-orange-700')}
+                onClick={() => setMarcarFalto(true)}
+              >
+                Faltó
+              </Button>
+            </div>
+
             <div className="space-y-2">
               <Label>Operario *</Label>
               <Select value={operarioSeleccionado} onValueChange={setOperarioSeleccionado}>
@@ -467,28 +530,41 @@ export default function FichajesAdminPage() {
                   <SelectValue placeholder="Seleccioná un operario..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {operariosSinFichaje.length === 0 ? (
-                    <SelectItem value="__none__" disabled>Todos los operarios ya ficharon entrada</SelectItem>
+                  {marcarFalto ? (
+                    operarios.filter((o: Usuario) => o.activo).length === 0 ? (
+                      <SelectItem value="__none__" disabled>No hay operarios activos</SelectItem>
+                    ) : (
+                      operarios.filter((o: Usuario) => o.activo).map((o: Usuario) => (
+                        <SelectItem key={o.id} value={o.id}>
+                          {o.nombre} {o.apellido}
+                        </SelectItem>
+                      ))
+                    )
                   ) : (
-                    operariosSinFichaje.map((o: Usuario) => (
-                      <SelectItem key={o.id} value={o.id}>
-                        {o.nombre} {o.apellido}
-                      </SelectItem>
-                    ))
+                    operariosSinFichaje.length === 0 ? (
+                      <SelectItem value="__none__" disabled>Todos los operarios ya ficharon entrada</SelectItem>
+                    ) : (
+                      operariosSinFichaje.map((o: Usuario) => (
+                        <SelectItem key={o.id} value={o.id}>
+                          {o.nombre} {o.apellido}
+                        </SelectItem>
+                      ))
+                    )
                   )}
                 </SelectContent>
               </Select>
-              {operariosActivosIds.size > 0 && (
+              {!marcarFalto && operariosActivosIds.size > 0 && (
                 <p className="text-xs text-muted-foreground">
                   {operariosActivosIds.size} operario{operariosActivosIds.size > 1 ? 's' : ''} ya {operariosActivosIds.size > 1 ? 'tienen' : 'tiene'} fichaje activo y no aparece{operariosActivosIds.size > 1 ? 'n' : ''} en la lista.
                 </p>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
+
+            {marcarFalto ? (
               <div className="space-y-2">
                 <Label className="flex items-center gap-1">
                   <Calendar className="h-3.5 w-3.5" />
-                  Fecha
+                  Fecha de la inasistencia
                 </Label>
                 <Input
                   type="date"
@@ -496,24 +572,43 @@ export default function FichajesAdminPage() {
                   max={fechaHoy()}
                   onChange={(e) => setFechaEntrada(e.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">El operario queda registrado como ausente ese día.</p>
               </div>
-              <div className="space-y-2">
-                <Label className="flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5" />
-                  Hora de entrada
-                </Label>
-                <Input
-                  type="time"
-                  value={horaEntrada}
-                  onChange={(e) => setHoraEntrada(e.target.value)}
-                />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground -mt-2">Pre-cargadas con fecha y hora actuales. Modificalas para cargar un fichaje de un día anterior.</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1">
+                      <Calendar className="h-3.5 w-3.5" />
+                      Fecha
+                    </Label>
+                    <Input
+                      type="date"
+                      value={fechaEntrada}
+                      max={fechaHoy()}
+                      onChange={(e) => setFechaEntrada(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5" />
+                      Hora de entrada
+                    </Label>
+                    <Input
+                      type="time"
+                      value={horaEntrada}
+                      onChange={(e) => setHoraEntrada(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground -mt-2">Pre-cargadas con fecha y hora actuales. Modificalas para cargar un fichaje de un día anterior.</p>
+              </>
+            )}
+
             <div className="space-y-2">
-              <Label>Notas (opcional)</Label>
+              <Label>{marcarFalto ? 'Motivo (opcional)' : 'Notas (opcional)'}</Label>
               <Textarea
-                placeholder="Ej: Fichaje manual — operario olvidó el celular"
+                placeholder={marcarFalto ? 'Ej: Aviso por enfermedad' : 'Ej: Fichaje manual — operario olvidó el celular'}
                 value={notas}
                 onChange={(e) => setNotas(e.target.value)}
                 rows={2}
@@ -522,13 +617,23 @@ export default function FichajesAdminPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowFicharDialog(false)}>Cancelar</Button>
-            <Button
-              onClick={() => fichajeEntradaMutation.mutate()}
-              disabled={!operarioSeleccionado || operarioSeleccionado === '__none__' || fichajeEntradaMutation.isPending}
-            >
-              <LogIn className="h-4 w-4 mr-2" />
-              Fichar entrada
-            </Button>
+            {marcarFalto ? (
+              <Button
+                className="bg-orange-600 hover:bg-orange-700"
+                onClick={() => inasistenciaMutation.mutate()}
+                disabled={!operarioSeleccionado || operarioSeleccionado === '__none__' || inasistenciaMutation.isPending}
+              >
+                Marcar inasistencia
+              </Button>
+            ) : (
+              <Button
+                onClick={() => fichajeEntradaMutation.mutate()}
+                disabled={!operarioSeleccionado || operarioSeleccionado === '__none__' || fichajeEntradaMutation.isPending}
+              >
+                <LogIn className="h-4 w-4 mr-2" />
+                Fichar entrada
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

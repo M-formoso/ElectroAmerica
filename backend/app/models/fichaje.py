@@ -9,10 +9,11 @@ class EstadoFichaje(str, enum.Enum):
     activo = "activo"
     completado = "completado"
     cancelado = "cancelado"
+    inasistencia = "inasistencia"
 
 
 EstadoFichajeDB = PgEnum(
-    'activo', 'completado', 'cancelado',
+    'activo', 'completado', 'cancelado', 'inasistencia',
     name='estadofichaje',
     create_type=False
 )
