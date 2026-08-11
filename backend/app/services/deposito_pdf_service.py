@@ -9,7 +9,6 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image,
-    KeepTogether,
 )
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
@@ -190,33 +189,22 @@ def generar_pdf_stock_deposito(data: dict) -> bytes:
 def generar_pdf_detalle_movimientos_deposito(data: dict) -> bytes:
     """PDF con el detalle de movimientos del deposito en un periodo.
 
-    Muestra en una sola pieza:
-      - Ingresos al deposito (padre + subdepositos), agregado por material.
-      - Egresos por cada subdeposito (y el deposito principal si tuvo
-        salidas directas), agregado por material.
-      - Stock actual por subdeposito.
+    Estructura (tabla cruzada material x subdeposito):
+      1. INGRESOS: filas=materiales, columnas=subdeps con movimiento + Total.
+      2. EGRESOS: idem. Atribuido al subdep del remito (no la cascada).
+      3. STOCK CALCULADO: total ingresado - total egresado por material.
 
     `data` debe tener:
       - deposito_nombre, cliente_nombre, fecha (datetime), usuario_nombre
       - fecha_desde, fecha_hasta (date | None)
-      - ingresos_por_material: list[dict] {material_codigo, material_nombre,
-                                           material_unidad, cantidad_total,
-                                           remitos_count}
-      - egresos_por_subdeposito: list[dict] {
-            subdeposito_nombre,
-            es_principal (bool),
-            items: list[dict] {material_codigo, material_nombre,
-                               material_unidad, cantidad_total},
-            cantidad_remitos (int),
-          }
-      - stock_por_subdeposito: list[dict] {
-            subdeposito_nombre,
-            es_principal (bool),
-            items: list[dict] {material_codigo, material_nombre,
-                               material_unidad, stock_actual},
-          }
-      - totales: dict {ingresos_total_items, egresos_total_items,
-                        remitos_ingreso, remitos_egreso}
+      - ingresos_columnas: list[{deposito_id, nombre, es_principal}]
+      - ingresos_filas: list[{material_codigo, material_nombre, material_unidad,
+                              por_deposito: list[float], total: float}]
+      - egresos_columnas, egresos_filas: idem estructura
+      - stock_filas: list[{material_codigo, material_nombre, material_unidad,
+                           total_ingresado, total_egresado, stock_calculado}]
+      - totales: {ingresos_materiales, egresos_materiales,
+                  remitos_ingreso, remitos_egreso}
     """
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -227,6 +215,9 @@ def generar_pdf_detalle_movimientos_deposito(data: dict) -> bytes:
         topMargin=1.0 * cm,
         bottomMargin=1.2 * cm,
     )
+
+    # Ancho util de la pagina (landscape A4 - margenes)
+    ancho_util_cm = 27.3
 
     styles = getSampleStyleSheet()
     h_subtitle = ParagraphStyle(
@@ -243,11 +234,6 @@ def generar_pdf_detalle_movimientos_deposito(data: dict) -> bytes:
         fontSize=11, textColor=colors.white, spaceBefore=6, spaceAfter=4,
         fontName="Helvetica-Bold",
     )
-    h_sub_seccion = ParagraphStyle(
-        "SubSeccion", parent=styles["Normal"],
-        fontSize=10, textColor=NEGRO, spaceBefore=4, spaceAfter=2,
-        fontName="Helvetica-Bold",
-    )
     p_footer = ParagraphStyle(
         "PFooter", parent=styles["Normal"],
         fontSize=8, textColor=GRIS, alignment=TA_CENTER,
@@ -262,7 +248,7 @@ def generar_pdf_detalle_movimientos_deposito(data: dict) -> bytes:
     )
     header_style = ParagraphStyle(
         "H", parent=cell_left, textColor=colors.white,
-        alignment=TA_CENTER, fontName="Helvetica-Bold",
+        alignment=TA_CENTER, fontName="Helvetica-Bold", fontSize=9,
     )
     empty_style = ParagraphStyle(
         "Empty", parent=styles["Normal"],
@@ -276,11 +262,17 @@ def generar_pdf_detalle_movimientos_deposito(data: dict) -> bytes:
                 .replace("<", "&lt;")
                 .replace(">", "&gt;"))
 
+    def _num(v: float) -> str:
+        """Formatea numero: sin decimales si es entero, si no con 2."""
+        f = float(v or 0)
+        if f == int(f):
+            return f"{int(f)}"
+        return f"{f:.2f}"
+
     def _banda_titulo(texto: str) -> Table:
-        """Banda roja con titulo de seccion."""
         t = Table(
             [[Paragraph(texto, h_seccion)]],
-            colWidths=[27.3 * cm],
+            colWidths=[ancho_util_cm * cm],
         )
         t.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), ROJO),
@@ -290,34 +282,124 @@ def generar_pdf_detalle_movimientos_deposito(data: dict) -> bytes:
         ]))
         return t
 
-    def _tabla_materiales_con_cantidad(items: List[dict], col_cantidad_titulo: str) -> Table:
-        """Tabla estandar: codigo | material | unidad | cantidad."""
+    def _tabla_cruzada(columnas: list, filas: list, titulo_total: str) -> Table:
+        """Tabla cruzada: Codigo | Material | Unidad | <subdep_1> | ... | Total.
+
+        Ajusta anchos dinamicamente segun cantidad de subdeps.
+        """
+        n_subdeps = max(1, len(columnas))
+        # Anchos fijos
+        w_codigo = 3.0
+        w_unidad = 1.6
+        w_total = 2.3
+        # Ancho por columna de subdep (min 1.5cm, max 3cm)
+        w_sub_disponible = ancho_util_cm - w_codigo - w_unidad - w_total - 5.0
+        w_sub = max(1.5, min(3.0, w_sub_disponible / n_subdeps))
+        w_material = ancho_util_cm - w_codigo - w_unidad - w_total - (w_sub * n_subdeps)
+        if w_material < 4.0:
+            w_material = 4.0
+
+        col_widths = [
+            w_codigo * cm,
+            w_material * cm,
+            w_unidad * cm,
+        ] + [w_sub * cm] * n_subdeps + [w_total * cm]
+
+        # Header
         header = [
             Paragraph("Codigo", header_style),
             Paragraph("Material", header_style),
             Paragraph("Unidad", header_style),
-            Paragraph(col_cantidad_titulo, header_style),
         ]
+        for c in columnas:
+            label = c.get("nombre") or "-"
+            if c.get("es_principal"):
+                label = f"{label} (principal)"
+            header.append(Paragraph(_escape(label), header_style))
+        header.append(Paragraph(_escape(titulo_total), header_style))
+
         rows = [header]
-        for it in items:
-            rows.append([
-                Paragraph(_escape(it.get("material_codigo")), cell_code),
-                Paragraph(_escape(it.get("material_nombre")), cell_left),
-                Paragraph(_escape(it.get("material_unidad")), cell_left),
-                f"{float(it.get('cantidad_total', it.get('stock_actual', 0)) or 0):.2f}",
-            ])
-        tbl = Table(
-            rows,
-            colWidths=[4.5 * cm, 15.3 * cm, 3.5 * cm, 4 * cm],
-            repeatRows=1,
-        )
-        tbl.setStyle(TableStyle([
+        for f in filas:
+            fila = [
+                Paragraph(_escape(f.get("material_codigo")), cell_code),
+                Paragraph(_escape(f.get("material_nombre")), cell_left),
+                Paragraph(_escape(f.get("material_unidad")), cell_left),
+            ]
+            por_dep = f.get("por_deposito") or []
+            for v in por_dep:
+                fila.append(_num(v))
+            fila.append(f"<b>{_num(f.get('total', 0))}</b>")
+            # El total en negrita: envuelvo en Paragraph
+            fila[-1] = Paragraph(fila[-1], ParagraphStyle(
+                "TotalCell", parent=cell_left,
+                fontName="Helvetica-Bold", alignment=TA_RIGHT,
+            ))
+            rows.append(fila)
+
+        tbl = Table(rows, colWidths=col_widths, repeatRows=1)
+        # Estilos base
+        estilo = [
             ("BACKGROUND", (0, 0), (-1, 0), NEGRO),
             ("FONTSIZE", (0, 0), (-1, 0), 9),
             ("ALIGN", (0, 0), (-1, 0), "CENTER"),
             ("FONTSIZE", (2, 1), (-1, -1), 8.5),
             ("ALIGN", (2, 1), (2, -1), "CENTER"),
-            ("ALIGN", (3, 1), (3, -1), "RIGHT"),
+            # Columnas de cantidades (subdeps + total): alineadas a la derecha
+            ("ALIGN", (3, 1), (-1, -1), "RIGHT"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, GRIS_CLARO]),
+            ("GRID", (0, 0), (-1, -1), 0.3, GRIS),
+            ("LEFTPADDING", (0, 0), (-1, -1), 3),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            # Resalta columna Total con fondo suave
+            ("BACKGROUND", (-1, 1), (-1, -1), colors.HexColor("#FFF4E5")),
+        ]
+        tbl.setStyle(TableStyle(estilo))
+        return tbl
+
+    def _tabla_stock_calculado(filas: list) -> Table:
+        """Tabla: Codigo | Material | Unidad | Total ingresado | Total egresado | Stock."""
+        col_widths = [
+            3.0 * cm,   # Codigo
+            (ancho_util_cm - 3.0 - 1.8 - 3.0 - 3.0 - 3.0) * cm,  # Material
+            1.8 * cm,   # Unidad
+            3.0 * cm,   # Total ingresado
+            3.0 * cm,   # Total egresado
+            3.0 * cm,   # Stock calculado
+        ]
+        header = [
+            Paragraph("Codigo", header_style),
+            Paragraph("Material", header_style),
+            Paragraph("Unidad", header_style),
+            Paragraph("Total ingresado", header_style),
+            Paragraph("Total egresado", header_style),
+            Paragraph("Stock (ingresos - egresos)", header_style),
+        ]
+        rows = [header]
+        stock_bold = ParagraphStyle(
+            "StockCell", parent=cell_left,
+            fontName="Helvetica-Bold", alignment=TA_RIGHT,
+        )
+        for f in filas:
+            stock = f.get("stock_calculado", 0)
+            rows.append([
+                Paragraph(_escape(f.get("material_codigo")), cell_code),
+                Paragraph(_escape(f.get("material_nombre")), cell_left),
+                Paragraph(_escape(f.get("material_unidad")), cell_left),
+                _num(f.get("total_ingresado", 0)),
+                _num(f.get("total_egresado", 0)),
+                Paragraph(_num(stock), stock_bold),
+            ])
+        tbl = Table(rows, colWidths=col_widths, repeatRows=1)
+        estilo = [
+            ("BACKGROUND", (0, 0), (-1, 0), NEGRO),
+            ("FONTSIZE", (0, 0), (-1, 0), 9),
+            ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+            ("FONTSIZE", (2, 1), (-1, -1), 8.5),
+            ("ALIGN", (2, 1), (2, -1), "CENTER"),
+            ("ALIGN", (3, 1), (-1, -1), "RIGHT"),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, GRIS_CLARO]),
             ("GRID", (0, 0), (-1, -1), 0.3, GRIS),
@@ -325,7 +407,13 @@ def generar_pdf_detalle_movimientos_deposito(data: dict) -> bytes:
             ("RIGHTPADDING", (0, 0), (-1, -1), 4),
             ("TOPPADDING", (0, 0), (-1, -1), 3),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ]))
+            ("BACKGROUND", (-1, 1), (-1, -1), colors.HexColor("#FFF4E5")),
+        ]
+        # Colorea rojo suave las filas con stock negativo (mas egresos que ingresos)
+        for i, f in enumerate(filas, start=1):
+            if f.get("stock_calculado", 0) < 0:
+                estilo.append(("BACKGROUND", (-1, i), (-1, i), colors.HexColor("#FFD6D6")))
+        tbl.setStyle(TableStyle(estilo))
         return tbl
 
     elements = []
@@ -371,13 +459,12 @@ def generar_pdf_detalle_movimientos_deposito(data: dict) -> bytes:
     fecha_str = (data.get("fecha") or datetime.now()).strftime("%d/%m/%Y %H:%M")
     elements.append(Paragraph(f"Generado: {fecha_str}", h_info))
 
-    # Resumen KPI
     totales = data.get("totales") or {}
     kpi_row = (
         f"Ingresos: <b>{totales.get('remitos_ingreso', 0)}</b> remitos, "
-        f"<b>{totales.get('ingresos_total_items', 0)}</b> lineas &nbsp;&nbsp;|&nbsp;&nbsp; "
+        f"<b>{totales.get('ingresos_materiales', 0)}</b> materiales &nbsp;&nbsp;|&nbsp;&nbsp; "
         f"Egresos: <b>{totales.get('remitos_egreso', 0)}</b> remitos, "
-        f"<b>{totales.get('egresos_total_items', 0)}</b> lineas"
+        f"<b>{totales.get('egresos_materiales', 0)}</b> materiales"
     )
     elements.append(Spacer(1, 4))
     elements.append(Paragraph(
@@ -387,79 +474,49 @@ def generar_pdf_detalle_movimientos_deposito(data: dict) -> bytes:
                        spaceAfter=6),
     ))
 
-    # ============ INGRESOS ============
-    ingresos = data.get("ingresos_por_material") or []
+    # ============ 1. INGRESOS ============
+    ingresos_columnas = data.get("ingresos_columnas") or []
+    ingresos_filas = data.get("ingresos_filas") or []
     elements.append(_banda_titulo(
-        f"1. INGRESOS AL DEPOSITO ({len(ingresos)} materiales)"
+        f"1. INGRESOS POR SUBDEPOSITO ({len(ingresos_filas)} materiales)"
     ))
-    if not ingresos:
+    if not ingresos_filas:
         elements.append(Paragraph(
             "Sin ingresos registrados en el periodo.", empty_style,
         ))
     else:
-        elements.append(_tabla_materiales_con_cantidad(
-            ingresos, "Cant. ingresada",
+        elements.append(_tabla_cruzada(
+            ingresos_columnas, ingresos_filas, "Total ingresado",
         ))
-    elements.append(Spacer(1, 8))
+    elements.append(Spacer(1, 10))
 
-    # ============ EGRESOS POR SUBDEPOSITO ============
-    egresos = data.get("egresos_por_subdeposito") or []
-    total_grupos_egreso = sum(1 for g in egresos if (g.get("items") or []))
+    # ============ 2. EGRESOS ============
+    egresos_columnas = data.get("egresos_columnas") or []
+    egresos_filas = data.get("egresos_filas") or []
     elements.append(_banda_titulo(
-        f"2. EGRESOS POR SUBDEPOSITO ({total_grupos_egreso} destinos)"
+        f"2. EGRESOS POR SUBDEPOSITO ({len(egresos_filas)} materiales)"
     ))
-    if not any((g.get("items") or []) for g in egresos):
+    if not egresos_filas:
         elements.append(Paragraph(
             "Sin egresos registrados en el periodo.", empty_style,
         ))
     else:
-        for grupo in egresos:
-            items = grupo.get("items") or []
-            if not items:
-                continue
-            label = grupo.get("subdeposito_nombre") or "-"
-            if grupo.get("es_principal"):
-                label = f"{label} (deposito principal)"
-            cant_remitos = grupo.get("cantidad_remitos", 0)
-            titulo = (
-                f"&#9656; <b>{_escape(label)}</b> &mdash; "
-                f"{len(items)} materiales &middot; {cant_remitos} remitos"
-            )
-            elements.append(KeepTogether([
-                Paragraph(titulo, h_sub_seccion),
-                _tabla_materiales_con_cantidad(items, "Cant. consumida"),
-                Spacer(1, 6),
-            ]))
+        elements.append(_tabla_cruzada(
+            egresos_columnas, egresos_filas, "Total egresado",
+        ))
+    elements.append(Spacer(1, 10))
 
-    elements.append(Spacer(1, 6))
-
-    # ============ STOCK ACTUAL ============
-    stock = data.get("stock_por_subdeposito") or []
-    total_grupos_stock = sum(1 for g in stock if (g.get("items") or []))
+    # ============ 3. STOCK CALCULADO ============
+    stock_filas = data.get("stock_filas") or []
     elements.append(_banda_titulo(
-        f"3. STOCK ACTUAL POR SUBDEPOSITO ({total_grupos_stock} depositos)"
+        f"3. STOCK CALCULADO (INGRESOS - EGRESOS) — {len(stock_filas)} materiales"
     ))
-    if not any((g.get("items") or []) for g in stock):
+    if not stock_filas:
         elements.append(Paragraph(
-            "Sin stock cargado.", empty_style,
+            "Sin movimientos en el periodo.", empty_style,
         ))
     else:
-        for grupo in stock:
-            items = grupo.get("items") or []
-            if not items:
-                continue
-            label = grupo.get("subdeposito_nombre") or "-"
-            if grupo.get("es_principal"):
-                label = f"{label} (deposito principal)"
-            titulo = (
-                f"&#9656; <b>{_escape(label)}</b> &mdash; "
-                f"{len(items)} materiales"
-            )
-            elements.append(KeepTogether([
-                Paragraph(titulo, h_sub_seccion),
-                _tabla_materiales_con_cantidad(items, "Stock actual"),
-                Spacer(1, 6),
-            ]))
+        elements.append(_tabla_stock_calculado(stock_filas))
 
     elements.append(Spacer(1, 8))
     usuario = data.get("usuario_nombre") or "-"

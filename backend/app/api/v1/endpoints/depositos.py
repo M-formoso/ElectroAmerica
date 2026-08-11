@@ -330,12 +330,14 @@ def descargar_pdf_detalle_movimientos(
 ):
     """PDF con el detalle de movimientos del deposito en un rango de fechas.
 
-    Consolida en un solo documento:
-      - Ingresos al deposito (agregado por material, incluye padre + subdepositos).
-      - Egresos por cada subdeposito (agregado por material).
-      - Stock actual por subdeposito.
-
-    Si no se pasan fechas, incluye todo el historico.
+    Estructura del PDF (tabla cruzada material x subdeposito):
+      1. INGRESOS: filas=materiales, columnas=subdeps con movimiento + Total.
+      2. EGRESOS: idem. Los egresos se atribuyen al subdeposito indicado
+         en el remito (no al que descontó por cascada), para reflejar lo
+         que el usuario efectivamente hizo.
+      3. STOCK CALCULADO por material: total ingresado - total egresado
+         del periodo, para conciliar contra lo que fisicamente deberia
+         estar en gondola.
     """
     deposito = db.query(Deposito).filter(
         Deposito.id == deposito_id, Deposito.activo == True
@@ -350,205 +352,141 @@ def descargar_pdf_detalle_movimientos(
         )
 
     subdep_objs = [s for s in deposito.subdepositos if s.activo]
-    # Ids del grupo del deposito (padre + subdepositos activos). Si el
-    # deposito consultado es un subdeposito (parent_id no nulo), el grupo
-    # es solo el.
+    # Grupo del deposito consultado: si es principal, incluye subdepositos;
+    # si es subdeposito, solo el.
     dep_ids = [deposito.id] + [s.id for s in subdep_objs]
 
-    # ============ INGRESOS: Remito tipo=ingreso sobre el grupo ============
-    ingresos_query = (
-        db.query(
-            RemitoItem.material_id.label("material_id"),
-            RemitoItem.material_codigo.label("material_codigo"),
-            RemitoItem.material_nombre.label("material_nombre"),
-            RemitoItem.material_unidad.label("material_unidad"),
-            func.sum(RemitoItem.cantidad).label("cantidad_total"),
-            func.count(func.distinct(Remito.id)).label("remitos_count"),
+    def _aplicar_rango(query):
+        if fecha_desde:
+            query = query.filter(Remito.fecha >= fecha_desde)
+        if fecha_hasta:
+            query = query.filter(Remito.fecha <= fecha_hasta)
+        return query
+
+    def _query_matriz(tipo: TipoRemito):
+        """Rows: (deposito_id, material_id, codigo, nombre, unidad, cantidad_total)."""
+        q = (
+            db.query(
+                Remito.deposito_id.label("deposito_id"),
+                RemitoItem.material_id.label("material_id"),
+                RemitoItem.material_codigo.label("material_codigo"),
+                RemitoItem.material_nombre.label("material_nombre"),
+                RemitoItem.material_unidad.label("material_unidad"),
+                func.sum(RemitoItem.cantidad).label("cantidad_total"),
+            )
+            .join(Remito, Remito.id == RemitoItem.remito_id)
+            .filter(
+                Remito.tipo == tipo,
+                Remito.activo == True,
+                Remito.anulado_at.is_(None),
+                Remito.deposito_id.in_(dep_ids),
+                RemitoItem.activo == True,
+            )
         )
-        .join(Remito, Remito.id == RemitoItem.remito_id)
-        .filter(
-            Remito.tipo == TipoRemito.ingreso,
+        q = _aplicar_rango(q)
+        q = q.group_by(
+            Remito.deposito_id,
+            RemitoItem.material_id,
+            RemitoItem.material_codigo,
+            RemitoItem.material_nombre,
+            RemitoItem.material_unidad,
+        )
+        return q.all()
+
+    def _contar_remitos(tipo: TipoRemito) -> int:
+        q = db.query(func.count(func.distinct(Remito.id))).filter(
+            Remito.tipo == tipo,
             Remito.activo == True,
             Remito.anulado_at.is_(None),
             Remito.deposito_id.in_(dep_ids),
-            RemitoItem.activo == True,
         )
-    )
-    if fecha_desde:
-        ingresos_query = ingresos_query.filter(Remito.fecha >= fecha_desde)
-    if fecha_hasta:
-        ingresos_query = ingresos_query.filter(Remito.fecha <= fecha_hasta)
+        q = _aplicar_rango(q)
+        return int(q.scalar() or 0)
 
-    ingresos_query = ingresos_query.group_by(
-        RemitoItem.material_id,
-        RemitoItem.material_codigo,
-        RemitoItem.material_nombre,
-        RemitoItem.material_unidad,
-    ).order_by(RemitoItem.material_nombre.asc())
+    def _armar_matriz(rows):
+        """Construye columnas (solo subdeps con movimiento) y filas (materiales)."""
+        deps_con_mov = set()
+        materiales_info: dict = {}
+        celdas: dict = defaultdict(float)
+        for r in rows:
+            deps_con_mov.add(r.deposito_id)
+            if r.material_id not in materiales_info:
+                materiales_info[r.material_id] = {
+                    "material_id": r.material_id,
+                    "material_codigo": r.material_codigo,
+                    "material_nombre": r.material_nombre or "-",
+                    "material_unidad": r.material_unidad or "",
+                }
+            celdas[(r.material_id, r.deposito_id)] += float(r.cantidad_total or 0)
 
-    ingresos_por_material = [
-        {
-            "material_codigo": row.material_codigo,
-            "material_nombre": row.material_nombre or "-",
-            "material_unidad": row.material_unidad or "",
-            "cantidad_total": float(row.cantidad_total or 0),
-            "remitos_count": int(row.remitos_count or 0),
-        }
-        for row in ingresos_query.all()
-    ]
+        columnas = []
+        # Principal primero si tuvo movimiento
+        if deposito.id in deps_con_mov:
+            columnas.append({
+                "deposito_id": deposito.id,
+                "nombre": deposito.nombre,
+                "es_principal": True,
+            })
+        for s in sorted(subdep_objs, key=lambda x: (x.nombre or "").lower()):
+            if s.id in deps_con_mov:
+                columnas.append({
+                    "deposito_id": s.id,
+                    "nombre": s.nombre,
+                    "es_principal": False,
+                })
 
-    # Total de remitos de ingreso unicos en el periodo
-    remitos_ingreso_query = db.query(func.count(func.distinct(Remito.id))).filter(
-        Remito.tipo == TipoRemito.ingreso,
-        Remito.activo == True,
-        Remito.anulado_at.is_(None),
-        Remito.deposito_id.in_(dep_ids),
-    )
-    if fecha_desde:
-        remitos_ingreso_query = remitos_ingreso_query.filter(Remito.fecha >= fecha_desde)
-    if fecha_hasta:
-        remitos_ingreso_query = remitos_ingreso_query.filter(Remito.fecha <= fecha_hasta)
-    remitos_ingreso_total = int(remitos_ingreso_query.scalar() or 0)
+        filas = []
+        for mid, info in sorted(
+            materiales_info.items(),
+            key=lambda kv: (kv[1]["material_nombre"] or "").lower(),
+        ):
+            por_dep = [celdas.get((mid, c["deposito_id"]), 0.0) for c in columnas]
+            filas.append({
+                **info,
+                "por_deposito": por_dep,
+                "total": sum(por_dep),
+            })
+        return columnas, filas
 
-    # ============ EGRESOS por subdeposito ============
-    # RemitoDescuento.deposito_id indica el subdeposito de donde salio.
-    # Filtramos por remitos EGRESO no anulados que descontaron de algun
-    # deposito del grupo.
-    egresos_query = (
-        db.query(
-            RemitoDescuento.deposito_id.label("subdeposito_id"),
-            RemitoDescuento.material_id.label("material_id"),
-            func.sum(RemitoDescuento.cantidad).label("cantidad_total"),
-            func.count(func.distinct(Remito.id)).label("remitos_count"),
-        )
-        .join(Remito, Remito.id == RemitoDescuento.remito_id)
-        .filter(
-            Remito.tipo == TipoRemito.egreso,
-            Remito.activo == True,
-            Remito.anulado_at.is_(None),
-            RemitoDescuento.deposito_id.in_(dep_ids),
-            RemitoDescuento.activo == True,
-        )
-    )
-    if fecha_desde:
-        egresos_query = egresos_query.filter(Remito.fecha >= fecha_desde)
-    if fecha_hasta:
-        egresos_query = egresos_query.filter(Remito.fecha <= fecha_hasta)
-    egresos_query = egresos_query.group_by(
-        RemitoDescuento.deposito_id,
-        RemitoDescuento.material_id,
-    )
+    ingresos_rows = _query_matriz(TipoRemito.ingreso)
+    egresos_rows = _query_matriz(TipoRemito.egreso)
 
-    # Traigo materiales referenciados para armar nombre/codigo/unidad
-    egresos_rows = egresos_query.all()
-    material_ids_egresos = {r.material_id for r in egresos_rows}
-    materiales_map: dict = {}
-    if material_ids_egresos:
-        for m in db.query(Material).filter(Material.id.in_(material_ids_egresos)).all():
-            materiales_map[m.id] = m
+    ingresos_columnas, ingresos_filas = _armar_matriz(ingresos_rows)
+    egresos_columnas, egresos_filas = _armar_matriz(egresos_rows)
 
-    # Agrupar por subdeposito y contar remitos unicos por subdeposito
-    egresos_por_sub: dict = defaultdict(lambda: {"items": [], "remito_ids": set()})
-    # Segunda pasada para contar remitos por subdeposito
-    remitos_por_sub_rows = (
-        db.query(
-            RemitoDescuento.deposito_id.label("subdeposito_id"),
-            RemitoDescuento.remito_id.label("remito_id"),
-        )
-        .join(Remito, Remito.id == RemitoDescuento.remito_id)
-        .filter(
-            Remito.tipo == TipoRemito.egreso,
-            Remito.activo == True,
-            Remito.anulado_at.is_(None),
-            RemitoDescuento.deposito_id.in_(dep_ids),
-            RemitoDescuento.activo == True,
-        )
-    )
-    if fecha_desde:
-        remitos_por_sub_rows = remitos_por_sub_rows.filter(Remito.fecha >= fecha_desde)
-    if fecha_hasta:
-        remitos_por_sub_rows = remitos_por_sub_rows.filter(Remito.fecha <= fecha_hasta)
-    for row in remitos_por_sub_rows.all():
-        egresos_por_sub[row.subdeposito_id]["remito_ids"].add(row.remito_id)
+    # Stock calculado por material: total ingresado - total egresado
+    ingresado_por_mat: dict = {}
+    egresado_por_mat: dict = {}
+    info_por_mat: dict = {}
+    for f in ingresos_filas:
+        mid = f["material_id"]
+        ingresado_por_mat[mid] = f["total"]
+        info_por_mat[mid] = f
+    for f in egresos_filas:
+        mid = f["material_id"]
+        egresado_por_mat[mid] = f["total"]
+        info_por_mat.setdefault(mid, f)
 
-    for row in egresos_rows:
-        mat = materiales_map.get(row.material_id)
-        egresos_por_sub[row.subdeposito_id]["items"].append({
-            "material_codigo": mat.codigo if mat else None,
-            "material_nombre": mat.nombre if mat else "-",
-            "material_unidad": mat.unidad if mat else "",
-            "cantidad_total": float(row.cantidad_total or 0),
+    stock_filas = []
+    for mid in set(ingresado_por_mat.keys()) | set(egresado_por_mat.keys()):
+        info = info_por_mat[mid]
+        ing = ingresado_por_mat.get(mid, 0.0)
+        egr = egresado_por_mat.get(mid, 0.0)
+        stock_filas.append({
+            "material_codigo": info["material_codigo"],
+            "material_nombre": info["material_nombre"],
+            "material_unidad": info["material_unidad"],
+            "total_ingresado": ing,
+            "total_egresado": egr,
+            "stock_calculado": ing - egr,
         })
+    stock_filas.sort(key=lambda x: (x["material_nombre"] or "").lower())
 
-    # Ordenar items por nombre dentro de cada grupo
-    for grupo in egresos_por_sub.values():
-        grupo["items"].sort(key=lambda x: (x["material_nombre"] or "").lower())
-
-    # Armar la lista de egresos_por_subdeposito respetando orden:
-    # primero el deposito principal (si tuvo egresos), luego subdepositos
-    # por nombre.
-    nombre_por_dep_id = {deposito.id: deposito.nombre}
-    for s in subdep_objs:
-        nombre_por_dep_id[s.id] = s.nombre
-
-    egresos_lista = []
-    if deposito.id in egresos_por_sub:
-        egresos_lista.append({
-            "subdeposito_nombre": deposito.nombre,
-            "es_principal": True,
-            "items": egresos_por_sub[deposito.id]["items"],
-            "cantidad_remitos": len(egresos_por_sub[deposito.id]["remito_ids"]),
-        })
-    sub_ordenados = sorted(subdep_objs, key=lambda s: (s.nombre or "").lower())
-    for s in sub_ordenados:
-        if s.id not in egresos_por_sub:
-            continue
-        egresos_lista.append({
-            "subdeposito_nombre": s.nombre,
-            "es_principal": False,
-            "items": egresos_por_sub[s.id]["items"],
-            "cantidad_remitos": len(egresos_por_sub[s.id]["remito_ids"]),
-        })
-
-    # ============ STOCK ACTUAL por subdeposito ============
-    stock_por_sub: dict = defaultdict(list)
-    rows_stock = db.query(DepositoMaterial).filter(
-        DepositoMaterial.deposito_id.in_(dep_ids),
-        DepositoMaterial.activo == True,
-    ).all()
-    for dm in rows_stock:
-        mat = dm.material
-        stock_por_sub[dm.deposito_id].append({
-            "material_codigo": mat.codigo if mat else None,
-            "material_nombre": mat.nombre if mat else "-",
-            "material_unidad": mat.unidad if mat else "",
-            "stock_actual": float(dm.stock_actual or 0),
-        })
-    for lst in stock_por_sub.values():
-        lst.sort(key=lambda x: (x["material_nombre"] or "").lower())
-
-    stock_lista = []
-    if deposito.id in stock_por_sub:
-        stock_lista.append({
-            "subdeposito_nombre": deposito.nombre,
-            "es_principal": True,
-            "items": stock_por_sub[deposito.id],
-        })
-    for s in sub_ordenados:
-        if s.id not in stock_por_sub:
-            continue
-        stock_lista.append({
-            "subdeposito_nombre": s.nombre,
-            "es_principal": False,
-            "items": stock_por_sub[s.id],
-        })
-
-    # ============ Armar payload y generar PDF ============
     totales = {
-        "ingresos_total_items": len(ingresos_por_material),
-        "egresos_total_items": sum(len(g["items"]) for g in egresos_lista),
-        "remitos_ingreso": remitos_ingreso_total,
-        "remitos_egreso": sum(g["cantidad_remitos"] for g in egresos_lista),
+        "ingresos_materiales": len(ingresos_filas),
+        "egresos_materiales": len(egresos_filas),
+        "remitos_ingreso": _contar_remitos(TipoRemito.ingreso),
+        "remitos_egreso": _contar_remitos(TipoRemito.egreso),
     }
 
     data_pdf = {
@@ -558,9 +496,11 @@ def descargar_pdf_detalle_movimientos(
         "fecha_desde": fecha_desde,
         "fecha_hasta": fecha_hasta,
         "usuario_nombre": usuario.nombre if usuario else None,
-        "ingresos_por_material": ingresos_por_material,
-        "egresos_por_subdeposito": egresos_lista,
-        "stock_por_subdeposito": stock_lista,
+        "ingresos_columnas": ingresos_columnas,
+        "ingresos_filas": ingresos_filas,
+        "egresos_columnas": egresos_columnas,
+        "egresos_filas": egresos_filas,
+        "stock_filas": stock_filas,
         "totales": totales,
     }
 
