@@ -161,7 +161,14 @@ export const depositosService = {
     const link = document.createElement('a')
     link.href = url
     const safe = (nombre || 'deposito').replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 40)
-    link.download = `detalle_movimientos_${safe}.pdf`
+    const sufijoPeriodo = fechaDesde && fechaHasta
+      ? `_${fechaDesde}_a_${fechaHasta}`
+      : fechaDesde
+        ? `_desde_${fechaDesde}`
+        : fechaHasta
+          ? `_hasta_${fechaHasta}`
+          : ''
+    link.download = `detalle_movimientos_${safe}${sufijoPeriodo}.pdf`
     document.body.appendChild(link)
     link.click()
     link.remove()

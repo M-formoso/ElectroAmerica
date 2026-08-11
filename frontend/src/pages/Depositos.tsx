@@ -88,6 +88,15 @@ const formInicialDeposito: DepositoFormData = {
   descripcion: '',
 }
 
+function fechaHoyIso() {
+  return new Date().toISOString().split('T')[0]
+}
+
+function primerDiaMesIso() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+}
+
 export function DepositosPage() {
   const { toast } = useToast()
   const qc = useQueryClient()
@@ -145,6 +154,10 @@ export function DepositosPage() {
   // Confirmacion para vaciar deposito (reset a 0 + borra remitos y movimientos)
   const [depositoAVaciar, setDepositoAVaciar] = useState<{ id: string; nombre: string } | null>(null)
   const [confirmVaciarText, setConfirmVaciarText] = useState('')
+
+  // Rango de fechas para el PDF de detalle de movimientos (default: mes actual)
+  const [fechaDesdePdf, setFechaDesdePdf] = useState(primerDiaMesIso())
+  const [fechaHastaPdf, setFechaHastaPdf] = useState(fechaHoyIso())
 
   const { data: clientes = [] } = useQuery({
     queryKey: ['clientes'],
@@ -815,7 +828,15 @@ export function DepositosPage() {
       {/* Dialog gestionar materiales del deposito */}
       <Dialog
         open={!!openDepositoId}
-        onOpenChange={(o) => !o && setOpenDepositoId(null)}
+        onOpenChange={(o) => {
+          if (!o) {
+            setOpenDepositoId(null)
+          } else {
+            // Al abrir, resetear el rango del PDF de detalle al mes actual
+            setFechaDesdePdf(primerDiaMesIso())
+            setFechaHastaPdf(fechaHoyIso())
+          }
+        }}
       >
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -864,12 +885,14 @@ export function DepositosPage() {
                         await depositosService.descargarPdfDetalleMovimientos(
                           depositoDetail.id,
                           depositoDetail.nombre,
+                          fechaDesdePdf || undefined,
+                          fechaHastaPdf || undefined,
                         )
                       } catch {
                         toast({ variant: 'destructive', title: 'Error al descargar PDF' })
                       }
                     }}
-                    title="Ingresos + egresos por subdeposito + stock actual"
+                    title="Ingresos + egresos por subdeposito + stock actual del periodo seleccionado"
                   >
                     <FileText className="h-4 w-4 mr-2" />
                     PDF detalle movimientos
@@ -891,6 +914,55 @@ export function DepositosPage() {
               )}
             </div>
           </DialogHeader>
+
+          {/* Rango de fechas para el PDF de detalle de movimientos */}
+          {depositoDetail && (
+            <div className="rounded-md border bg-muted/40 px-3 py-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div className="flex flex-wrap items-end gap-2">
+                  <div>
+                    <Label htmlFor="pdf-fecha-desde" className="text-xs">
+                      Desde
+                    </Label>
+                    <Input
+                      id="pdf-fecha-desde"
+                      type="date"
+                      value={fechaDesdePdf}
+                      onChange={(e) => setFechaDesdePdf(e.target.value)}
+                      className="h-8 w-[150px]"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="pdf-fecha-hasta" className="text-xs">
+                      Hasta
+                    </Label>
+                    <Input
+                      id="pdf-fecha-hasta"
+                      type="date"
+                      value={fechaHastaPdf}
+                      onChange={(e) => setFechaHastaPdf(e.target.value)}
+                      className="h-8 w-[150px]"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8"
+                    onClick={() => {
+                      setFechaDesdePdf(primerDiaMesIso())
+                      setFechaHastaPdf(fechaHoyIso())
+                    }}
+                    title="Restablecer al mes actual"
+                  >
+                    Mes actual
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground sm:text-right">
+                  El PDF de detalle de movimientos se genera con este rango.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Subdepositos */}
           {depositoDetail && !depositoDetail.parent_id && (
