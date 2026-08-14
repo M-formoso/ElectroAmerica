@@ -25,7 +25,11 @@ function formatHora(iso: string) {
 }
 
 function formatFecha(iso: string) {
-  return new Date(iso).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
+  // Backend devuelve fechas puras como "YYYY-MM-DD". new Date("YYYY-MM-DD")
+  // se interpreta como UTC medianoche y en zonas UTC- muestra el dia
+  // anterior. Construimos la fecha con los componentes en local.
+  const [y, m, d] = iso.split('T')[0].split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
 }
 
 function estadoBadge(estado: string) {

@@ -38,7 +38,12 @@ function fechaDeIso(iso: string) {
 }
 
 function formatFechaCorta(iso: string) {
-  return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+  // Backend devuelve fechas puras como "YYYY-MM-DD". new Date("YYYY-MM-DD")
+  // se interpreta como UTC medianoche, y en zonas UTC- muestra el dia
+  // anterior al aplicar toLocaleDateString. Parseamos los componentes
+  // como fecha local para evitar el corrimiento.
+  const [y, m, d] = iso.split('T')[0].split('-').map(Number)
+  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${String(y).slice(-2)}`
 }
 
 function estadoBadge(estado: EstadoFichaje) {

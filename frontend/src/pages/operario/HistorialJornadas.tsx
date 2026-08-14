@@ -10,6 +10,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Loader2, Clock, Truck, MapPin, Package, Calendar, ChevronRight } from 'lucide-react'
 import { jornadasOperarioService, type JornadaOperario, type JornadaOperarioList } from '@/services/jornadasOperario'
 
+// Fechas puras "YYYY-MM-DD" parseadas como local para evitar el
+// corrimiento de dia por interpretacion UTC de new Date("YYYY-MM-DD").
+function parseFechaLocal(iso: string): Date {
+  const [y, m, d] = iso.split('T')[0].split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
 const estadoConfig: Record<string, { label: string; color: string }> = {
   planificada: { label: 'Planificada', color: 'bg-gray-100 text-gray-800' },
   iniciada: { label: 'Iniciada', color: 'bg-yellow-100 text-yellow-800' },
@@ -113,7 +120,7 @@ export default function HistorialJornadas() {
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-gray-400" />
                         <span className="font-medium">
-                          {format(new Date(jornada.fecha), "EEEE d 'de' MMMM", { locale: es })}
+                          {format(parseFechaLocal(jornada.fecha), "EEEE d 'de' MMMM", { locale: es })}
                         </span>
                         <Badge className={config.color}>{config.label}</Badge>
                       </div>
@@ -165,7 +172,7 @@ export default function HistorialJornadas() {
               <DialogHeader>
                 <DialogTitle>
                   Jornada del{' '}
-                  {format(new Date(jornadaSeleccionada.fecha), "d 'de' MMMM yyyy", { locale: es })}
+                  {format(parseFechaLocal(jornadaSeleccionada.fecha), "d 'de' MMMM yyyy", { locale: es })}
                 </DialogTitle>
               </DialogHeader>
 
