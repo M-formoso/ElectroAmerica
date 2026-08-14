@@ -55,3 +55,6 @@ from app.models.tipo_ingreso import TipoIngresoConfig
 
 # Fichaje de jornadas (entrada/salida)
 from app.models.fichaje import FichajeJornada, EstadoFichaje
+
+# Facturas a cobrar
+from app.models.factura import Factura, EstadoFactura

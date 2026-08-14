@@ -15,7 +15,7 @@ MODULOS_POR_ROL = {
     "administrador": MODULOS_SISTEMA.copy(),  # Todos los módulos
     "supervisor": [
         "dashboard", "proyectos", "clientes", "materiales", "equipos",
-        "herramientas", "finanzas", "reportes", "alertas",
+        "herramientas", "finanzas", "reportes", "facturas_cobrar", "alertas",
         "jornadas_gestion", "actividades_tipo"
     ],
     "operario": [

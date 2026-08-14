@@ -29,6 +29,7 @@ from app.api.v1.endpoints import (
     listas_precio,
     panel_socios,
     fichajes,
+    facturas,
 )
 
 api_router = APIRouter()
@@ -234,4 +235,11 @@ api_router.include_router(
     fichajes.router,
     prefix="/fichajes",
     tags=["Fichajes"]
+)
+
+# Facturas a cobrar (por cliente/empresa)
+api_router.include_router(
+    facturas.router,
+    prefix="/facturas-a-cobrar",
+    tags=["Facturas a Cobrar"]
 )

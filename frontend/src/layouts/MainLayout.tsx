@@ -29,6 +29,7 @@ import {
   ClipboardCheck,
   Warehouse,
   FileText,
+  Receipt,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -141,8 +142,9 @@ const navigationSections: NavSection[] = [
   {
     title: 'Administración',
     icon: Shield,
-    roles: ['administrador'],
+    roles: ['administrador', 'supervisor'],
     items: [
+      { name: 'Facturas a Cobrar', href: '/facturas-a-cobrar', icon: Receipt, roles: ['administrador', 'supervisor'], modulo: 'facturas_cobrar' },
       { name: 'Usuarios', href: '/usuarios', icon: Users, roles: ['administrador'], modulo: 'usuarios' },
       { name: 'Alertas', href: '/alertas', icon: AlertCircle, roles: ['administrador', 'supervisor'], modulo: 'alertas' },
       { name: 'Auditoría', href: '/auditoria', icon: Activity, roles: ['administrador'], modulo: 'auditoria' },

@@ -15,6 +15,7 @@ import { RemitosPage } from '@/pages/Remitos'
 import { EquiposPage } from '@/pages/Equipos'
 import { FinanzasPage } from '@/pages/Finanzas'
 import { PanelSociosPage } from '@/pages/PanelSocios'
+import { FacturasACobrarPage } from '@/pages/FacturasACobrar'
 import { ClientesPage } from '@/pages/Clientes'
 import { UsuariosPage } from '@/pages/Usuarios'
 import { MisProyectosPage } from '@/pages/portal/MisProyectos'
@@ -122,6 +123,7 @@ function AppRoutes() {
         <Route path="equipos" element={<EquiposPage />} />
         <Route path="finanzas" element={<FinanzasPage />} />
         <Route path="panel-socios" element={<PanelSociosPage />} />
+        <Route path="facturas-a-cobrar" element={<FacturasACobrarPage />} />
         <Route path="clientes" element={<ClientesPage />} />
         <Route path="alertas" element={<AlertasPage />} />
         <Route path="reportes" element={<ReportesPage />} />
