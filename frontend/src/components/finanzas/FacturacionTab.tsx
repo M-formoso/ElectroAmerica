@@ -27,6 +27,9 @@ import {
 } from '@/services/listasPrecio'
 import * as finanzasService from '@/services/finanzas'
 import { useToast } from '@/hooks/use-toast'
+import { FacturasEmpresaTab } from '@/components/finanzas/FacturasEmpresaTab'
+
+type VistaFacturacion = 'proyecto' | 'empresa'
 
 const METODOS_PAGO: { value: string; label: string }[] = [
   { value: 'efectivo', label: 'Efectivo' },
@@ -58,6 +61,7 @@ type FacturarDialogState =
   | null
 
 export function FacturacionTab() {
+  const [vista, setVista] = useState<VistaFacturacion>('proyecto')
   const [tab, setTab] = useState<EstadoFacturacion>('pendiente')
   const [search, setSearch] = useState('')
   const [dialogState, setDialogState] = useState<FacturarDialogState>(null)
@@ -305,11 +309,23 @@ export function FacturacionTab() {
       <div>
         <h2 className="text-lg font-semibold">Facturación y cobro</h2>
         <p className="text-sm text-muted-foreground">
-          Proyectos finalizados. Marcalos como facturados y registrá el cobro cuando se concrete.
+          Gestioná la facturación por proyecto (proyectos finalizados) o cargá facturas por empresa
+          con múltiples obras.
         </p>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as EstadoFacturacion)}>
+      <Tabs value={vista} onValueChange={(v) => setVista(v as VistaFacturacion)}>
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="proyecto">Por proyecto</TabsTrigger>
+          <TabsTrigger value="empresa">Por empresa</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="empresa" className="mt-6">
+          <FacturasEmpresaTab />
+        </TabsContent>
+
+        <TabsContent value="proyecto" className="mt-6">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as EstadoFacturacion)}>
         <TabsList className="grid w-full grid-cols-3 max-w-2xl">
           <TabsTrigger value="pendiente">Por facturar</TabsTrigger>
           <TabsTrigger value="facturado">Por cobrar</TabsTrigger>
@@ -347,6 +363,8 @@ export function FacturacionTab() {
         </TabsContent>
         <TabsContent value="cobrado" className="mt-4">
           {renderTabla('cobrado')}
+        </TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
 

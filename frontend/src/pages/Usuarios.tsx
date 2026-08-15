@@ -83,7 +83,6 @@ const MODULOS_DISPONIBLES = [
   'herramientas',
   'finanzas',
   'reportes',
-  'facturas_cobrar',
   'usuarios',
   'alertas',
   'auditoria',
@@ -97,7 +96,7 @@ const MODULOS_POR_ROL: Record<string, string[]> = {
   administrador: MODULOS_DISPONIBLES,
   supervisor: [
     'dashboard', 'proyectos', 'clientes', 'materiales', 'depositos', 'remitos',
-    'equipos', 'herramientas', 'finanzas', 'reportes', 'facturas_cobrar', 'alertas',
+    'equipos', 'herramientas', 'finanzas', 'reportes', 'alertas',
     'jornadas_gestion', 'actividades_tipo'
   ],
   operario: [

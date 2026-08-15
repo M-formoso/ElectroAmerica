@@ -23,7 +23,6 @@ MODULOS_SISTEMA = [
     "herramientas",
     "finanzas",
     "reportes",
-    "facturas_cobrar",
     "usuarios",
     "alertas",
     "auditoria",

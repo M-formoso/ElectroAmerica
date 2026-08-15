@@ -96,7 +96,7 @@ const emptyFacturaForm: FacturaFormState = {
   observaciones: '',
 }
 
-export function FacturasACobrarPage() {
+export function FacturasEmpresaTab() {
   const [empresaSeleccionada, setEmpresaSeleccionada] = useState<EmpresaFacturasResumen | null>(null)
   const [busqueda, setBusqueda] = useState('')
 
@@ -365,9 +365,9 @@ export function FacturasACobrarPage() {
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Facturas a Cobrar</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Gestioná las empresas y sus facturas pendientes de cobro.
+            <h3 className="text-lg font-semibold">Facturas por empresa</h3>
+            <p className="text-sm text-muted-foreground">
+              Empresas con múltiples facturas por obra. Marcá el cobro y se registra en Finanzas.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -519,7 +519,7 @@ export function FacturasACobrarPage() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{empresaSeleccionada.nombre}</h1>
+              <h3 className="text-lg font-semibold">{empresaSeleccionada.nombre}</h3>
               <p className="text-sm text-muted-foreground mt-1">
                 {empresaSeleccionada.cuit && <span>CUIT: {empresaSeleccionada.cuit} · </span>}
                 {empresaSeleccionada.cantidad_facturas} factura(s) ·{' '}
