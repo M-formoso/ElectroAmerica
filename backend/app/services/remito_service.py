@@ -21,13 +21,20 @@ def _get_or_create_deposito_material(
     db: Session, deposito_id: UUID, material_id: UUID
 ) -> DepositoMaterial:
     """Devuelve el DepositoMaterial. Si no existe lo crea con stock 0
-    (para permitir descontar y dejarlo en negativo cuando hace falta)."""
+    (para permitir descontar y dejarlo en negativo cuando hace falta).
+
+    La busqueda ignora el flag `activo` porque la restriccion unica
+    uq_deposito_material es sobre (deposito_id, material_id) sin importar
+    ese flag. Si la fila existe pero esta inactiva, la reactivamos.
+    """
     dm = db.query(DepositoMaterial).filter(
         DepositoMaterial.deposito_id == deposito_id,
         DepositoMaterial.material_id == material_id,
-        DepositoMaterial.activo == True,
     ).first()
     if dm:
+        if not dm.activo:
+            dm.activo = True
+            db.flush()
         return dm
     dm = DepositoMaterial(
         deposito_id=deposito_id,
@@ -527,13 +534,14 @@ def _revertir_descuentos(db: Session, remito: Remito, usuario_id: Optional[UUID]
 
     if remito.descuentos:
         for desc in remito.descuentos:
+            # Sin filtro por `activo` para no chocar con uq_deposito_material
+            # si la fila existe pero fue desactivada (soft delete).
             dm = db.query(DepositoMaterial).filter(
                 DepositoMaterial.deposito_id == desc.deposito_id,
                 DepositoMaterial.material_id == desc.material_id,
-                DepositoMaterial.activo == True,
             ).first()
             if not dm:
-                # Si el DepositoMaterial fue borrado, lo recreamos en 0
+                # Si el DepositoMaterial nunca existio, lo creamos en 0
                 dm = DepositoMaterial(
                     deposito_id=desc.deposito_id,
                     material_id=desc.material_id,
@@ -541,6 +549,9 @@ def _revertir_descuentos(db: Session, remito: Remito, usuario_id: Optional[UUID]
                     stock_minimo=Decimal("0"),
                 )
                 db.add(dm)
+                db.flush()
+            elif not dm.activo:
+                dm.activo = True
                 db.flush()
             stock_anterior = dm.stock_actual
             if es_ingreso:

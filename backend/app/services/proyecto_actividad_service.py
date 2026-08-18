@@ -274,10 +274,12 @@ class ProyectoActividadService:
                 if not material:
                     continue
                 if deposito_id:
+                    # Sin filtro por `activo` para no chocar con
+                    # uq_deposito_material si la fila existe pero fue
+                    # desactivada (soft delete).
                     dm = self.db.query(DepositoMaterial).filter(
                         DepositoMaterial.deposito_id == deposito_id,
                         DepositoMaterial.material_id == material.id,
-                        DepositoMaterial.activo == True,
                     ).first()
                     if not dm:
                         # Crear el registro con stock 0 para poder
@@ -289,6 +291,9 @@ class ProyectoActividadService:
                             stock_minimo=Decimal("0"),
                         )
                         self.db.add(dm)
+                        self.db.flush()
+                    elif not dm.activo:
+                        dm.activo = True
                         self.db.flush()
                     stock_anterior = dm.stock_actual
                     dm.stock_actual = stock_anterior - consumo.cantidad
