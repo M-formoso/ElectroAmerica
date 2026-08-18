@@ -5,6 +5,7 @@ export const proyectosService = {
   // Proyectos
   async getProyectos(params?: {
     estado?: string
+    cliente_id?: string
     skip?: number
     limit?: number
   }): Promise<Proyecto[]> {

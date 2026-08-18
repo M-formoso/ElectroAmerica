@@ -139,9 +139,16 @@ export function FacturasEmpresaTab() {
     queryFn: () => facturasService.listarEmpresas(),
   })
 
+  // Obras de la empresa seleccionada. Sin empresa seleccionada, no cargamos
+  // nada (el select vive dentro de los modales que solo se abren con empresa).
   const { data: proyectos = [] } = useQuery({
-    queryKey: ['proyectos', 'para-facturas'],
-    queryFn: () => proyectosService.getProyectos({ limit: 500 }),
+    queryKey: ['proyectos', 'para-facturas', empresaSeleccionada?.id],
+    queryFn: () =>
+      proyectosService.getProyectos({
+        cliente_id: empresaSeleccionada!.id,
+        limit: 100,
+      }),
+    enabled: !!empresaSeleccionada,
   })
 
   const { data: facturasEmpresa = [], isLoading: cargandoFacturas } = useQuery({
@@ -1114,6 +1121,7 @@ export function FacturasEmpresaTab() {
   }
 
   function renderFormFactura(proyectos: Proyecto[]) {
+    const sinObras = proyectos.length === 0
     return (
       <>
         <div>
@@ -1121,9 +1129,10 @@ export function FacturasEmpresaTab() {
           <Select
             value={facturaForm.proyecto_id}
             onValueChange={(v) => setFacturaForm({ ...facturaForm, proyecto_id: v })}
+            disabled={sinObras}
           >
             <SelectTrigger id="proyecto">
-              <SelectValue placeholder="Seleccionar obra" />
+              <SelectValue placeholder={sinObras ? 'No hay obras para esta empresa' : 'Seleccionar obra'} />
             </SelectTrigger>
             <SelectContent>
               {proyectos.map((p) => (
@@ -1133,6 +1142,12 @@ export function FacturasEmpresaTab() {
               ))}
             </SelectContent>
           </Select>
+          {sinObras && (
+            <p className="text-xs text-amber-700 mt-1">
+              Esta empresa todavía no tiene obras cargadas. Creá primero la obra desde{' '}
+              <b>Producción &gt; Proyectos</b> asignándola a esta empresa como cliente.
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
