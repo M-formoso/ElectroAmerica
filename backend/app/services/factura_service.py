@@ -38,10 +38,17 @@ MESES_ES = [
 
 
 def _serializar_factura(f: Factura) -> dict:
+    # Si la factura no esta ligada a un proyecto formal, mostramos el
+    # obra_texto libre como "nombre de obra" para la UI.
+    if f.proyecto:
+        nombre_obra = f.proyecto.nombre
+    else:
+        nombre_obra = f.obra_texto
     return {
         "id": f.id,
         "cliente_id": f.cliente_id,
         "proyecto_id": f.proyecto_id,
+        "obra_texto": f.obra_texto,
         "descripcion": f.descripcion,
         "fecha_inscripcion": f.fecha_inscripcion,
         "monto": _to_float(f.monto),
@@ -53,7 +60,7 @@ def _serializar_factura(f: Factura) -> dict:
         "cliente_nombre": (
             f.cliente.nombre_fantasia or f.cliente.razon_social
         ) if f.cliente else None,
-        "proyecto_nombre": f.proyecto.nombre if f.proyecto else None,
+        "proyecto_nombre": nombre_obra,
     }
 
 
@@ -190,16 +197,18 @@ def obtener_factura(db: Session, factura_id: UUID) -> Optional[Factura]:
 
 
 def crear_factura(db: Session, data: FacturaCreate, creado_por_id: UUID) -> Factura:
-    # Validar cliente y proyecto existen
     cliente = db.query(Cliente).filter(
         Cliente.id == data.cliente_id, Cliente.activo == True
     ).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente/empresa no encontrado")
 
-    proyecto = db.query(Proyecto).filter(Proyecto.id == data.proyecto_id).first()
-    if not proyecto:
-        raise HTTPException(status_code=404, detail="Proyecto/obra no encontrado")
+    # Si se pasa proyecto_id, tiene que existir. Si no, obra_texto debe
+    # estar presente (validado en el schema).
+    if data.proyecto_id:
+        proyecto = db.query(Proyecto).filter(Proyecto.id == data.proyecto_id).first()
+        if not proyecto:
+            raise HTTPException(status_code=404, detail="Proyecto/obra no encontrado")
 
     factura = Factura(**data.model_dump(), creado_por_id=creado_por_id)
     db.add(factura)
@@ -270,7 +279,11 @@ def marcar_pagada(
 
     tipo_ingreso = _obtener_tipo_ingreso_cobro_obra(db)
 
-    concepto = f"Cobro factura - {factura.proyecto.nombre if factura.proyecto else 'Obra'}"
+    nombre_obra = (
+        factura.proyecto.nombre if factura.proyecto
+        else (factura.obra_texto or "Obra")
+    )
+    concepto = f"Cobro factura - {nombre_obra}"
     if factura.cliente:
         concepto += f" - {factura.cliente.nombre_fantasia or factura.cliente.razon_social}"
 

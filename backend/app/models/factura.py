@@ -23,7 +23,10 @@ class Factura(Base, BaseModel):
     __tablename__ = "facturas"
 
     cliente_id = Column(UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=False, index=True)
-    proyecto_id = Column(UUID(as_uuid=True), ForeignKey("proyectos.id"), nullable=False, index=True)
+    # proyecto_id es opcional: la factura puede referir a una obra externa
+    # (no gestionada como proyecto formal). En ese caso se usa obra_texto.
+    proyecto_id = Column(UUID(as_uuid=True), ForeignKey("proyectos.id"), nullable=True, index=True)
+    obra_texto = Column(String(200), nullable=True)
 
     descripcion = Column(Text, nullable=True)
     fecha_inscripcion = Column(Date, nullable=False, index=True)

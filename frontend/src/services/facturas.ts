@@ -7,7 +7,8 @@ export type EstadoFactura = 'pendiente' | 'pagada'
 export interface Factura {
   id: string
   cliente_id: string
-  proyecto_id: string
+  proyecto_id?: string | null
+  obra_texto?: string | null
   descripcion?: string | null
   fecha_inscripcion: string
   monto: number
@@ -22,7 +23,8 @@ export interface Factura {
 
 export interface FacturaCreate {
   cliente_id: string
-  proyecto_id: string
+  proyecto_id?: string | null
+  obra_texto?: string | null
   descripcion?: string
   fecha_inscripcion: string
   monto: number
@@ -31,7 +33,8 @@ export interface FacturaCreate {
 
 export interface FacturaUpdate {
   cliente_id?: string
-  proyecto_id?: string
+  proyecto_id?: string | null
+  obra_texto?: string | null
   descripcion?: string
   fecha_inscripcion?: string
   monto?: number

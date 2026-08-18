@@ -82,6 +82,7 @@ function hoyISO(): string {
 
 interface FacturaFormState {
   proyecto_id: string
+  obra_texto: string
   fecha_inscripcion: string
   monto: string
   descripcion: string
@@ -90,11 +91,14 @@ interface FacturaFormState {
 
 const emptyFacturaForm: FacturaFormState = {
   proyecto_id: '',
+  obra_texto: '',
   fecha_inscripcion: hoyISO(),
   monto: '',
   descripcion: '',
   observaciones: '',
 }
+
+const NO_PROYECTO_VALUE = '__sin_proyecto__'
 
 export function FacturasEmpresaTab() {
   const [empresaSeleccionada, setEmpresaSeleccionada] = useState<EmpresaFacturasResumen | null>(null)
@@ -309,7 +313,8 @@ export function FacturasEmpresaTab() {
   function abrirEditarFactura(f: Factura) {
     setEditarFactura(f)
     setFacturaForm({
-      proyecto_id: f.proyecto_id,
+      proyecto_id: f.proyecto_id || '',
+      obra_texto: f.obra_texto || '',
       fecha_inscripcion: f.fecha_inscripcion,
       monto: String(f.monto),
       descripcion: f.descripcion || '',
@@ -320,8 +325,13 @@ export function FacturasEmpresaTab() {
   function submitNuevaFactura(e: React.FormEvent) {
     e.preventDefault()
     if (!empresaSeleccionada) return
-    if (!facturaForm.proyecto_id) {
-      toast({ title: 'Falta la obra', description: 'Seleccioná una obra para la factura.', variant: 'destructive' })
+    const obraTexto = facturaForm.obra_texto.trim()
+    if (!facturaForm.proyecto_id && !obraTexto) {
+      toast({
+        title: 'Falta la obra',
+        description: 'Escribí el nombre de la obra o elegí una del listado.',
+        variant: 'destructive',
+      })
       return
     }
     const monto = parseFloat(facturaForm.monto)
@@ -331,7 +341,8 @@ export function FacturasEmpresaTab() {
     }
     crearFacturaMut.mutate({
       cliente_id: empresaSeleccionada.id,
-      proyecto_id: facturaForm.proyecto_id,
+      proyecto_id: facturaForm.proyecto_id || null,
+      obra_texto: obraTexto || null,
       fecha_inscripcion: facturaForm.fecha_inscripcion,
       monto,
       descripcion: facturaForm.descripcion || undefined,
@@ -342,6 +353,15 @@ export function FacturasEmpresaTab() {
   function submitEditarFactura(e: React.FormEvent) {
     e.preventDefault()
     if (!editarFactura) return
+    const obraTexto = facturaForm.obra_texto.trim()
+    if (!facturaForm.proyecto_id && !obraTexto) {
+      toast({
+        title: 'Falta la obra',
+        description: 'Escribí el nombre de la obra o elegí una del listado.',
+        variant: 'destructive',
+      })
+      return
+    }
     const monto = parseFloat(facturaForm.monto)
     if (!monto || monto <= 0) {
       toast({ title: 'Monto invalido', variant: 'destructive' })
@@ -350,7 +370,8 @@ export function FacturasEmpresaTab() {
     actualizarFacturaMut.mutate({
       id: editarFactura.id,
       payload: {
-        proyecto_id: facturaForm.proyecto_id,
+        proyecto_id: facturaForm.proyecto_id || null,
+        obra_texto: obraTexto || null,
         fecha_inscripcion: facturaForm.fecha_inscripcion,
         monto,
         descripcion: facturaForm.descripcion || null,
@@ -1121,34 +1142,59 @@ export function FacturasEmpresaTab() {
   }
 
   function renderFormFactura(proyectos: Proyecto[]) {
-    const sinObras = proyectos.length === 0
+    const hayProyectos = proyectos.length > 0
+    const proyectoSelectValue = facturaForm.proyecto_id || NO_PROYECTO_VALUE
     return (
       <>
         <div>
-          <Label htmlFor="proyecto">Obra *</Label>
-          <Select
-            value={facturaForm.proyecto_id}
-            onValueChange={(v) => setFacturaForm({ ...facturaForm, proyecto_id: v })}
-            disabled={sinObras}
-          >
-            <SelectTrigger id="proyecto">
-              <SelectValue placeholder={sinObras ? 'No hay obras para esta empresa' : 'Seleccionar obra'} />
-            </SelectTrigger>
-            <SelectContent>
-              {proyectos.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {sinObras && (
-            <p className="text-xs text-amber-700 mt-1">
-              Esta empresa todavía no tiene obras cargadas. Creá primero la obra desde{' '}
-              <b>Producción &gt; Proyectos</b> asignándola a esta empresa como cliente.
-            </p>
-          )}
+          <Label htmlFor="obra_texto">Obra *</Label>
+          <Input
+            id="obra_texto"
+            placeholder="Ej: Obra Centro, Reforma San Martin, etc."
+            value={facturaForm.obra_texto}
+            onChange={(e) => setFacturaForm({ ...facturaForm, obra_texto: e.target.value })}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Escribí el nombre de la obra tal cual va a figurar en la factura.
+          </p>
         </div>
+
+        {hayProyectos && (
+          <div>
+            <Label htmlFor="proyecto_vinculo">Vincular a proyecto del sistema (opcional)</Label>
+            <Select
+              value={proyectoSelectValue}
+              onValueChange={(v) => {
+                if (v === NO_PROYECTO_VALUE) {
+                  setFacturaForm({ ...facturaForm, proyecto_id: '' })
+                  return
+                }
+                const p = proyectos.find((x) => x.id === v)
+                setFacturaForm({
+                  ...facturaForm,
+                  proyecto_id: v,
+                  // Autocompletar el nombre si el campo esta vacio
+                  obra_texto: facturaForm.obra_texto || (p ? p.nombre : ''),
+                })
+              }}
+            >
+              <SelectTrigger id="proyecto_vinculo">
+                <SelectValue placeholder="No vincular a ningún proyecto" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_PROYECTO_VALUE}>— Sin vincular —</SelectItem>
+                {proyectos.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Si esta obra ya existe como proyecto en el sistema, vinculala para trazabilidad.
+            </p>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label htmlFor="fecha_inscripcion">Fecha inscripción *</Label>
