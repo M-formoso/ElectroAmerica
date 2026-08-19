@@ -351,9 +351,19 @@ def descargar_pdf_detalle_movimientos(
             detail="fecha_desde no puede ser mayor que fecha_hasta",
         )
 
-    subdep_objs = [s for s in deposito.subdepositos if s.activo]
-    # Grupo del deposito consultado: si es principal, incluye subdepositos;
-    # si es subdeposito, solo el.
+    # Grupo del deposito consultado: si es principal, incluye todos los
+    # subdepositos descendientes (incluso inactivos y anidados a mas de un
+    # nivel). Si no los incluyeramos, remitos historicos hacia subdeps
+    # dados de baja no aparecerian en el reporte y los totales darian
+    # menos de lo esperado.
+    def _todos_descendientes(dep):
+        resultado = []
+        for sub in dep.subdepositos:
+            resultado.append(sub)
+            resultado.extend(_todos_descendientes(sub))
+        return resultado
+
+    subdep_objs = _todos_descendientes(deposito)
     dep_ids = [deposito.id] + [s.id for s in subdep_objs]
 
     def _aplicar_rango(query):

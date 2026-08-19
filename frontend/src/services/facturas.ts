@@ -27,6 +27,7 @@ export interface FacturaCreate {
   obra_texto?: string | null
   descripcion?: string
   fecha_inscripcion: string
+  fecha_pago?: string | null
   monto: number
   observaciones?: string
 }
@@ -37,6 +38,7 @@ export interface FacturaUpdate {
   obra_texto?: string | null
   descripcion?: string
   fecha_inscripcion?: string
+  fecha_pago?: string | null
   monto?: number
   observaciones?: string
 }

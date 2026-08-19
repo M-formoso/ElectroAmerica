@@ -84,6 +84,7 @@ interface FacturaFormState {
   proyecto_id: string
   obra_texto: string
   fecha_inscripcion: string
+  fecha_pago: string
   monto: string
   descripcion: string
   observaciones: string
@@ -93,6 +94,7 @@ const emptyFacturaForm: FacturaFormState = {
   proyecto_id: '',
   obra_texto: '',
   fecha_inscripcion: hoyISO(),
+  fecha_pago: '',
   monto: '',
   descripcion: '',
   observaciones: '',
@@ -316,6 +318,7 @@ export function FacturasEmpresaTab() {
       proyecto_id: f.proyecto_id || '',
       obra_texto: f.obra_texto || '',
       fecha_inscripcion: f.fecha_inscripcion,
+      fecha_pago: f.fecha_pago ? f.fecha_pago.split('T')[0] : '',
       monto: String(f.monto),
       descripcion: f.descripcion || '',
       observaciones: f.observaciones || '',
@@ -344,6 +347,7 @@ export function FacturasEmpresaTab() {
       proyecto_id: facturaForm.proyecto_id || null,
       obra_texto: obraTexto || null,
       fecha_inscripcion: facturaForm.fecha_inscripcion,
+      fecha_pago: facturaForm.fecha_pago || null,
       monto,
       descripcion: facturaForm.descripcion || undefined,
       observaciones: facturaForm.observaciones || undefined,
@@ -373,6 +377,7 @@ export function FacturasEmpresaTab() {
         proyecto_id: facturaForm.proyecto_id || null,
         obra_texto: obraTexto || null,
         fecha_inscripcion: facturaForm.fecha_inscripcion,
+        fecha_pago: facturaForm.fecha_pago || null,
         monto,
         descripcion: facturaForm.descripcion || null,
         observaciones: facturaForm.observaciones || null,
@@ -1218,6 +1223,18 @@ export function FacturasEmpresaTab() {
               required
             />
           </div>
+        </div>
+        <div>
+          <Label htmlFor="fecha_pago">Fecha de pago (opcional)</Label>
+          <Input
+            id="fecha_pago"
+            type="date"
+            value={facturaForm.fecha_pago}
+            onChange={(e) => setFacturaForm({ ...facturaForm, fecha_pago: e.target.value })}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Si ya sabés cuándo se paga, cargala acá. La factura sigue pendiente hasta que la marques como pagada.
+          </p>
         </div>
         <div>
           <Label htmlFor="descripcion">Descripción</Label>

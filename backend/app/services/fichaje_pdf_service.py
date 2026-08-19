@@ -46,9 +46,15 @@ def _fmt_fecha(d) -> str:
 
 
 def _horas_str(h: Optional[Decimal]) -> str:
+    """Formatea horas decimales como 'HHh MMm' para evitar leer .66 como '66 minutos'."""
     if h is None:
         return "—"
-    return f"{h:.2f}h"
+    total_min = int(round(float(h) * 60))
+    horas = total_min // 60
+    minutos = total_min % 60
+    if minutos == 0:
+        return f"{horas}h"
+    return f"{horas}h {minutos:02d}m"
 
 
 def generar_pdf_fichajes(

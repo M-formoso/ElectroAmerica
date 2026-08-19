@@ -37,6 +37,16 @@ function fechaDeIso(iso: string) {
   return new Date(iso).toISOString().split('T')[0]
 }
 
+function formatHorasMinutos(horasDecimal: number | string | null | undefined) {
+  if (horasDecimal == null) return '—'
+  const n = Number(horasDecimal)
+  if (!isFinite(n)) return '—'
+  const totalMin = Math.round(n * 60)
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+  return m === 0 ? `${h}h` : `${h}h ${String(m).padStart(2, '0')}m`
+}
+
 function formatFechaCorta(iso: string) {
   // Backend devuelve fechas puras como "YYYY-MM-DD". new Date("YYYY-MM-DD")
   // se interpreta como UTC medianoche, y en zonas UTC- muestra el dia
@@ -306,7 +316,7 @@ export default function FichajesAdminPage() {
               <div className="flex items-center gap-3">
                 <Timer className="h-8 w-8 text-muted-foreground" />
                 <div>
-                  <p className="text-2xl font-bold">{Number(resumen.horas_totales).toFixed(1)}hs</p>
+                  <p className="text-2xl font-bold">{formatHorasMinutos(resumen.horas_totales)}</p>
                   <p className="text-xs text-muted-foreground">Horas totales</p>
                 </div>
               </div>
@@ -466,7 +476,7 @@ export default function FichajesAdminPage() {
                           {esInasistencia ? (
                             <span className="text-muted-foreground">—</span>
                           ) : f.horas_trabajadas != null ? (
-                            <span className="font-medium">{Number(f.horas_trabajadas).toFixed(2)}hs</span>
+                            <span className="font-medium">{formatHorasMinutos(f.horas_trabajadas)}</span>
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}

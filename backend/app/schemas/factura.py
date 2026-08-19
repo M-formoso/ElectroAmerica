@@ -14,6 +14,10 @@ class FacturaBase(BaseModel):
     obra_texto: Optional[str] = Field(None, max_length=200)
     descripcion: Optional[str] = None
     fecha_inscripcion: date
+    # Fecha de pago prevista/registrada al momento de cargar la factura.
+    # Si se completa, no cambia el estado (sigue pendiente) hasta que se
+    # marque como pagada; sirve como referencia para el listado.
+    fecha_pago: Optional[date] = None
     monto: float = Field(..., gt=0)
     observaciones: Optional[str] = None
 
@@ -38,6 +42,7 @@ class FacturaUpdate(BaseModel):
     obra_texto: Optional[str] = Field(None, max_length=200)
     descripcion: Optional[str] = None
     fecha_inscripcion: Optional[date] = None
+    fecha_pago: Optional[date] = None
     monto: Optional[float] = Field(None, gt=0)
     observaciones: Optional[str] = None
 
