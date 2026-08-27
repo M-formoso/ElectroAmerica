@@ -223,11 +223,11 @@ def create_transaccion(
     t = finanzas_service.create_transaccion(db, transaccion, current_user.id)
     return {
         "id": str(t.id),
-        "tipo": t.tipo.value,
+        "tipo": finanzas_service.enum_value(t.tipo),
         "concepto": t.concepto,
         "monto": float(t.monto),
         "fecha": t.fecha.isoformat(),
-        "estado": t.estado.value,
+        "estado": finanzas_service.enum_value(t.estado),
         "message": "Transaccion creada exitosamente"
     }
 
