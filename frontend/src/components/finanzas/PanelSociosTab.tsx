@@ -43,6 +43,7 @@ import * as finanzasService from '@/services/finanzas'
 import type {
   AporteSocio,
   RetiroSocio,
+  Socio,
   TipoIngresoConfig,
 } from '@/services/panelSocios'
 
@@ -114,6 +115,7 @@ export function PanelSociosTab() {
   const [aporteEdit, setAporteEdit] = useState<AporteSocio | null>(null)
   const [retiroEdit, setRetiroEdit] = useState<RetiroSocio | null>(null)
   const [tipoEdit, setTipoEdit] = useState<TipoIngresoConfig | null>(null)
+  const [socioEdit, setSocioEdit] = useState<Socio | null>(null)
   const [socioSeleccionado, setSocioSeleccionado] = useState<string | undefined>()
   const [descargandoPdf, setDescargandoPdf] = useState(false)
 
@@ -243,6 +245,27 @@ export function PanelSociosTab() {
       socioForm.reset()
     },
     onError: () => toast({ variant: 'destructive', title: 'Error al crear socio' }),
+  })
+
+  const updateSocioMutation = useMutation({
+    mutationFn: (payload: { id: string; data: panelSocios.SocioUpdate }) =>
+      panelSocios.updateSocio(payload.id, payload.data),
+    onSuccess: () => {
+      invalidar()
+      toast({ title: 'Socio actualizado' })
+      setSocioEdit(null)
+    },
+    onError: () => toast({ variant: 'destructive', title: 'Error al actualizar socio' }),
+  })
+
+  const deleteSocioMutation = useMutation({
+    mutationFn: panelSocios.deleteSocio,
+    onSuccess: () => {
+      invalidar()
+      toast({ title: 'Socio eliminado' })
+      setSocioEdit(null)
+    },
+    onError: () => toast({ variant: 'destructive', title: 'Error al eliminar socio' }),
   })
 
   // Mutations planillas
@@ -387,6 +410,11 @@ export function PanelSociosTab() {
     retirosFull?.forEach((r) => { m[r.id] = r })
     return m
   }, [retirosFull])
+  const sociosById = useMemo(() => {
+    const m: Record<string, Socio> = {}
+    socios?.forEach((s) => { m[s.id] = s })
+    return m
+  }, [socios])
 
   return (
     <div className="space-y-6">
@@ -749,6 +777,7 @@ export function PanelSociosTab() {
               ) : (
                 resumen!.socios.map((s) => {
                   const abierta = openSocio === s.socio_id
+                  const socioCompleto = sociosById[s.socio_id]
                   return (
                     <div key={s.socio_id} className="rounded border">
                       <button
@@ -760,7 +789,23 @@ export function PanelSociosTab() {
                           <div className="flex items-center gap-3">
                             {abierta ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             <div className="text-left">
-                              <p className="font-semibold">{s.nombre}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="font-semibold">{s.nombre}</p>
+                                {isAdmin && socioCompleto && (
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-6 w-6"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setSocioEdit(socioCompleto)
+                                    }}
+                                    title="Editar socio"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
                               <Badge variant="outline" className="mt-1">
                                 {s.porcentaje_participacion}% de participacion
                               </Badge>
@@ -1129,6 +1174,32 @@ export function PanelSociosTab() {
         </DialogContent>
       </Dialog>
 
+      {/* Dialog: Socio (editar) */}
+      <Dialog open={!!socioEdit} onOpenChange={(o) => !o && setSocioEdit(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar socio</DialogTitle>
+            <DialogDescription>
+              Podés cambiar el nombre y datos del socio.
+            </DialogDescription>
+          </DialogHeader>
+          {socioEdit && (
+            <SocioEditForm
+              initial={socioEdit}
+              loading={updateSocioMutation.isPending}
+              deleting={deleteSocioMutation.isPending}
+              onCancel={() => setSocioEdit(null)}
+              onDelete={() => {
+                if (confirm(`Eliminar socio "${socioEdit.nombre} ${socioEdit.apellido || ''}"?`)) {
+                  deleteSocioMutation.mutate(socioEdit.id)
+                }
+              }}
+              onSubmit={(data) => updateSocioMutation.mutate({ id: socioEdit.id, data })}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Dialog: Gestion de planillas de ingreso */}
       <Dialog open={isPlanillasOpen} onOpenChange={setIsPlanillasOpen}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -1319,6 +1390,96 @@ function EditForm({ tipo, initial, cuentas, loading, onCancel, onSubmit }: EditF
         <Button type="submit" disabled={loading}>
           Guardar cambios
         </Button>
+      </DialogFooter>
+    </form>
+  )
+}
+
+
+// ============ SocioEditForm ============
+
+interface SocioEditFormProps {
+  initial: Socio
+  loading: boolean
+  deleting: boolean
+  onCancel: () => void
+  onDelete: () => void
+  onSubmit: (data: panelSocios.SocioUpdate) => void
+}
+
+function SocioEditForm({ initial, loading, deleting, onCancel, onDelete, onSubmit }: SocioEditFormProps) {
+  const [nombre, setNombre] = useState<string>(initial.nombre)
+  const [apellido, setApellido] = useState<string>(initial.apellido || '')
+  const [porcentaje, setPorcentaje] = useState<number>(initial.porcentaje_participacion)
+  const [email, setEmail] = useState<string>(initial.email || '')
+  const [telefono, setTelefono] = useState<string>(initial.telefono || '')
+  const [notas, setNotas] = useState<string>(initial.notas || '')
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (!nombre.trim()) return
+        onSubmit({
+          nombre: nombre.trim(),
+          apellido: apellido.trim() || undefined,
+          porcentaje_participacion: porcentaje,
+          email: email.trim() || undefined,
+          telefono: telefono.trim() || undefined,
+          notas: notas.trim() || undefined,
+        })
+      }}
+      className="space-y-4"
+    >
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label>Nombre *</Label>
+          <Input value={nombre} onChange={(e) => setNombre(e.target.value)} autoFocus />
+        </div>
+        <div className="space-y-2">
+          <Label>Apellido</Label>
+          <Input value={apellido} onChange={(e) => setApellido(e.target.value)} />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label>Porcentaje de participacion (%)</Label>
+        <Input
+          type="number"
+          step="0.01"
+          value={porcentaje}
+          onChange={(e) => setPorcentaje(Number(e.target.value))}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label>Email</Label>
+        <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      </div>
+      <div className="space-y-2">
+        <Label>Telefono</Label>
+        <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} />
+      </div>
+      <div className="space-y-2">
+        <Label>Notas</Label>
+        <Textarea value={notas} onChange={(e) => setNotas(e.target.value)} rows={2} />
+      </div>
+      <DialogFooter className="sm:justify-between">
+        <Button
+          type="button"
+          variant="ghost"
+          className="text-destructive hover:text-destructive"
+          onClick={onDelete}
+          disabled={deleting}
+        >
+          <Trash2 className="h-4 w-4 mr-1" /> Eliminar
+        </Button>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={loading || !nombre.trim()}>
+            Guardar cambios
+          </Button>
+        </div>
       </DialogFooter>
     </form>
   )
